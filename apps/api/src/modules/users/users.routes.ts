@@ -7,6 +7,29 @@ import { UsersService } from './users.service.js'
 export const usersRoutes: FastifyPluginAsync = async (app) => {
 	const controller = new UsersController(new UsersService(new UsersRepository(app.db)))
 
+	app.post(
+		'/',
+		{
+			schema: {
+				tags: ['Users'],
+				summary: 'Create a new user',
+				body: {
+					type: 'object',
+					required: ['name', 'email'],
+					properties: {
+						name: { type: 'string' },
+						email: { type: 'string' },
+					},
+				},
+				response: {
+					201: UserResponseSchema,
+					400: ErrorResponseSchema,
+				},
+			},
+		},
+		controller.createUser,
+	)
+
 	app.get(
 		'/:id',
 		{

@@ -12,6 +12,7 @@
 		"test:watch": "vitest",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
+		"db:pull": "drizzle-kit pull",
 		"lint": "eslint .",
 		"format": "prettier --write ."
 	},

@@ -3,6 +3,10 @@ import type { UsersRepository } from './users.repository.js'
 
 export class UsersService {
 	constructor(private readonly usersRepository: UsersRepository) {}
+	async createUser(data: { name: string; email: string }) {
+		const user = await this.usersRepository.create(data)
+		return user
+	}
 
 	async getUserById(id: string) {
 		const user = await this.usersRepository.findById(id)
