@@ -3,11 +3,15 @@ import type { FastifyPluginAsync } from 'fastify'
 import fp from 'fastify-plugin'
 import pg from 'pg'
 import { env } from '../config/env.js'
-import * as schema from '../db/schema.js'
+import * as appSchema from '../db/schema.js'
+import * as authSchema from '../db/auth-schema.js'
+
+export const schema = { ...appSchema, ...authSchema }
+export type Database = NodePgDatabase<typeof schema>
 
 declare module 'fastify' {
 	interface FastifyInstance {
-		db: NodePgDatabase<typeof schema>
+		db: Database
 		pgPool: pg.Pool
 	}
 }

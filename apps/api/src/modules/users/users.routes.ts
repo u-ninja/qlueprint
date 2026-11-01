@@ -7,27 +7,23 @@ import { UsersService } from './users.service.js'
 export const usersRoutes: FastifyPluginAsync = async (app) => {
 	const controller = new UsersController(new UsersService(new UsersRepository(app.db)))
 
-	app.post(
-		'/',
+	// Users are created by Neon Auth sign-up, so every route here needs a session
+	app.addHook('preHandler', app.requireAuth)
+
+	app.get(
+		'/me',
 		{
 			schema: {
 				tags: ['Users'],
-				summary: 'Create a new user',
-				body: {
-					type: 'object',
-					required: ['name', 'email'],
-					properties: {
-						name: { type: 'string' },
-						email: { type: 'string' },
-					},
-				},
+				summary: 'Get the signed-in user',
 				response: {
-					201: UserResponseSchema,
-					400: ErrorResponseSchema,
+					200: UserResponseSchema,
+					401: ErrorResponseSchema,
+					404: ErrorResponseSchema,
 				},
 			},
 		},
-		controller.createUser,
+		controller.getMe,
 	)
 
 	app.get(
@@ -39,6 +35,7 @@ export const usersRoutes: FastifyPluginAsync = async (app) => {
 				params: UserIdParamsSchema,
 				response: {
 					200: UserResponseSchema,
+					401: ErrorResponseSchema,
 					404: ErrorResponseSchema,
 				},
 			},

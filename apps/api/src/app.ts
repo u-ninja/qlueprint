@@ -3,6 +3,7 @@ import { AppError } from './common/errors/app-error.js'
 import { v1Routes } from './routes/v1.js'
 import { registerDatabase } from './plugins/database.js'
 import { registerSecurity } from './plugins/security.js'
+import { registerAuth } from './plugins/auth.js'
 
 export async function buildServer() {
 	const app = Fastify({
@@ -26,6 +27,7 @@ export async function buildServer() {
 
 	await registerSecurity(app)
 	await app.register(registerDatabase)
+	await app.register(registerAuth)
 
 	app.get('/health/live', async () => {
 		return { status: 'ok' }
