@@ -64,40 +64,53 @@ The architecture has three distinct areas.
 - Zustand for appropriate client state
 - Monaco Editor for SQL editing
 - TanStack Table or an equivalent virtualized grid
-- Zod for runtime validation
+- Zod for validating data the UI receives from outside the app (for example the cloud API)
 
 Responsibilities:
 
 - Render the application UI.
 - Manage local workspace and user preferences.
-- Communicate with the local API.
-- Invoke approved native Tauri capabilities.
+- Call the local backend through Tauri commands and listen to its events.
 - Display database connections, query results, and local server lifecycle.
 - Authenticate to the optional cloud service when the user chooses to sign in.
 
-### 2.2 Local API
+### 2.2 Local backend (Rust, inside the Tauri app)
 
-- Node.js LTS
-- Fastify
-- TypeScript
-- Zod and Fastify Zod type provider
+All local work runs in the Rust side of the Tauri app (`apps/desktop/src-tauri`). There is no separate local HTTP server.
+
+- Rust, async on Tokio (Tauri's runtime)
+- Tauri commands for request/response calls and Tauri events for progress streams
+- Database drivers: `sqlx` (PostgreSQL, MySQL, SQLite) and `tiberius` (SQL Server), with `tokio-postgres` or `rusqlite` where a feature such as query cancellation needs them
+- OS keychain access through the `keyring` crate
 - Structured logging with secret redaction
 
-The local API runs on the user's device and handles:
+The local backend handles:
 
 - Database driver operations.
 - Connection lifecycle.
 - Schema discovery.
 - Query execution and cancellation.
 - Local database server provisioning orchestration.
-- Local metadata and query history where appropriate.
-- Secure communication with the desktop frontend.
+- Local metadata and query history.
+- Credential storage in the OS keychain.
 
-The local API is not a public service. Bind to loopback by default and authenticate desktop-to-API requests. That authentication is a local, per-install secret between the desktop app and its own API; it is not a user account and never requires sign-in.
+Why Rust instead of a Node.js local API:
+
+- **Nothing extra to ship or run.** No Node runtime bundled as a sidecar, no second process to start, monitor, and stop.
+- **No local port.** The frontend reaches the backend only through Tauri's IPC, so there is no loopback server that other programs on the machine could call, and no per-install token to manage.
+- **Permissions are explicit.** Every command must be allowed in a Tauri capability file (`src-tauri/capabilities/`); anything not listed is rejected.
+
+Rules for the local backend:
+
+- Expose narrow, validated commands. Never a "run this shell command" command.
+- Validate every command argument in Rust, even though it comes from our own UI.
+- Return typed errors with a stable code and a safe message; never include credentials or raw connection strings.
 
 ### 2.3 Optional cloud backend
 
-- Node.js + Fastify
+`apps/api`, a separate service that the desktop app only calls when the user signs in.
+
+- Node.js + Fastify (existing code: plugins, error handling, module pattern, TypeBox route schemas)
 - PostgreSQL as the primary persistent application database
 - WebSockets for real-time communication
 - Yjs or another suitable CRDT for collaborative documents
@@ -117,13 +130,13 @@ The cloud backend must not be required for ordinary local database management.
 
 ### 2.4 Data and trust boundaries
 
-The local database server, the local API, and the cloud service are separate trust domains.
+The local database server, the desktop app (UI and Rust backend), and the cloud service are separate trust domains.
 
 - Database credentials remain local by default.
 - Database connections are created from the user's device.
 - Sharing a query document does not share database credentials.
 - Cloud collaboration must not transmit query results or database contents unless a distinct, explicit feature requires it and the user approves.
-- The local API must not become a general-purpose remote execution service.
+- The local backend must not become a general-purpose execution service: no network listener, and no command that runs arbitrary programs.
 - Cloud APIs must never be able to issue arbitrary commands on the user's machine.
 
 ### 2.5 Accounts and sign-in
@@ -687,64 +700,61 @@ Each managed instance has a predictable, documented data directory.
 
 ### 6.9 Local provisioning architecture
 
-Add a dedicated module to the local API:
+Add a dedicated module to the Rust backend:
 
 ```text
-apps/local-api/src/modules/local-servers/
-├── local-server.routes.ts
-├── local-server.schemas.ts
-├── local-server.controller.ts
-├── local-server.service.ts
-├── local-server.repository.ts
+apps/desktop/src-tauri/src/local_servers/
+├── mod.rs            # module wiring
+├── commands.rs       # Tauri commands (the only entry points from the UI)
+├── service.rs        # orchestration: plan, provision, lifecycle
+├── store.rs          # instance metadata persistence
+├── types.rs          # instances, plans, tasks, progress events, errors
 ├── providers/
-│   ├── local-runtime-provider.ts
-│   ├── container-runtime.provider.ts
-│   ├── native-runtime.provider.ts
-│   └── sqlite.provider.ts
-├── adapters/
-│   ├── postgres.provisioner.ts
-│   ├── mysql.provisioner.ts
-│   ├── sqlserver.provisioner.ts
-│   └── sqlite.provisioner.ts
-├── processes/
-│   ├── process-runner.ts
-│   └── health-checker.ts
-└── types/
-    ├── local-server.types.ts
-    └── provisioning.types.ts
+│   ├── mod.rs        # LocalRuntimeProvider trait
+│   ├── container.rs
+│   ├── native.rs
+│   └── sqlite.rs
+├── engines/
+│   ├── postgres.rs
+│   ├── mysql.rs
+│   ├── sqlserver.rs
+│   └── sqlite.rs
+└── process/
+    ├── runner.rs     # spawns processes with argument arrays, never a shell string
+    └── health.rs
 ```
 
-Adapt this structure as needed. Avoid creating unused providers or speculative abstractions.
+Adapt this structure as needed. Avoid creating unused providers or speculative abstractions; add a provider or engine file only when it is implemented.
 
-Define typed interfaces for runtime detection, engine/version catalog, provisioning plan, provisioning task and progress event, instance metadata, instance lifecycle operations, health checks, backup and restore, and cleanup and rollback.
+Define Rust types for runtime detection, engine/version catalog, provisioning plan, provisioning task and progress event, instance metadata, instance lifecycle operations, health checks, backup and restore, and cleanup and rollback. Derive `serde` serialization for every type that crosses to the UI.
 
-The desktop UI must not directly execute arbitrary shell commands. The local API/native layer exposes narrow, validated operations.
+The desktop UI must not directly execute arbitrary shell commands. The Rust backend exposes narrow, validated commands.
 
-Use a durable local metadata store for managed instance records. SQLite is a suitable choice for QueryCraft's own local metadata; it is separate from user-managed database instances. Do not introduce PostgreSQL merely to manage local server metadata.
+Use a durable local metadata store for managed instance records. SQLite in the app's data directory is a suitable choice for QueryCraft's own local metadata; it is separate from user-managed database instances. Do not introduce PostgreSQL merely to manage local server metadata.
 
-### 6.10 Suggested API endpoints
+### 6.10 Suggested Tauri commands and events
 
-Use versioned endpoints and Zod request/response contracts:
+Each command is allowed explicitly in a capability file and takes typed, validated arguments:
 
 ```text
-GET    /v1/local-servers
-GET    /v1/local-servers/catalog
-GET    /v1/local-servers/prerequisites
-POST   /v1/local-servers/plan
-POST   /v1/local-servers
-GET    /v1/local-servers/:instanceId
-POST   /v1/local-servers/:instanceId/start
-POST   /v1/local-servers/:instanceId/stop
-POST   /v1/local-servers/:instanceId/restart
-GET    /v1/local-servers/:instanceId/health
-GET    /v1/local-servers/:instanceId/logs
-POST   /v1/local-servers/:instanceId/backup
-POST   /v1/local-servers/:instanceId/restore
-DELETE /v1/local-servers/:instanceId
-DELETE /v1/local-servers/:instanceId/data   # separate explicit confirmation contract
+local_servers_list
+local_servers_catalog
+local_servers_prerequisites
+local_servers_plan            { engine, version, name, port, data_dir, ... }
+local_servers_create          { plan_id }
+local_servers_get             { instance_id }
+local_servers_start           { instance_id }
+local_servers_stop            { instance_id }
+local_servers_restart         { instance_id }
+local_servers_health          { instance_id }
+local_servers_logs            { instance_id }
+local_servers_backup          { instance_id, target }
+local_servers_restore         { instance_id, source }
+local_servers_remove          { instance_id }
+local_servers_delete_data     { instance_id, confirm_name }   # separate explicit confirmation
 ```
 
-Use WebSocket or a suitable event stream for provisioning progress. Progress events are typed, scoped to the requesting desktop session, and never expose secrets.
+Provisioning progress is sent as Tauri events (for example `local-servers://progress`). Progress events are typed, carry the task ID they belong to, and never expose secrets.
 
 ## 7. Collaboration and cloud workspaces
 
@@ -809,22 +819,31 @@ Do not load unbounded result sets into frontend memory. Use pagination, streamin
 
 Type safety is an architectural requirement.
 
-- Strict TypeScript across packages.
+**TypeScript (UI and cloud API)**
+
+- Strict TypeScript.
 - No explicit `any` in application code.
 - Use `unknown` at untrusted boundaries and validate it.
-- Zod schemas for API inputs, outputs, environment variables, and persisted metadata where appropriate.
-- Infer types from schemas rather than duplicating definitions.
+- Validate data from outside the app, such as cloud API responses. The cloud API keeps its existing TypeBox route schemas and Zod environment validation.
 - Avoid unsafe assertions and non-null assertions unless justified and localized.
-- Use typed error codes and normalized errors.
-- Validate environment variables at startup.
-- Centralize environment access.
-- Type database adapters and process execution results.
-- Type all cross-boundary events.
-- Keep shared contracts in a dedicated package.
+- Validate environment variables at startup and centralize environment access.
 - Add lint rules for unsafe TypeScript patterns.
-- Run typecheck, lint, tests, and build in CI.
 
-No feature is complete merely because TypeScript compiles. Runtime boundaries must be validated.
+**Rust (local backend)**
+
+- No `unwrap()` or `expect()` on data that can fail at runtime; return typed errors.
+- One error type per module with a stable error code the UI can switch on, serialized with `serde`.
+- Validate every command argument; treat command input as untrusted.
+- Type database adapters and process execution results.
+- Run `cargo clippy` and `cargo fmt --check`.
+
+**The UI ↔ Rust boundary**
+
+- Every Tauri command's arguments, result, and error, and every event payload, has a Rust type and a matching TypeScript type.
+- Generate the TypeScript types from the Rust types (for example with a crate such as `specta` or `ts-rs`) rather than writing them twice by hand.
+- Call commands through one typed wrapper in the UI, not with raw `invoke` strings scattered across components.
+
+Run typecheck, lint, tests, and build for both languages in CI. No feature is complete merely because it compiles. Runtime boundaries must be validated.
 
 ## 10. Performance requirements
 
@@ -867,7 +886,9 @@ Advanced users can reach detailed connection, driver, query, and server settings
 
 **Unit tests:** environment validation, schema validation, local server provisioning plans, port conflict logic, process argument construction, error normalization, adapter capability behavior, lifecycle state transitions.
 
-**API tests:** authentication, invalid request handling, response contracts, provisioning task lifecycle, cancellation, unauthorized local API access, error redaction.
+**Command tests (Rust):** invalid argument handling, result and error types, provisioning task lifecycle, cancellation, commands rejected when not allowed by a capability, error redaction.
+
+**Cloud API tests:** authentication, invalid request handling, response contracts, error redaction.
 
 **Integration tests:** each supported database adapter, connection lifecycle, query execution, query cancellation where supported, provisioning and health checks, backup and restore, cleanup and failure recovery.
 
@@ -892,7 +913,6 @@ Windows is the first release target, but avoid Windows-specific assumptions in s
 Plan for:
 
 - Tauri production packaging.
-- Local API sidecar bundling and lifecycle.
 - Runtime detection.
 - Secure process startup and shutdown.
 - Port conflict handling.
@@ -904,7 +924,7 @@ Plan for:
 
 Later support macOS and Linux with platform-specific runtime providers.
 
-Do not assume a Node.js sidecar is automatically bundled by Tauri; verify the exact Tauri version's sidecar and packaging requirements. Do not assume Docker Desktop is installed. Do not install system-level runtimes without explicit user consent.
+The local backend is compiled into the Tauri app, so there is no separate runtime to bundle. Do not assume Docker Desktop is installed. Do not install system-level runtimes without explicit user consent.
 
 ## 14. Repository structure
 
@@ -916,34 +936,24 @@ Suggested target:
 querycraft/
 ├── apps/
 │   ├── desktop/
-│   │   ├── src/
+│   │   ├── src/                   # React UI
 │   │   └── src-tauri/
-│   ├── local-api/
-│   │   ├── src/
-│   │   │   ├── config/
-│   │   │   ├── modules/
-│   │   │   ├── plugins/
-│   │   │   └── lib/
-│   │   └── tests/
-│   └── cloud-api/                 # Future
-├── packages/
-│   ├── contracts/
-│   ├── database-core/
-│   ├── design-system/
-│   ├── config/
-│   └── local-runtime/             # If shared provisioning code warrants it
+│   │       ├── src/
+│   │       │   ├── connections/   # connection lifecycle, keychain
+│   │       │   ├── databases/     # adapters: discovery, query execution
+│   │       │   └── local_servers/ # provisioning (§6.9)
+│   │       └── capabilities/      # which commands the UI may call
+│   └── api/                       # Cloud API (Fastify): accounts, collaboration
 ├── docs/
 │   ├── architecture.md
 │   ├── design-system.md
 │   ├── security.md
 │   ├── local-server-provisioning.md
 │   └── development.md
-├── package.json
-├── pnpm-workspace.yaml
 └── README.md
 ```
 
-Do not create packages simply because they appear in this diagram. Each package must have a clear ownership boundary and actual consumers.
+Do not create folders or modules simply because they appear in this diagram. Each one must have a clear ownership boundary and actual consumers.
 
 ## 15. Delivery roadmap
 
@@ -951,8 +961,8 @@ Do not create packages simply because they appear in this diagram. Each package 
 
 - Audit repository and toolchain.
 - Confirm Tauri, Rust, Node.js, pnpm, React, Fastify, TypeScript, and Zod versions.
-- Establish workspace and strict TypeScript configuration.
-- Implement Fastify app, validated environment, health endpoint, and authenticated test endpoint.
+- Establish strict TypeScript and Rust lint configuration.
+- Cloud API: Fastify app, validated environment, health endpoint, and authenticated test endpoint (done).
 - Establish initial desktop shell that opens signed out.
 - Add lint, test, and build scripts.
 
@@ -964,13 +974,13 @@ Do not create packages simply because they appear in this diagram. Each package 
 - Establish layout resizing and keyboard navigation.
 - Add visual regression coverage for both themes.
 
-**Phase 3 — Contracts and database foundation**
+**Phase 3 — Local backend and database foundation**
 
-- Create shared API contracts.
+- Set up typed Tauri commands and generated TypeScript types.
 - Create database adapter interface.
 - Implement one database adapter end-to-end.
 - Implement connection management and schema discovery.
-- Add typed query execution and result contracts.
+- Add typed query execution and result types.
 
 **Phase 4 — SQL workspace**
 
@@ -1055,7 +1065,8 @@ Before changing code:
 During implementation:
 
 - Work in small, reviewable phases.
-- Do not rebuild working code unnecessarily.
+- **Reuse before you build.** This applies everywhere: UI, features, API, security, config, and tooling. Before writing anything, find the existing function, component, plugin, or pattern that already does part of the job and extend it. If a small change to an existing function lets it serve the new need, add that logic to the existing function instead of writing a parallel one. Prefer extending over migrating to a different library. Only build something new when reuse is genuinely impossible, and say why first.
+- Do not rebuild working code.
 - Do not introduce speculative infrastructure.
 - Do not add cloud dependencies to local-only workflows.
 - Do not put a sign-in requirement in front of any local feature.

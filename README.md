@@ -34,7 +34,8 @@ Early development. Nothing here is ready for real use yet.
 | Area | State |
 | --- | --- |
 | Desktop shell (Tauri 2 + React) | Scaffolded |
-| API (Fastify + Drizzle + PostgreSQL) | Scaffolded, with a users module |
+| Local backend (Rust, inside the Tauri app) | Not started |
+| Cloud API (Fastify + Drizzle + PostgreSQL) | Scaffolded, with a users module |
 | Cloud sign-in (Neon Auth: Google + email/password) | Working prototype |
 | Database connections, SQL editor, results grid | Not started |
 | Local server provisioning | Not started |
@@ -46,8 +47,9 @@ Windows is the first release target; the code is kept cross-platform and is curr
 
 | Layer | Technology |
 | --- | --- |
-| Desktop | [Tauri 2](https://tauri.app), React 19, TypeScript, Vite |
-| API | Node.js, [Fastify 5](https://fastify.dev), [Drizzle ORM](https://orm.drizzle.team), Zod |
+| Desktop UI | [Tauri 2](https://tauri.app), React 19, TypeScript, Vite |
+| Local backend | Rust inside the Tauri app: database drivers, OS keychain, local server management. No separate local server or open port. |
+| Cloud API | Node.js, [Fastify 5](https://fastify.dev), [Drizzle ORM](https://orm.drizzle.team). Only used for optional sign-in and collaboration. |
 | Cloud database & auth | PostgreSQL on [Neon](https://neon.com), Neon Auth |
 | Package manager | pnpm |
 
@@ -58,8 +60,8 @@ Planned additions such as Monaco Editor, Tailwind CSS, and shadcn/ui are listed 
 ```text
 querycraft/
 ├── apps/
-│   ├── api/          # Fastify API (TypeScript, Drizzle migrations in drizzle/)
-│   └── desktop/      # Tauri 2 app: React frontend in src/, Rust shell in src-tauri/
+│   ├── api/          # Cloud API (Fastify, Drizzle migrations in drizzle/): sign-in, collaboration
+│   └── desktop/      # Tauri 2 app: React UI in src/, Rust local backend in src-tauri/
 └── docs/
     └── product-spec.md
 ```
@@ -73,7 +75,9 @@ querycraft/
 - [Rust](https://www.rust-lang.org/tools/install) and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your OS
 - A PostgreSQL database with Neon Auth enabled (only needed for the cloud API and sign-in)
 
-### API
+### Cloud API (optional)
+
+Only needed for sign-in. The desktop app is meant to work without it.
 
 ```sh
 cd apps/api
@@ -119,6 +123,8 @@ pnpm tauri dev
 ## Documentation
 
 - [Product, UX, design system & local provisioning spec](docs/product-spec.md)
+- [Interactive design prototype](docs/design/README.md)
+- [Tech stack](docs/tech-stack.md)
 
 ## License
 

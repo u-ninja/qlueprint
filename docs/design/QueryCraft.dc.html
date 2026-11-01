@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+:root,[data-theme=dark]{color-scheme:dark;--bg:oklch(0.17 0.006 265);--chrome:oklch(0.185 0.006 265);--panel:oklch(0.185 0.006 265);--editor-bg:oklch(0.205 0.006 265);--surface:oklch(0.205 0.006 265);--elev:oklch(0.235 0.007 265);--muted:oklch(0.255 0.008 265);--hover:oklch(1 0 0 / 0.045);--border:oklch(0.32 0.008 265);--border-soft:oklch(0.26 0.007 265);--fg:oklch(0.95 0.003 265);--fg2:oklch(0.77 0.008 265);--fg3:oklch(0.62 0.01 265);--fg4:oklch(0.46 0.01 265);--primary:oklch(0.62 0.17 258);--primary-hover:oklch(0.67 0.16 258);--primary-fg:oklch(0.99 0 0);--primary-soft:oklch(0.64 0.17 258 / 0.16);--primary-text:oklch(0.77 0.12 258);--success:oklch(0.74 0.15 155);--success-soft:oklch(0.74 0.15 155 / 0.14);--warning:oklch(0.8 0.14 80);--warning-soft:oklch(0.8 0.14 80 / 0.14);--danger:oklch(0.7 0.17 25);--danger-soft:oklch(0.68 0.18 25 / 0.15);--info:oklch(0.76 0.11 230);--info-soft:oklch(0.74 0.11 230 / 0.14);--focus:oklch(0.64 0.17 258 / 0.45);--line-hl:oklch(1 0 0 / 0.035);--sel:oklch(0.64 0.17 258 / 0.2);--scrim:oklch(0.1 0.005 265 / 0.55);--shadow:0 18px 48px -12px oklch(0 0 0 / 0.6),0 0 0 1px oklch(0.32 0.008 265);--header-bg:oklch(0.22 0.007 265);--syn-kw:oklch(0.75 0.13 260);--syn-fn:oklch(0.79 0.11 300);--syn-str:oklch(0.8 0.12 150);--syn-num:oklch(0.82 0.12 65);--syn-com:oklch(0.58 0.012 265);--syn-tbl:oklch(0.83 0.09 200);--tl-r:oklch(0.66 0.19 28);--tl-y:oklch(0.8 0.15 85);--tl-g:oklch(0.72 0.17 145)}
+[data-theme=light]{color-scheme:light;--bg:oklch(0.972 0.002 265);--chrome:oklch(0.985 0.002 265);--panel:oklch(0.985 0.002 265);--editor-bg:oklch(1 0 0);--surface:oklch(1 0 0);--elev:oklch(1 0 0);--muted:oklch(0.948 0.004 265);--hover:oklch(0.2 0.01 265 / 0.045);--border:oklch(0.88 0.005 265);--border-soft:oklch(0.925 0.004 265);--fg:oklch(0.23 0.01 265);--fg2:oklch(0.42 0.012 265);--fg3:oklch(0.54 0.012 265);--fg4:oklch(0.7 0.008 265);--primary:oklch(0.54 0.2 260);--primary-hover:oklch(0.49 0.2 260);--primary-fg:oklch(0.99 0 0);--primary-soft:oklch(0.55 0.2 260 / 0.1);--primary-text:oklch(0.5 0.19 260);--success:oklch(0.55 0.14 155);--success-soft:oklch(0.55 0.14 155 / 0.12);--warning:oklch(0.6 0.14 65);--warning-soft:oklch(0.7 0.14 75 / 0.16);--danger:oklch(0.55 0.2 25);--danger-soft:oklch(0.56 0.2 25 / 0.1);--info:oklch(0.52 0.12 230);--info-soft:oklch(0.55 0.12 230 / 0.1);--focus:oklch(0.55 0.2 260 / 0.35);--line-hl:oklch(0.55 0.2 260 / 0.045);--sel:oklch(0.55 0.2 260 / 0.12);--scrim:oklch(0.3 0.01 265 / 0.22);--shadow:0 18px 44px -14px oklch(0.2 0.02 265 / 0.25),0 0 0 1px oklch(0.88 0.005 265);--header-bg:oklch(0.968 0.003 265);--syn-kw:oklch(0.5 0.19 260);--syn-fn:oklch(0.5 0.16 310);--syn-str:oklch(0.5 0.13 150);--syn-num:oklch(0.55 0.14 50);--syn-com:oklch(0.6 0.01 265);--syn-tbl:oklch(0.48 0.1 200);--tl-r:oklch(0.68 0.19 28);--tl-y:oklch(0.82 0.15 85);--tl-g:oklch(0.72 0.17 145)}
+html,body{margin:0;height:100%;background:var(--bg);overflow:hidden}
+*{box-sizing:border-box}
+a{color:var(--primary-text);text-decoration:none}a:hover{color:var(--primary-hover);text-decoration:underline}
+button{font:inherit}button:disabled{cursor:default!important}
+::view-transition-old(root),::view-transition-new(root){animation:none;mix-blend-mode:normal}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:var(--muted);border-radius:10px;border:2px solid transparent;background-clip:padding-box}::-webkit-scrollbar-thumb:hover{background-color:var(--border)}::-webkit-scrollbar-corner,::-webkit-scrollbar-track{background:transparent}
+textarea::selection{background:var(--sel);color:transparent}
+@keyframes qcspin{to{transform:rotate(360deg)}}
+@keyframes qcpulse{0%,100%{opacity:1}50%{opacity:.3}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:0s!important}}
+</style>
+</helmet>
+<div ref="{{ rootRef }}" style="height:100vh;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);font-family:'Geist',ui-sans-serif,system-ui,sans-serif;font-size:13px;letter-spacing:-0.006em;-webkit-font-smoothing:antialiased;overflow:hidden;user-select:none;cursor:default">
+
+<header data-tauri-drag-region="" data-screen-label="Title bar" style="height:44px;flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;padding:0 10px 0 14px;border-bottom:1px solid var(--border-soft);background:var(--chrome)">
+  <div style="display:flex;align-items:center;gap:12px;min-width:0;overflow:hidden">
+    <div title="Window controls (native)" style="display:flex;gap:8px;flex:none;padding-right:6px">
+      <span style="width:12px;height:12px;border-radius:50%;background:var(--tl-r);box-shadow:inset 0 0 0 0.5px oklch(0 0 0 / 0.2)"></span>
+      <span style="width:12px;height:12px;border-radius:50%;background:var(--tl-y);box-shadow:inset 0 0 0 0.5px oklch(0 0 0 / 0.2)"></span>
+      <span style="width:12px;height:12px;border-radius:50%;background:var(--tl-g);box-shadow:inset 0 0 0 0.5px oklch(0 0 0 / 0.2)"></span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex:none">
+      <div style="width:20px;height:20px;border-radius:6px;background:var(--primary);display:grid;place-items:center"><div style="width:7px;height:7px;background:var(--primary-fg);transform:rotate(45deg);border-radius:1.5px"></div></div>
+      <span style="font-weight:600;font-size:13.5px;letter-spacing:-0.02em">QueryCraft</span>
+    </div>
+    <div style="width:1px;height:18px;background:var(--border-soft);flex:none"></div>
+    <button onClick="{{ openWsMenu }}" style="display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--fg);cursor:pointer;font-weight:500;flex:none" style-hover="background:var(--hover)">
+      <span style="white-space:nowrap">Local Workspace</span>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--fg3)" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"></path></svg>
+    </button>
+    <div title="Everything runs on this machine. Sign-in is only needed for cloud sharing." style="display:flex;align-items:center;gap:6px;color:var(--fg3);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">
+      <span style="width:6px;height:6px;border-radius:50%;background:var(--fg4);flex:none"></span>
+      <span style="overflow:hidden;text-overflow:ellipsis">Offline · No account required</span>
+    </div>
+  </div>
+  <button onClick="{{ openPalette }}" style="width:clamp(180px,calc(100vw - 760px),400px);height:28px;display:flex;align-items:center;gap:8px;padding:0 6px 0 10px;border:1px solid var(--border-soft);border-radius:7px;background:var(--bg);color:var(--fg3);cursor:pointer;font-size:12.5px" style-hover="border-color:var(--border);color:var(--fg2)">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+    <span style="flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Search tables, queries, commands…</span>
+    <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;padding:2px 5px;border-radius:4px;background:var(--muted);color:var(--fg3)">⌘K</span>
+  </button>
+  <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px">
+    <div style="position:relative;display:flex;padding:2px;border-radius:7px;background:var(--muted)">
+      <div ref="{{ themeThumbRef }}" style="position:absolute;top:2px;left:2px;width:26px;height:24px;border-radius:5px;background:var(--surface);box-shadow:0 1px 2px oklch(0 0 0 / 0.18),0 0 0 1px var(--border-soft)"></div>
+      <button title="Light" onClick="{{ themeLight }}" style="position:relative;width:26px;height:24px;border:0;background:transparent;display:grid;place-items:center;cursor:pointer;color:{{ themeFg.light }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg></button>
+      <button title="Dark" onClick="{{ themeDark }}" style="position:relative;width:26px;height:24px;border:0;background:transparent;display:grid;place-items:center;cursor:pointer;color:{{ themeFg.dark }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"></path></svg></button>
+      <button title="System" onClick="{{ themeSystem }}" style="position:relative;width:26px;height:24px;border:0;background:transparent;display:grid;place-items:center;cursor:pointer;color:{{ themeFg.system }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="12" rx="1.5"></rect><path d="M8 20h8M12 16v4"></path></svg></button>
+    </div>
+    <button onClick="{{ openSignIn }}" style="height:28px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--fg2);cursor:pointer;font-size:12.5px" style-hover="background:var(--hover);color:var(--fg)">Sign in</button>
+    <button title="Settings" onClick="{{ openSettings }}" style="width:28px;height:28px;border:0;border-radius:6px;background:transparent;color:var(--fg3);display:grid;place-items:center;cursor:pointer" style-hover="background:var(--hover);color:var(--fg)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"></path><circle cx="15" cy="6" r="2"></circle><circle cx="9" cy="12" r="2"></circle><circle cx="17" cy="18" r="2"></circle></svg></button>
+  </div>
+</header>
+
+<div style="flex:1;display:flex;min-height:0">
+  <nav data-screen-label="Rail" style="width:68px;flex:none;display:flex;flex-direction:column;padding:8px 0;border-right:1px solid var(--border-soft);background:var(--chrome)">
+    <div style="position:relative;display:flex;flex-direction:column">
+      <div ref="{{ railIndRef }}" style="position:absolute;left:8px;right:8px;top:0;height:50px;border-radius:9px;background:var(--muted);pointer-events:none"><div style="position:absolute;left:-8px;top:15px;bottom:15px;width:2px;border-radius:0 2px 2px 0;background:var(--primary)"></div></div>
+      <button onClick="{{ nav.workspace }}" style="position:relative;height:50px;margin:0 8px;border:0;border-radius:9px;background:transparent;color:{{ navFg.workspace }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;font-size:10px;font-weight:500"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16M13 9h4M13 13h3"></path></svg><span>Workspace</span></button>
+      <button onClick="{{ nav.connections }}" style="position:relative;height:50px;margin:0 8px;border:0;border-radius:9px;background:transparent;color:{{ navFg.connections }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;font-size:10px;font-weight:500"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"></ellipse><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"></path></svg><span>Connections</span></button>
+      <button onClick="{{ nav.queries }}" style="position:relative;height:50px;margin:0 8px;border:0;border-radius:9px;background:transparent;color:{{ navFg.queries }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;font-size:10px;font-weight:500"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6.5a1.5 1.5 0 0 0-1.5 1.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z"></path><path d="M14 3v5h5M9 13h6M9 17h4"></path></svg><span>Queries</span></button>
+      <button onClick="{{ nav.history }}" style="position:relative;height:50px;margin:0 8px;border:0;border-radius:9px;background:transparent;color:{{ navFg.history }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;font-size:10px;font-weight:500"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg><span>History</span></button>
+      <button onClick="{{ nav.snippets }}" style="position:relative;height:50px;margin:0 8px;border:0;border-radius:9px;background:transparent;color:{{ navFg.snippets }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;font-size:10px;font-weight:500"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14"></path></svg><span>Snippets</span></button>
+    </div>
+    <div style="flex:1"></div>
+    <button title="Toggle sidebar (⌘B)" onClick="{{ toggleSide }}" style="height:36px;margin:0 8px;border:0;border-radius:8px;background:transparent;color:var(--fg3);display:grid;place-items:center;cursor:pointer" style-hover="background:var(--hover);color:var(--fg)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16"></path></svg></button>
+  </nav>
+
+  <aside ref="{{ sideRef }}" data-screen-label="Side panel" style="flex:none;width:264px;overflow:hidden;background:var(--panel);border-right:1px solid var(--border-soft)">
+    <div ref="{{ sideInnerRef }}" style="width:263px;height:100%;display:flex;flex-direction:column">
+      <div style="height:40px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 8px 0 14px">
+        <span style="font-weight:600;font-size:12.5px">{{ panelTitle }}</span>
+        <button title="New connection" onClick="{{ openConnForm }}" style="width:26px;height:26px;border:0;border-radius:6px;background:transparent;color:var(--fg3);display:grid;place-items:center;cursor:pointer" style-hover="background:var(--hover);color:var(--fg)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></button>
+      </div>
+      <div style="flex:1;overflow:auto;padding:0 6px 12px">
+
+        <sc-if value="{{ navIs.workspace }}" hint-placeholder-val="{{ true }}">
+          <div style="padding:6px 8px 4px;font-size:11px;font-weight:500;color:var(--fg3);letter-spacing:0.02em">EXPLORER</div>
+          <sc-for list="{{ tree }}" as="r" hint-placeholder-count="8">
+            <div onClick="{{ r.onClick }}" onDoubleClick="{{ r.onDouble }}" title="{{ r.title }}" style="height:26px;display:flex;align-items:center;gap:6px;padding:0 8px 0 {{ r.pad }};border-radius:6px;cursor:pointer;background:{{ r.bg }};color:{{ r.fg }};font-size:12.5px" style-hover="background:var(--hover)">
+              <sc-if value="{{ r.hasChevron }}" hint-placeholder-val="{{ true }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--fg3)" stroke-width="2.2" stroke-linecap="round" style="flex:none;transition:transform .18s cubic-bezier(.3,1.4,.5,1);transform:rotate({{ r.rot }})"><path d="M9 6l6 6-6 6"></path></svg></sc-if>
+              <sc-if value="{{ r.isConn }}" hint-placeholder-val="{{ true }}"><span style="width:7px;height:7px;border-radius:50%;flex:none;background:{{ r.dot }};animation:{{ r.anim }}"></span></sc-if>
+              <sc-if value="{{ r.isTable }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--fg3)" stroke-width="1.8" style="flex:none"><rect x="3" y="4" width="18" height="16" rx="1.5"></rect><path d="M3 10h18M9 10v10"></path></svg></sc-if>
+              <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:{{ r.font }}">{{ r.label }}</span>
+              <sc-if value="{{ r.hasBadge }}" hint-placeholder-val="{{ false }}"><span style="font-size:10px;font-weight:500;padding:1px 5px;border-radius:4px;background:{{ r.badgeBg }};color:{{ r.badgeFg }}">{{ r.badge }}</span></sc-if>
+              <span style="font-size:11px;color:var(--fg4);font-family:'JetBrains Mono',monospace">{{ r.meta }}</span>
+            </div>
+          </sc-for>
+
+          <div style="padding:16px 8px 4px;font-size:11px;font-weight:500;color:var(--fg3);letter-spacing:0.02em">SAVED QUERIES</div>
+          <sc-for list="{{ savedRows }}" as="q" hint-placeholder-count="3">
+            <div onClick="{{ q.onClick }}" style="height:26px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--fg2)" style-hover="background:var(--hover);color:var(--fg)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--fg3)" stroke-width="1.8" stroke-linejoin="round" style="flex:none"><path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z"></path><path d="M14 3v5h5"></path></svg>
+              <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ q.name }}</span>
+              <span style="font-size:11px;color:var(--fg4)">{{ q.when }}</span>
+            </div>
+          </sc-for>
+
+          <div style="padding:16px 8px 4px;font-size:11px;font-weight:500;color:var(--fg3);letter-spacing:0.02em">LOCAL SERVERS</div>
+          <sc-for list="{{ serverRows }}" as="s" hint-placeholder-count="1">
+            <div style="min-height:40px;display:flex;align-items:center;gap:10px;padding:4px 4px 4px 8px;border-radius:6px" style-hover="background:var(--hover)">
+              <span style="width:7px;height:7px;border-radius:50%;flex:none;background:{{ s.dot }};animation:{{ s.anim }}"></span>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+                <span style="font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s.name }}</span>
+                <span style="font-size:11px;color:var(--fg3);white-space:nowrap">{{ s.meta }}</span>
+              </div>
+              <button title="{{ s.actionLabel }}" disabled="{{ s.busy }}" onClick="{{ s.onToggle }}" style="width:26px;height:26px;border:0;border-radius:6px;background:transparent;color:var(--fg3);display:grid;place-items:center;cursor:pointer" style-hover="background:var(--muted);color:var(--fg)">
+                <sc-if value="{{ s.running }}" hint-placeholder-val="{{ true }}"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2.5"></rect></svg></sc-if>
+                <sc-if value="{{ s.stopped }}" hint-placeholder-val="{{ false }}"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5l12 7.5-12 7.5z"></path></svg></sc-if>
+                <sc-if value="{{ s.busy }}" hint-placeholder-val="{{ false }}"><span style="width:11px;height:11px;border-radius:50%;border:1.6px solid var(--fg4);border-top-color:var(--fg2);animation:qcspin .7s linear infinite"></span></sc-if>
+              </button>
+              <button title="Restart" disabled="{{ s.noRestart }}" onClick="{{ s.onRestart }}" style="width:26px;height:26px;border:0;border-radius:6px;background:transparent;color:var(--fg3);display:grid;place-items:center;cursor:pointer;opacity:{{ s.restartOpacity }}" style-hover="background:var(--muted);color:var(--fg)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"></path></svg></button>
+            </div>
+          </sc-for>
+          <button onClick="{{ openWizard }}" style="margin:6px 2px 0;width:calc(100% - 4px);height:32px;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--border-soft);border-radius:7px;background:transparent;color:var(--primary-text);cursor:pointer;font-weight:500;font-size:12.5px;transition:background .15s,border-color .15s" style-hover="background:var(--primary-soft);border-color:transparent">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Create local server
+          </button>
+        </sc-if>
+
+        <sc-if value="{{ navIs.connections }}" hint-placeholder-val="{{ false }}">
+          <sc-for list="{{ envGroups }}" as="g" hint-placeholder-count="3">
+            <div style="padding:12px 8px 4px;font-size:11px;font-weight:500;color:{{ g.fg }};letter-spacing:0.02em">{{ g.label }}</div>
+            <sc-for list="{{ g.items }}" as="c" hint-placeholder-count="2">
+              <div onClick="{{ c.onClick }}" style="display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:6px;cursor:pointer;box-shadow:{{ c.ring }}" style-hover="background:var(--hover)">
+                <span style="width:7px;height:7px;border-radius:50%;flex:none;background:{{ c.dot }};animation:{{ c.anim }}"></span>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+                  <span style="font-size:12.5px">{{ c.name }}</span>
+                  <span style="font-size:11px;color:var(--fg3);font-family:'JetBrains Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.host }}</span>
+                </div>
+                <span style="font-size:11px;color:var(--fg3)">{{ c.statusLabel }}</span>
+              </div>
+            </sc-for>
+          </sc-for>
+          <button onClick="{{ openConnForm }}" style="margin:12px 2px 0;width:calc(100% - 4px);height:32px;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--border-soft);border-radius:7px;background:transparent;color:var(--primary-text);cursor:pointer;font-weight:500;font-size:12.5px" style-hover="background:var(--primary-soft);border-color:transparent">New connection</button>
+        </sc-if>
+
+        <sc-if value="{{ navIs.queries }}" hint-placeholder-val="{{ false }}">
+          <input value="{{ qFilter }}" onChange="{{ onQFilter }}" placeholder="Filter saved queries" style="width:100%;height:30px;margin:2px 0 8px;padding:0 10px;border:1px solid var(--border-soft);border-radius:7px;background:var(--bg);color:var(--fg);font:inherit;font-size:12.5px;outline:none" style-focus="border-color:var(--primary);box-shadow:0 0 0 3px var(--focus)">
+          <sc-for list="{{ savedRowsFiltered }}" as="q" hint-placeholder-count="3">
+            <div onClick="{{ q.onClick }}" style="display:flex;flex-direction:column;gap:2px;padding:7px 8px;border-radius:6px;cursor:pointer" style-hover="background:var(--hover)">
+              <span style="font-size:12.5px">{{ q.name }}</span>
+              <span style="font-size:11px;color:var(--fg3)">{{ q.conn }} · {{ q.when }}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ noSaved }}" hint-placeholder-val="{{ false }}"><div style="padding:24px 8px;color:var(--fg3);font-size:12px;text-align:center">No saved queries match.</div></sc-if>
+        </sc-if>
+
+        <sc-if value="{{ navIs.history }}" hint-placeholder-val="{{ false }}">
+          <sc-for list="{{ historyRows }}" as="h" hint-placeholder-count="3">
+            <div onClick="{{ h.onClick }}" title="Open in new tab" style="display:flex;gap:9px;padding:8px;border-radius:6px;cursor:pointer" style-hover="background:var(--hover)">
+              <span style="width:6px;height:6px;margin-top:6px;border-radius:50%;flex:none;background:{{ h.dot }}"></span>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ h.sql }}</span>
+                <span style="font-size:11px;color:var(--fg3)">{{ h.meta }}</span>
+              </div>
+            </div>
+          </sc-for>
+        </sc-if>
+
+        <sc-if value="{{ navIs.snippets }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:2px 8px 8px;font-size:11.5px;color:var(--fg3)">Click to insert at the cursor.</div>
+          <sc-for list="{{ snippetRows }}" as="s" hint-placeholder-count="4">
+            <div onClick="{{ s.onClick }}" style="display:flex;flex-direction:column;gap:2px;padding:7px 8px;border-radius:6px;cursor:pointer" style-hover="background:var(--hover)">
+              <span style="font-size:12.5px">{{ s.name }}</span>
+              <span style="font-size:11px;color:var(--fg3);font-family:'JetBrains Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s.preview }}</span>
+            </div>
+          </sc-for>
+        </sc-if>
+      </div>
+    </div>
+  </aside>
+
+  <main ref="{{ mainRef }}" data-screen-label="Workspace" style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--editor-bg)">
+    <div style="height:38px;flex:none;display:flex;align-items:stretch;background:var(--chrome);border-bottom:1px solid var(--border-soft)">
+      <div style="position:relative;display:flex;align-items:stretch;min-width:0;overflow-x:auto;overflow-y:hidden">
+        <div ref="{{ tabIndRef }}" style="position:absolute;top:0;left:0;height:2px;width:0;background:var(--primary);border-radius:0 0 2px 2px;z-index:2"></div>
+        <sc-for list="{{ tabRows }}" as="t" hint-placeholder-count="3">
+          <div data-etab="{{ t.id }}" onClick="{{ t.onClick }}" style="position:relative;display:flex;align-items:center;gap:8px;padding:0 8px 0 14px;cursor:pointer;background:{{ t.bg }};color:{{ t.fg }};border-right:1px solid var(--border-soft);white-space:nowrap;font-size:12.5px;flex:none" style-hover="color:var(--fg)">
+            <span title="{{ t.envTitle }}" style="width:6px;height:6px;border-radius:2px;flex:none;background:{{ t.envColor }}"></span>
+            <span>{{ t.name }}</span>
+            <button title="{{ t.closeTitle }}" onClick="{{ t.onClose }}" style="width:20px;height:20px;border:0;border-radius:5px;background:transparent;color:var(--fg3);display:grid;place-items:center;cursor:pointer" style-hover="background:var(--muted);color:var(--fg)">
+              <sc-if value="{{ t.dirty }}" hint-placeholder-val="{{ false }}"><span style="width:7px;height:7px;border-radius:50%;background:var(--fg2)"></span></sc-if>
+              <sc-if value="{{ t.clean }}" hint-placeholder-val="{{ true }}"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></sc-if>
+            </button>
+          </div>
+        </sc-for>
+      </div>
+      <button title="New tab" onClick="{{ newTab }}" style="width:36px;flex:none;border:0;background:transparent;color:var(--fg3);display:grid;place-items:center;cursor:pointer" style-hover="color:var(--fg);background:var(--hover)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></button>
+      <div style="flex:1"></div>
+      <button title="Toggle inspector (⌘I)" onClick="{{ toggleInspector }}" style="width:38px;flex:none;border:0;background:transparent;color:{{ inspectorBtnFg }};display:grid;place-items:center;cursor:pointer" style-hover="color:var(--fg);background:var(--hover)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M15 4v16"></path></svg></button>
+    </div>
+
+    <div style="height:44px;flex:none;display:flex;align-items:center;gap:4px;padding:0 10px;border-bottom:1px solid var(--border-soft);box-shadow:inset 0 2px 0 {{ prodLine }}">
+      <div onMouseMove="{{ magMove }}" onMouseLeave="{{ magLeave }}" style="padding:6px;margin:-6px">
+        <button ref="{{ runRef }}" title="Run (⌘↵) — runs the selection if there is one" onClick="{{ run }}" disabled="{{ running }}" style="height:28px;display:flex;align-items:center;gap:7px;padding:0 12px 0 10px;border:0;border-radius:7px;background:var(--primary);color:var(--primary-fg);cursor:pointer;font-weight:500;font-size:12.5px;box-shadow:0 1px 0 oklch(1 0 0 / 0.15) inset,0 1px 2px oklch(0 0 0 / 0.2);opacity:{{ runOpacity }}" style-hover="background:var(--primary-hover)">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M6 3.5l15 8.5-15 8.5z"></path></svg>{{ runLabel }}
+        </button>
+      </div>
+      <button title="Stop (Esc)" onClick="{{ stop }}" disabled="{{ notRunning }}" style="height:28px;display:flex;align-items:center;gap:6px;padding:0 10px;border:0;border-radius:7px;background:transparent;color:{{ stopFg }};cursor:pointer;font-size:12.5px" style-hover="background:var(--hover)"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="3"></rect></svg>Stop</button>
+      <button title="Explain" onClick="{{ explain }}" style="height:28px;display:flex;align-items:center;gap:6px;padding:0 10px;border:0;border-radius:7px;background:transparent;color:var(--fg2);cursor:pointer;font-size:12.5px" style-hover="background:var(--hover);color:var(--fg)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 4v13a3 3 0 0 0 3 3h11M5 10h9M9 15h10"></path></svg>Explain</button>
+      <button title="Format (⇧⌥F)" onClick="{{ format }}" style="height:28px;display:flex;align-items:center;gap:6px;padding:0 10px;border:0;border-radius:7px;background:transparent;color:var(--fg2);cursor:pointer;font-size:12.5px" style-hover="background:var(--hover);color:var(--fg)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M8 10h12M8 14h12M4 18h16"></path></svg>Format</button>
+      <sc-if value="{{ running }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:center;gap:8px;margin-left:8px;color:var(--fg3);font-size:12px;font-family:'JetBrains Mono',monospace"><span style="width:11px;height:11px;border-radius:50%;border:1.6px solid var(--border);border-top-color:var(--primary);animation:qcspin .7s linear infinite"></span>{{ elapsed }}</div>
+      </sc-if>
+      <div style="flex:1"></div>
+      <sc-if value="{{ isProd }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;font-weight:500;padding:3px 7px;border-radius:5px;background:var(--danger-soft);color:var(--danger)">Production · read-only</span></sc-if>
+      <button onClick="{{ openConnMenu }}" style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px 0 10px;border:1px solid var(--border-soft);border-radius:7px;background:transparent;color:var(--fg);cursor:pointer;font-size:12.5px;max-width:260px" style-hover="border-color:var(--border);background:var(--hover)">
+        <span style="width:7px;height:7px;border-radius:50%;flex:none;background:{{ connDot }};animation:{{ connAnim }}"></span>
+        <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ connName }}</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--fg3)" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"></path></svg>
+      </button>
+      <span style="height:28px;display:flex;align-items:center;padding:0 9px;border-radius:7px;background:var(--muted);color:var(--fg2);font-size:11.5px;font-family:'JetBrains Mono',monospace">{{ dialect }}</span>
+    </div>
+
+    <div style="flex:1;min-height:80px;position:relative">
+      <div ref="{{ edScrollRef }}" style="position:absolute;inset:0;overflow:auto;background:var(--editor-bg);user-select:text;cursor:text">
+        <div style="position:relative;display:flex;min-width:max-content;min-height:100%">
+          <div style="position:sticky;left:0;z-index:2;flex:none;width:52px;padding:12px 0 160px;background:var(--editor-bg);font-family:'JetBrains Mono',monospace;font-size:12px;line-height:20px;text-align:right;user-select:none">
+            <sc-for list="{{ lines }}" as="l" hint-placeholder-count="12"><div style="height:20px;padding-right:14px;color:{{ l.nfg }}">{{ l.n }}</div></sc-for>
+          </div>
+          <div style="position:relative;flex:1;min-width:400px">
+            <div aria-hidden="true" style="padding:12px 40px 160px 8px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:20px;color:var(--fg);tab-size:2;pointer-events:none"><sc-for list="{{ lines }}" as="l" hint-placeholder-count="12"><div style="height:20px;white-space:pre;margin:0 -40px 0 -8px;padding:0 40px 0 8px;background:{{ l.bg }}"><sc-for list="{{ l.toks }}" as="k" hint-placeholder-count="0"><span style="color:{{ k.c }};font-style:{{ k.it }}">{{ k.t }}</span></sc-for></div></sc-for>
+            </div>
+            <textarea ref="{{ taRef }}" value="{{ sql }}" onChange="{{ onSql }}" onKeyDown="{{ onEdKey }}" onSelect="{{ onCaret }}" onClick="{{ onCaret }}" onBlur="{{ onEdBlur }}" spellcheck="false" wrap="off" autocomplete="off" autocapitalize="off" style="position:absolute;inset:0;width:100%;height:100%;margin:0;padding:12px 40px 160px 8px;border:0;outline:none;resize:none;overflow:hidden;background:transparent;color:transparent;caret-color:var(--primary-text);font-family:'JetBrains Mono',monospace;font-size:13px;line-height:20px;white-space:pre;tab-size:2;letter-spacing:0"></textarea>
+            <sc-if value="{{ acOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;top:{{ acTop }};left:{{ acLeft }};z-index:5;width:290px;padding:4px;border-radius:8px;background:var(--elev);box-shadow:var(--shadow);font-size:12px">
+                <sc-for list="{{ acItems }}" as="a" hint-placeholder-count="4">
+                  <div onMouseDown="{{ a.onPick }}" style="display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;border-radius:5px;cursor:pointer;background:{{ a.bg }}">
+                    <span style="width:16px;font-size:10px;font-weight:600;color:{{ a.kc }};font-family:'JetBrains Mono',monospace">{{ a.k }}</span>
+                    <span style="flex:1;font-family:'JetBrains Mono',monospace;color:var(--fg)">{{ a.label }}</span>
+                    <span style="color:var(--fg3);font-size:11px">{{ a.detail }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div onPointerDown="{{ onResizeDown }}" onDoubleClick="{{ toggleResults }}" title="Drag to resize · double-click to collapse" style="height:7px;margin:-3px 0;flex:none;position:relative;z-index:3;cursor:row-resize;display:flex;align-items:center" style-hover="background:linear-gradient(transparent 2px,var(--primary) 2px,var(--primary) 4px,transparent 4px)"><div style="height:1px;width:100%;background:var(--border-soft)"></div></div>
+
+    <section ref="{{ resRef }}" data-screen-label="Results" style="height:300px;flex:none;display:flex;flex-direction:column;background:var(--surface);min-height:0;overflow:hidden">
+      <div style="height:36px;flex:none;display:flex;align-items:center;gap:2px;padding:0 8px;border-bottom:1px solid var(--border-soft)">
+        <div style="position:relative;display:flex;align-items:center;gap:2px;height:100%">
+          <div ref="{{ rtabIndRef }}" style="position:absolute;bottom:-1px;left:0;height:2px;width:0;background:var(--fg);border-radius:2px"></div>
+          <sc-for list="{{ resTabs }}" as="rt" hint-placeholder-count="3">
+            <button data-rtab="{{ rt.id }}" onClick="{{ rt.onClick }}" style="height:100%;display:flex;align-items:center;gap:6px;padding:0 10px;border:0;background:transparent;color:{{ rt.fg }};cursor:pointer;font-size:12.5px;font-weight:500" style-hover="color:var(--fg)">{{ rt.label }}<sc-if value="{{ rt.hasCount }}" hint-placeholder-val="{{ false }}"><span style="font-size:10.5px;padding:0 5px;border-radius:9px;background:{{ rt.countBg }};color:{{ rt.countFg }};font-family:'JetBrains Mono',monospace">{{ rt.count }}</span></sc-if></button>
+          </sc-for>
+        </div>
+        <div style="flex:1"></div>
+        <sc-if value="{{ hasRows }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;gap:12px;color:var(--fg3);font-size:12px">
+            <span><span ref="{{ rowsTickRef }}" style="color:var(--fg);font-family:'JetBrains Mono',monospace"></span> rows · <span style="font-family:'JetBrains Mono',monospace">{{ duration }}</span></span>
+            <div style="display:flex;align-items:center;gap:2px">
+              <button title="Previous page" onClick="{{ prevPage }}" disabled="{{ noPrev }}" style="width:24px;height:24px;border:0;border-radius:5px;background:transparent;color:var(--fg2);display:grid;place-items:center;cursor:pointer;opacity:{{ prevOpacity }}" style-hover="background:var(--hover)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"></path></svg></button>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;min-width:104px;text-align:center;color:var(--fg2)">{{ pageLabel }}</span>
+              <button title="Next page" onClick="{{ nextPage }}" disabled="{{ noNext }}" style="width:24px;height:24px;border:0;border-radius:5px;background:transparent;color:var(--fg2);display:grid;place-items:center;cursor:pointer;opacity:{{ nextOpacity }}" style-hover="background:var(--hover)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"></path></svg></button>
+            </div>
+            <button onClick="{{ openExport }}" style="height:26px;display:flex;align-items:center;gap:6px;padding:0 9px;border:1px solid var(--border-soft);border-radius:6px;background:transparent;color:var(--fg2);cursor:pointer;font-size:12px" style-hover="border-color:var(--border);color:var(--fg)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"></path></svg>Export</button>
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="flex:1;min-height:0;position:relative">
+        <sc-if value="{{ showEmpty }}" hint-placeholder-val="{{ true }}">
+          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--fg3);font-size:12.5px">
+            <span>Run a query to see results here.</span>
+            <span style="display:flex;gap:4px;align-items:center;font-size:11.5px"><span style="font-family:'JetBrains Mono',monospace;padding:2px 6px;border-radius:4px;background:var(--muted);color:var(--fg2)">⌘ ↵</span> run · <span style="font-family:'JetBrains Mono',monospace;padding:2px 6px;border-radius:4px;background:var(--muted);color:var(--fg2)">⌘ K</span> commands</span>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showRunning }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;color:var(--fg3);font-size:12.5px"><span style="width:14px;height:14px;border-radius:50%;border:1.8px solid var(--border);border-top-color:var(--primary);animation:qcspin .7s linear infinite"></span>Executing on {{ connName }}…</div>
+        </sc-if>
+        <sc-if value="{{ showError }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;inset:0;overflow:auto;padding:18px 20px;display:flex;gap:12px">
+            <div style="width:22px;height:22px;border-radius:50%;background:var(--danger-soft);color:var(--danger);display:grid;place-items:center;flex:none;font-weight:600;font-size:12px">!</div>
+            <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+              <span style="font-weight:500">{{ errTitle }}</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--fg2);white-space:pre-wrap">{{ errBody }}</span>
+              <span style="font-size:12px;color:var(--fg3)">{{ errHint }}</span>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showGrid }}" hint-placeholder-val="{{ false }}">
+          <div ref="{{ gridRef }}" onScroll="{{ onGridScroll }}" style="position:absolute;inset:0;overflow:auto;font-size:12.5px;user-select:text">
+            <div style="min-width:{{ gridW }};position:relative">
+              <div style="position:sticky;top:0;z-index:2;display:flex;height:30px;background:var(--header-bg);border-bottom:1px solid var(--border-soft)">
+                <div style="position:sticky;left:0;z-index:1;width:52px;flex:none;background:var(--header-bg);border-right:1px solid var(--border-soft)"></div>
+                <sc-for list="{{ gridCols }}" as="c" hint-placeholder-count="6">
+                  <div style="width:{{ c.w }};flex:none;display:flex;align-items:center;gap:6px;padding:0 10px;border-right:1px solid var(--border-soft);justify-content:{{ c.justify }}">
+                    <span style="font-weight:500;color:var(--fg)">{{ c.n }}</span>
+                    <span style="font-size:10.5px;color:var(--fg4);font-family:'JetBrains Mono',monospace">{{ c.t }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="height:{{ gridTopPad }}"></div>
+              <sc-for list="{{ gridRows }}" as="row" hint-placeholder-count="8">
+                <div onClick="{{ row.onClick }}" style="display:flex;height:{{ rowH }};background:{{ row.bg }};border-bottom:1px solid var(--border-soft)" style-hover="background:var(--hover)">
+                  <div style="position:sticky;left:0;width:52px;flex:none;display:flex;align-items:center;justify-content:flex-end;padding-right:10px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--fg4);background:var(--surface);border-right:1px solid var(--border-soft)">{{ row.n }}</div>
+                  <sc-for list="{{ row.cells }}" as="cell" hint-placeholder-count="6">
+                    <div onDoubleClick="{{ cell.onCopy }}" title="Double-click to copy" style="width:{{ cell.w }};flex:none;display:flex;align-items:center;justify-content:{{ cell.justify }};padding:0 10px;overflow:hidden;white-space:nowrap;color:{{ cell.fg }};font-family:{{ cell.font }};font-style:{{ cell.it }};font-size:{{ cell.fs }}"><span style="overflow:hidden;text-overflow:ellipsis">{{ cell.v }}</span></div>
+                  </sc-for>
+                </div>
+              </sc-for>
+              <div style="height:{{ gridBotPad }}"></div>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showMessages }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;inset:0;overflow:auto;padding:8px 0;font-family:'JetBrains Mono',monospace;font-size:12px;user-select:text">
+            <sc-for list="{{ messages }}" as="m" hint-placeholder-count="3">
+              <div style="display:flex;gap:14px;padding:4px 16px;align-items:baseline">
+                <span style="color:var(--fg4);flex:none">{{ m.t }}</span>
+                <span style="color:{{ m.c }};flex:none;width:44px">{{ m.kind }}</span>
+                <span style="color:var(--fg2);white-space:pre-wrap">{{ m.text }}</span>
+              </div>
+            </sc-for>
+            <sc-if value="{{ noMessages }}" hint-placeholder-val="{{ false }}"><div style="padding:16px;color:var(--fg3);font-family:'Geist',sans-serif">No messages yet.</div></sc-if>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showPlan }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;inset:0;overflow:auto;padding:12px 0">
+            <sc-if value="{{ noPlan }}" hint-placeholder-val="{{ false }}"><div style="padding:16px;color:var(--fg3);font-size:12.5px">Click <b style="color:var(--fg2);font-weight:500">Explain</b> to see how the database will execute this query.</div></sc-if>
+            <sc-for list="{{ planRows }}" as="p" hint-placeholder-count="5">
+              <div style="display:grid;grid-template-columns:minmax(0,1fr) 220px 90px 90px;align-items:center;gap:16px;padding:5px 16px;font-size:12.5px" style-hover="background:var(--hover)">
+                <div style="padding-left:{{ p.pad }};display:flex;gap:8px;align-items:center;min-width:0">
+                  <span style="color:var(--fg4);font-family:'JetBrains Mono',monospace">{{ p.arrow }}</span>
+                  <span style="font-weight:500;white-space:nowrap">{{ p.node }}</span>
+                  <span style="color:var(--fg3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:'JetBrains Mono',monospace;font-size:11.5px">{{ p.detail }}</span>
+                </div>
+                <div style="height:6px;border-radius:3px;background:var(--muted);overflow:hidden"><div style="height:100%;width:{{ p.bar }};background:{{ p.barC }};border-radius:3px"></div></div>
+                <span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--fg2)">{{ p.time }}</span>
+                <span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--fg3)">{{ p.rows }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+    </section>
+  </main>
+
+  <aside ref="{{ inspRef }}" data-screen-label="Inspector" style="flex:none;width:0;overflow:hidden;background:var(--panel);border-left:1px solid var(--border-soft)">
+    <div ref="{{ inspInnerRef }}" style="width:299px;height:100%;display:flex;flex-direction:column">
+      <div style="height:40px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 8px 0 14px;border-bottom:1px solid var(--border-soft)">
+        <span style="font-weight:600;font-size:12.5px">Inspector</span>
+        <button title="Close (⌘I)" onClick="{{ toggleInspector }}" style="width:26px;height:26px;border:0;border-radius:6px;background:transparent;color:var(--fg3);display:grid;place-items:center;cursor:pointer" style-hover="background:var(--hover);color:var(--fg)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+      </div>
+      <sc-if value="{{ noInspect }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;color:var(--fg3);font-size:12.5px;text-wrap:pretty">Select a table in the explorer to see its columns, indexes and size.</div>
+      </sc-if>
+      <sc-if value="{{ hasInspect }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;overflow:auto;padding:14px 14px 20px;display:flex;flex-direction:column;gap:18px">
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:500">{{ ins.name }}</span>
+            <span style="font-size:12px;color:var(--fg3)">{{ ins.where }}</span>
+            <span style="font-size:12px;color:var(--fg2)">{{ ins.stats }}</span>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button onClick="{{ ins.onSelect }}" style="flex:1;height:28px;border:0;border-radius:6px;background:var(--primary-soft);color:var(--primary-text);cursor:pointer;font-size:12px;font-weight:500" style-hover="background:var(--primary);color:var(--primary-fg)">Select top 100</button>
+            <button onClick="{{ ins.onDDL }}" style="flex:1;height:28px;border:1px solid var(--border-soft);border-radius:6px;background:transparent;color:var(--fg2);cursor:pointer;font-size:12px" style-hover="border-color:var(--border);color:var(--fg)">Copy DDL</button>
+          </div>
+          <div style="display:flex;flex-direction:column">
+            <span style="font-size:11px;font-weight:500;color:var(--fg3);letter-spacing:0.02em;padding-bottom:6px">COLUMNS</span>
+            <sc-for list="{{ ins.cols }}" as="c" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;gap:8px;height:28px;border-bottom:1px solid var(--border-soft);font-size:12px">
+                <span style="font-family:'JetBrains Mono',monospace;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">{{ c.n }}</span>
+                <sc-if value="{{ c.hasKey }}" hint-placeholder-val="{{ false }}"><span style="font-size:9.5px;font-weight:600;padding:1px 4px;border-radius:3px;background:{{ c.keyBg }};color:{{ c.keyFg }}">{{ c.key }}</span></sc-if>
+                <span style="color:var(--fg3);font-family:'JetBrains Mono',monospace;font-size:11px">{{ c.t }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;flex-direction:column">
+            <span style="font-size:11px;font-weight:500;color:var(--fg3);letter-spacing:0.02em;padding-bottom:6px">INDEXES</span>
+            <sc-for list="{{ ins.idx }}" as="x" hint-placeholder-count="2">
+              <div style="display:flex;flex-direction:column;gap:1px;padding:5px 0;border-bottom:1px solid var(--border-soft)">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px">{{ x.n }}</span>
+                <span style="font-size:11px;color:var(--fg3)">{{ x.d }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </aside>
+</div>
+
+<footer style="height:24px;flex:none;display:flex;align-items:center;gap:16px;padding:0 12px;border-top:1px solid var(--border-soft);background:var(--chrome);color:var(--fg3);font-size:11.5px;white-space:nowrap;overflow:hidden">
+  <span style="display:flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:{{ connDot }}"></span>{{ statusConn }}</span>
+  <span>{{ caretLabel }}</span>
+  <span>Spaces: 2</span>
+  <span>UTF-8</span>
+  <div style="flex:1"></div>
+  <span>{{ statusRight }}</span>
+</footer>
+
+<sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+  <div onMouseDown="{{ closeMenu }}" style="position:fixed;inset:0;z-index:40"></div>
+  <div ref="{{ menuEnterRef }}" style="position:fixed;z-index:41;top:{{ menuY }};left:{{ menuX }};min-width:240px;max-width:320px;padding:5px;border-radius:9px;background:var(--elev);box-shadow:var(--shadow);font-size:12.5px;transform-origin:top left">
+    <sc-if value="{{ menuHasTitle }}" hint-placeholder-val="{{ false }}"><div style="padding:6px 8px 4px;font-size:11px;font-weight:500;color:var(--fg3);letter-spacing:0.02em">{{ menuTitle }}</div></sc-if>
+    <sc-for list="{{ menuItems }}" as="mi" hint-placeholder-count="3">
+      <sc-if value="{{ mi.sep }}" hint-placeholder-val="{{ false }}"><div style="height:1px;margin:5px 4px;background:var(--border-soft)"></div></sc-if>
+      <sc-if value="{{ mi.item }}" hint-placeholder-val="{{ true }}">
+        <button onClick="{{ mi.onClick }}" disabled="{{ mi.disabled }}" style="width:100%;min-height:30px;display:flex;align-items:center;gap:9px;padding:5px 8px;border:0;border-radius:6px;background:transparent;color:{{ mi.fg }};cursor:pointer;text-align:left" style-hover="background:var(--hover)">
+          <span style="width:7px;height:7px;border-radius:50%;flex:none;background:{{ mi.dot }}"></span>
+          <span style="flex:1;display:flex;flex-direction:column;gap:1px;min-width:0"><span>{{ mi.label }}</span><span style="font-size:11px;color:var(--fg3);white-space:normal">{{ mi.sub }}</span></span>
+          <sc-if value="{{ mi.hasBadge }}" hint-placeholder-val="{{ false }}"><span style="font-size:10px;font-weight:500;padding:1px 5px;border-radius:4px;background:{{ mi.badgeBg }};color:{{ mi.badgeFg }}">{{ mi.badge }}</span></sc-if>
+          <sc-if value="{{ mi.checked }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--primary-text)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"></path></svg></sc-if>
+        </button>
+      </sc-if>
+    </sc-for>
+  </div>
+</sc-if>
+
+<sc-if value="{{ paletteOpen }}" hint-placeholder-val="{{ false }}">
+  <div onMouseDown="{{ closePalette }}" style="position:fixed;inset:0;z-index:50;background:var(--scrim)"></div>
+  <div ref="{{ paletteEnterRef }}" style="position:fixed;z-index:51;top:14vh;left:50%;width:560px;max-width:calc(100vw - 32px);margin-left:-280px;border-radius:12px;background:var(--elev);box-shadow:var(--shadow);overflow:hidden">
+    <div style="display:flex;align-items:center;gap:10px;padding:0 14px;height:48px;border-bottom:1px solid var(--border-soft)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--fg3)" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+      <input ref="{{ palInputRef }}" value="{{ palQuery }}" onChange="{{ onPalQuery }}" onKeyDown="{{ onPalKey }}" placeholder="Type a command or search tables…" style="flex:1;height:100%;border:0;outline:none;background:transparent;color:var(--fg);font:inherit;font-size:14px">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;padding:2px 5px;border-radius:4px;background:var(--muted);color:var(--fg3)">esc</span>
+    </div>
+    <div style="max-height:360px;overflow:auto;padding:6px">
+      <sc-for list="{{ palItems }}" as="p" hint-placeholder-count="6">
+        <div onMouseEnter="{{ p.onHover }}" onClick="{{ p.onRun }}" style="height:34px;display:flex;align-items:center;gap:10px;padding:0 10px;border-radius:7px;cursor:pointer;background:{{ p.bg }}">
+          <span style="font-size:10.5px;color:var(--fg3);width:58px;flex:none">{{ p.group }}</span>
+          <span style="flex:1;color:var(--fg)">{{ p.label }}</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--fg3)">{{ p.kbd }}</span>
+        </div>
+      </sc-for>
+      <sc-if value="{{ palEmpty }}" hint-placeholder-val="{{ false }}"><div style="padding:24px;text-align:center;color:var(--fg3);font-size:12.5px">No matches.</div></sc-if>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ wizOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;z-index:60;background:var(--scrim)"></div>
+  <div ref="{{ wizEnterRef }}" data-screen-label="Create local server" style="position:fixed;z-index:61;top:50%;left:50%;width:720px;max-width:calc(100vw - 32px);height:520px;max-height:calc(100vh - 32px);margin:-260px 0 0 -360px;display:flex;border-radius:14px;background:var(--elev);box-shadow:var(--shadow);overflow:hidden">
+    <div style="width:200px;flex:none;padding:20px 16px;background:var(--panel);border-right:1px solid var(--border-soft);display:flex;flex-direction:column;gap:4px">
+      <span style="font-weight:600;font-size:14px;letter-spacing:-0.015em;padding-bottom:14px">New local server</span>
+      <sc-for list="{{ wizSteps }}" as="ws" hint-placeholder-count="4">
+        <div style="display:flex;align-items:center;gap:10px;height:30px;font-size:12.5px;color:{{ ws.fg }}">
+          <span style="width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:600;background:{{ ws.bg }};color:{{ ws.numFg }};box-shadow:{{ ws.ring }}">{{ ws.mark }}</span>{{ ws.label }}
+        </div>
+      </sc-for>
+      <div style="flex:1"></div>
+      <span style="font-size:11px;color:var(--fg3);line-height:1.5;text-wrap:pretty">Runs natively on this machine. No account, container runtime or admin rights needed.</span>
+    </div>
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+      <div style="flex:1;overflow:auto;padding:22px 24px">
+
+        <sc-if value="{{ wiz.isEngine }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;flex-direction:column;gap:4px;padding-bottom:16px"><span style="font-size:15px;font-weight:600;letter-spacing:-0.015em">Choose a database engine</span><span style="font-size:12.5px;color:var(--fg3)">You can create more servers later.</span></div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <sc-for list="{{ engineOpts }}" as="e" hint-placeholder-count="4">
+              <button onClick="{{ e.onClick }}" disabled="{{ e.disabled }}" style="display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:10px;border:1px solid {{ e.border }};background:{{ e.bg }};color:var(--fg);cursor:pointer;text-align:left;opacity:{{ e.opacity }};transition:border-color .15s,background .15s" style-hover="border-color:var(--border)">
+                <span style="width:16px;height:16px;border-radius:50%;flex:none;box-shadow:{{ e.radio }}"></span>
+                <span style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font-weight:500">{{ e.label }}</span><span style="font-size:12px;color:var(--fg3)">{{ e.desc }}</span></span>
+                <span style="font-size:11.5px;color:var(--fg3);font-family:'JetBrains Mono',monospace">{{ e.meta }}</span>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ wiz.isConfig }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:4px;padding-bottom:18px"><span style="font-size:15px;font-weight:600;letter-spacing:-0.015em">Configure {{ wiz.engineLabel }}</span><span style="font-size:12.5px;color:var(--fg3)">Sensible defaults are filled in.</span></div>
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <span style="font-size:12px;font-weight:500;color:var(--fg2)">Version</span>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <sc-for list="{{ versionOpts }}" as="v" hint-placeholder-count="3">
+                  <button onClick="{{ v.onClick }}" style="height:28px;padding:0 12px;border-radius:7px;border:1px solid {{ v.border }};background:{{ v.bg }};color:{{ v.fg }};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:12px">{{ v.label }}</button>
+                </sc-for>
+              </div>
+            </div>
+            <label style="display:flex;flex-direction:column;gap:6px">
+              <span style="font-size:12px;font-weight:500;color:var(--fg2)">Instance name</span>
+              <input value="{{ wiz.name }}" onChange="{{ onWizName }}" style="height:32px;padding:0 10px;border:1px solid {{ wiz.nameBorder }};border-radius:7px;background:var(--bg);color:var(--fg);font-family:'JetBrains Mono',monospace;font-size:12.5px;outline:none" style-focus="border-color:var(--primary);box-shadow:0 0 0 3px var(--focus)">
+              <span style="font-size:11.5px;color:{{ wiz.nameMsgFg }}">{{ wiz.nameMsg }}</span>
+            </label>
+            <sc-if value="{{ wiz.hasPort }}" hint-placeholder-val="{{ true }}">
+              <label style="display:flex;flex-direction:column;gap:6px">
+                <span style="font-size:12px;font-weight:500;color:var(--fg2)">Port</span>
+                <input value="{{ wiz.port }}" onChange="{{ onWizPort }}" inputmode="numeric" style="width:120px;height:32px;padding:0 10px;border:1px solid {{ wiz.portBorder }};border-radius:7px;background:var(--bg);color:var(--fg);font-family:'JetBrains Mono',monospace;font-size:12.5px;outline:none" style-focus="border-color:var(--primary);box-shadow:0 0 0 3px var(--focus)">
+                <span style="display:flex;gap:6px;font-size:11.5px;color:{{ wiz.portMsgFg }}">{{ wiz.portMsg }}<sc-if value="{{ wiz.portConflict }}" hint-placeholder-val="{{ false }}"><a href="#" onClick="{{ usePortSuggestion }}">Use {{ wiz.portSuggest }}</a></sc-if></span>
+              </label>
+            </sc-if>
+            <label style="display:flex;flex-direction:column;gap:6px">
+              <span style="font-size:12px;font-weight:500;color:var(--fg2)">{{ wiz.dirLabel }}</span>
+              <input value="{{ wiz.dir }}" onChange="{{ onWizDir }}" style="height:32px;padding:0 10px;border:1px solid var(--border-soft);border-radius:7px;background:var(--bg);color:var(--fg);font-family:'JetBrains Mono',monospace;font-size:12.5px;outline:none" style-focus="border-color:var(--primary);box-shadow:0 0 0 3px var(--focus)">
+            </label>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ wiz.isReview }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:4px;padding-bottom:16px"><span style="font-size:15px;font-weight:600;letter-spacing:-0.015em">Review before creating</span><span style="font-size:12.5px;color:var(--fg3)">Here is exactly what QueryCraft will do on this machine.</span></div>
+          <div style="display:grid;grid-template-columns:130px minmax(0,1fr);gap:9px 16px;font-size:12.5px;padding-bottom:18px">
+            <sc-for list="{{ reviewRows }}" as="rr" hint-placeholder-count="5">
+              <span style="color:var(--fg3)">{{ rr.k }}</span><span style="color:var(--fg);font-family:{{ rr.font }};font-size:{{ rr.fs }}">{{ rr.v }}</span>
+            </sc-for>
+          </div>
+          <div style="font-size:11px;font-weight:500;color:var(--fg3);letter-spacing:0.02em;padding-bottom:6px">PREREQUISITES</div>
+          <sc-for list="{{ prereqRows }}" as="pq" hint-placeholder-count="4">
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border-soft);font-size:12.5px">
+              <span style="width:16px;height:16px;border-radius:50%;display:grid;place-items:center;flex:none;background:{{ pq.bg }};color:{{ pq.fg }};font-size:10px;font-weight:700">{{ pq.mark }}</span>
+              <span style="width:140px;flex:none">{{ pq.label }}</span>
+              <span style="color:var(--fg3);font-size:12px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ pq.detail }}</span>
+            </div>
+          </sc-for>
+        </sc-if>
+
+        <sc-if value="{{ wiz.isRun }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:4px;padding-bottom:16px"><span style="font-size:15px;font-weight:600;letter-spacing:-0.015em">{{ wiz.runTitle }}</span><span style="font-size:12.5px;color:var(--fg3)">{{ wiz.runSub }}</span></div>
+          <div style="display:flex;flex-direction:column">
+            <sc-for list="{{ stageRows }}" as="sg" hint-placeholder-count="9">
+              <div style="display:flex;gap:12px;min-height:30px;align-items:flex-start;padding:5px 0">
+                <span style="width:16px;height:16px;margin-top:1px;border-radius:50%;flex:none;display:grid;place-items:center;background:{{ sg.bg }};color:{{ sg.fg }};box-shadow:{{ sg.ring }};font-size:10px;font-weight:700;animation:{{ sg.anim }};border:{{ sg.border }}">{{ sg.mark }}</span>
+                <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+                  <span style="font-size:12.5px;color:{{ sg.labelFg }};font-weight:{{ sg.weight }}">{{ sg.label }}</span>
+                  <sc-if value="{{ sg.hasDetail }}" hint-placeholder-val="{{ false }}"><span style="font-size:11.5px;color:{{ sg.detailFg }};font-family:'JetBrains Mono',monospace;white-space:pre-wrap">{{ sg.detail }}</span></sc-if>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ wiz.isDone }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:20px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <div ref="{{ doneEnterRef }}" style="width:36px;height:36px;border-radius:50%;background:var(--success-soft);color:var(--success);display:grid;place-items:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"></path></svg></div>
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:15px;font-weight:600;letter-spacing:-0.015em">{{ wiz.name }} is running</span><span style="font-size:12.5px;color:var(--fg3)">Added to your Local connections automatically.</span></div>
+            </div>
+            <div style="display:grid;grid-template-columns:130px minmax(0,1fr);gap:9px 16px;font-size:12.5px;padding:16px;border-radius:10px;background:var(--panel);border:1px solid var(--border-soft)">
+              <sc-for list="{{ doneRows }}" as="dr" hint-placeholder-count="5">
+                <span style="color:var(--fg3)">{{ dr.k }}</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px">{{ dr.v }}</span>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="height:60px;flex:none;display:flex;align-items:center;gap:8px;padding:0 20px;border-top:1px solid var(--border-soft)">
+        <span style="font-size:11.5px;color:var(--fg3)">{{ wiz.footNote }}</span>
+        <div style="flex:1"></div>
+        <sc-for list="{{ wizButtons }}" as="b" hint-placeholder-count="2">
+          <button onClick="{{ b.onClick }}" disabled="{{ b.disabled }}" style="height:32px;padding:0 14px;border-radius:8px;border:{{ b.border }};background:{{ b.bg }};color:{{ b.fg }};cursor:pointer;font-weight:500;font-size:12.5px;opacity:{{ b.opacity }}" style-hover="filter:brightness(1.08)">{{ b.label }}</button>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ cfOpen }}" hint-placeholder-val="{{ false }}">
+  <div onMouseDown="{{ closeConnForm }}" style="position:fixed;inset:0;z-index:60;background:var(--scrim)"></div>
+  <div ref="{{ cfEnterRef }}" data-screen-label="New connection" style="position:fixed;z-index:61;top:50%;left:50%;width:520px;max-width:calc(100vw - 32px);max-height:calc(100vh - 40px);transform:translate(-50%,-50%);display:flex;flex-direction:column;border-radius:14px;background:var(--elev);box-shadow:var(--shadow);overflow:hidden">
+    <div style="padding:18px 20px 4px;display:flex;flex-direction:column;gap:4px"><span style="font-size:15px;font-weight:600;letter-spacing:-0.015em">New connection</span><span style="font-size:12.5px;color:var(--fg3)">Passwords are stored in the system keychain, never in plain text.</span></div>
+    <div style="flex:1;overflow:auto;padding:14px 20px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <span style="font-size:12px;font-weight:500;color:var(--fg2)">Database type</span>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <sc-for list="{{ cfTypes }}" as="ty" hint-placeholder-count="6"><button onClick="{{ ty.onClick }}" style="height:28px;padding:0 10px;border-radius:7px;border:1px solid {{ ty.border }};background:{{ ty.bg }};color:{{ ty.fg }};cursor:pointer;font-size:12px">{{ ty.label }}</button></sc-for>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:10px">
+        <label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:12px;font-weight:500;color:var(--fg2)">Name</span><input value="{{ cf.name }}" onChange="{{ cfSet.name }}" placeholder="e.g. billing-staging" style="height:32px;padding:0 10px;border:1px solid var(--border-soft);border-radius:7px;background:var(--bg);color:var(--fg);font:inherit;font-size:12.5px;outline:none" style-focus="border-color:var(--primary);box-shadow:0 0 0 3px var(--focus)"></label>
+        <label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:12px;font-weight:500;color:var(--fg2)">Port</span><input value="{{ cf.port }}" onChange="{{ cfSet.port }}" style="height:32px;padding:0 10px;border:1px solid var(--border-soft);border-radius:7px;background:var(--bg);color:var(--fg);font-family:'JetBrains Mono',monospace;font-size:12.5px;outline:none" style-focus="border-color:var(--primary);box-shadow:0 0 0 3px var(--focus)"></label>
+      </div>
+      <label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:12px;font-weight:500;color:var(--fg2)">Host</span><input value="{{ cf.host }}" onChange="{{ cfSet.host }}" placeholder="localhost" style="height:32px;padding:0 10px;border:1px solid var(--border-soft);border-radius:7px;background:var(--bg);color:var(--fg);font-family:'JetBrains Mono',monospace;font-size:12.5px;outline:none" style-focus="border-color:var(--primary);box-shadow:0 0 0 3px var(--focus)"></label>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
+        <label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:12px;font-weight:500;color:var(--fg2)">Database</span><input value="{{ cf.db }}" onChange="{{ cfSet.db }}" style="height:32px;padding:0 10px;border:1px solid var(--border-soft);border-radius:7px;background:var(--bg);color:var(--fg);font-family:'JetBrains Mono',monospace;font-size:12.5px;outline:none;min-width:0" style-focus="border-color:var(--primary);box-shadow:0 0 0 3px var(--focus)"></label>
+        <label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:12px;font-weight:500;color:var(--fg2)">Username</span><input value="{{ cf.user }}" onChange="{{ cfSet.user }}" style="height:32px;padding:0 10px;border:1px solid var(--border-soft);border-radius:7px;background:var(--bg);color:var(--fg);font-family:'JetBrains Mono',monospace;font-size:12.5px;outline:none;min-width:0" style-focus="border-color:var(--primary);box-shadow:0 0 0 3px var(--focus)"></label>
+        <label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:12px;font-weight:500;color:var(--fg2)">Password</span><input type="password" value="{{ cf.pass }}" onChange="{{ cfSet.pass }}" style="height:32px;padding:0 10px;border:1px solid var(--border-soft);border-radius:7px;background:var(--bg);color:var(--fg);font-size:12.5px;outline:none;min-width:0" style-focus="border-color:var(--primary);box-shadow:0 0 0 3px var(--focus)"></label>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <span style="font-size:12px;font-weight:500;color:var(--fg2)">Environment</span>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <sc-for list="{{ cfEnvs }}" as="ev" hint-placeholder-count="4"><button onClick="{{ ev.onClick }}" style="height:28px;padding:0 10px;border-radius:7px;border:1px solid {{ ev.border }};background:{{ ev.bg }};color:{{ ev.fg }};cursor:pointer;font-size:12px">{{ ev.label }}</button></sc-for>
+        </div>
+        <sc-if value="{{ cf.isProd }}" hint-placeholder-val="{{ false }}"><span style="font-size:11.5px;color:var(--danger)">Production connections open read-only and are marked in red everywhere.</span></sc-if>
+      </div>
+      <button onClick="{{ cfToggleAdv }}" style="align-self:flex-start;display:flex;align-items:center;gap:6px;height:26px;padding:0;border:0;background:transparent;color:var(--fg2);cursor:pointer;font-size:12.5px" style-hover="color:var(--fg)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="transition:transform .2s cubic-bezier(.3,1.4,.5,1);transform:rotate({{ cf.advRot }})"><path d="M9 6l6 6-6 6"></path></svg>SSL &amp; advanced options</button>
+      <sc-if value="{{ cf.adv }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:12px;padding:12px 14px;border-radius:10px;border:1px solid var(--border-soft)">
+          <div style="display:flex;align-items:center;gap:12px"><span style="width:96px;font-size:12px;color:var(--fg2)">SSL mode</span>
+            <div style="display:flex;gap:4px;flex-wrap:wrap"><sc-for list="{{ cfSsl }}" as="sl" hint-placeholder-count="4"><button onClick="{{ sl.onClick }}" style="height:26px;padding:0 9px;border-radius:6px;border:1px solid {{ sl.border }};background:{{ sl.bg }};color:{{ sl.fg }};cursor:pointer;font-size:11.5px;font-family:'JetBrains Mono',monospace">{{ sl.label }}</button></sc-for></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px"><span style="width:96px;font-size:12px;color:var(--fg2)">Timeout</span><input value="{{ cf.timeout }}" onChange="{{ cfSet.timeout }}" style="width:80px;height:28px;padding:0 8px;border:1px solid var(--border-soft);border-radius:6px;background:var(--bg);color:var(--fg);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none"><span style="font-size:12px;color:var(--fg3)">seconds</span></div>
+          <button onClick="{{ cfToggleRO }}" style="display:flex;align-items:center;gap:10px;padding:0;border:0;background:transparent;color:var(--fg);cursor:pointer;font-size:12.5px;text-align:left">
+            <span style="width:30px;height:18px;border-radius:9px;background:{{ cf.roTrack }};position:relative;flex:none;transition:background .2s"><span style="position:absolute;top:2px;left:{{ cf.roKnob }};width:14px;height:14px;border-radius:50%;background:oklch(1 0 0);box-shadow:0 1px 2px oklch(0 0 0 / 0.3);transition:left .22s cubic-bezier(.3,1.5,.5,1)"></span></span>
+            Open read-only
+          </button>
+        </div>
+      </sc-if>
+      <sc-if value="{{ cf.hasTest }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;background:{{ cf.testBg }};color:{{ cf.testFg }};font-size:12.5px">
+          <sc-if value="{{ cf.testing }}" hint-placeholder-val="{{ false }}"><span style="width:12px;height:12px;border-radius:50%;border:1.6px solid var(--border);border-top-color:var(--primary);animation:qcspin .7s linear infinite"></span></sc-if>
+          {{ cf.testMsg }}
+        </div>
+      </sc-if>
+    </div>
+    <div style="height:60px;flex:none;display:flex;align-items:center;gap:8px;padding:0 20px;border-top:1px solid var(--border-soft)">
+      <button onClick="{{ cfTest }}" style="height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--border-soft);background:transparent;color:var(--fg);cursor:pointer;font-size:12.5px" style-hover="border-color:var(--border)">Test connection</button>
+      <div style="flex:1"></div>
+      <button onClick="{{ closeConnForm }}" style="height:32px;padding:0 12px;border-radius:8px;border:0;background:transparent;color:var(--fg2);cursor:pointer;font-size:12.5px" style-hover="background:var(--hover)">Cancel</button>
+      <button onClick="{{ cfSave }}" disabled="{{ cf.cantSave }}" style="height:32px;padding:0 14px;border-radius:8px;border:0;background:var(--primary);color:var(--primary-fg);cursor:pointer;font-weight:500;font-size:12.5px;opacity:{{ cf.saveOpacity }}" style-hover="background:var(--primary-hover)">Save connection</button>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ confirmOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;z-index:70;background:var(--scrim)"></div>
+  <div ref="{{ confirmEnterRef }}" style="position:fixed;z-index:71;top:50%;left:50%;width:400px;margin:-90px 0 0 -200px;padding:20px;border-radius:12px;background:var(--elev);box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px">
+    <span style="font-size:14px;font-weight:600">{{ confirm.title }}</span>
+    <span style="font-size:12.5px;color:var(--fg2);line-height:1.5;text-wrap:pretty">{{ confirm.body }}</span>
+    <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:12px">
+      <button onClick="{{ confirmNo }}" style="height:32px;padding:0 12px;border-radius:8px;border:0;background:transparent;color:var(--fg2);cursor:pointer;font-size:12.5px" style-hover="background:var(--hover)">Cancel</button>
+      <button onClick="{{ confirmYes }}" style="height:32px;padding:0 14px;border-radius:8px;border:0;background:{{ confirm.bg }};color:var(--primary-fg);cursor:pointer;font-weight:500;font-size:12.5px">{{ confirm.cta }}</button>
+    </div>
+  </div>
+</sc-if>
+
+<div style="position:fixed;right:16px;bottom:36px;z-index:80;display:flex;flex-direction:column;gap:8px;align-items:flex-end;pointer-events:none">
+  <sc-for list="{{ toasts }}" as="to" hint-placeholder-count="0">
+    <div ref="{{ to.ref }}" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:9px;background:var(--elev);box-shadow:var(--shadow);font-size:12.5px;max-width:360px">
+      <span style="width:7px;height:7px;border-radius:50%;flex:none;background:{{ to.dot }}"></span>{{ to.text }}
+    </div>
+  </sc-for>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;motion&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;spring&quot;,&quot;subtle&quot;,&quot;off&quot;],&quot;default&quot;:&quot;spring&quot;,&quot;tsType&quot;:&quot;'spring'|'subtle'|'off'&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;demoFailure&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;download&quot;,&quot;healthcheck&quot;,&quot;port-in-use&quot;],&quot;default&quot;:&quot;none&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Local server demo&quot;},&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;compact&quot;,&quot;comfortable&quot;],&quot;default&quot;:&quot;compact&quot;,&quot;tsType&quot;:&quot;'compact'|'comfortable'&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">const FIRST=['Ada','Linus','Grace','Ken','Margaret','Dennis','Barbara','Edsger','Frances','Alan','Radia','Guido','Sophie','Yukihiro','Anders','Hedy','Katherine','Bjarne','Donald','Joan','Mira','Theo','Noor','Kai','Lena','Omar','Priya','Jonas','Elif','Mateo'];
+const LAST=['Lovelace','Torvalds','Hopper','Thompson','Hamilton','Ritchie','Liskov','Dijkstra','Allen','Turing','Perlman','Rossum','Wilson','Matsumoto','Hejlsberg','Lamarr','Johnson','Stroustrup','Knuth','Clarke','Novak','Berg','Haddad','Sato','Fischer','Rahman','Iyer','Lund','Kaya','Ruiz'];
+const REGIONS=['eu-west-1','us-east-1','us-west-2','ap-south-1','eu-central-1'];
+const DOMAINS=['acme.io','northwind.dev','globex.com','initech.co'];
+function rnd(seed){let t=(seed*2654435761+0x6D2B79F5)|0;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}
+function ts(spanDays,seed){const d=new Date(Date.UTC(2026,9,31,18)-Math.floor(rnd(seed)*spanDays*86400000));return d.toISOString().replace('T',' ').slice(0,19)+'+00';}
+const TABLES={
+ customers:{rows:1248,size:'312 kB',cols:[['id','bigint','PK'],['name','text'],['email','citext','UQ'],['plan','plan_tier'],['mrr','numeric(10,2)'],['region','text'],['created_at','timestamptz']],idx:[['customers_pkey','btree (id)'],['customers_email_key','unique btree (email)'],['idx_customers_created_at','btree (created_at)']]},
+ orders:{rows:18412,size:'4.1 MB',cols:[['id','bigint','PK'],['customer_id','bigint','FK'],['total','numeric(10,2)'],['status','order_status'],['created_at','timestamptz']],idx:[['orders_pkey','btree (id)'],['idx_orders_customer_id','btree (customer_id)'],['idx_orders_status','btree (status)']]},
+ invoices:{rows:9530,size:'2.2 MB',cols:[['id','bigint','PK'],['order_id','bigint','FK'],['amount','numeric(10,2)'],['due_at','timestamptz'],['paid_at','timestamptz']],idx:[['invoices_pkey','btree (id)'],['idx_invoices_order_id','btree (order_id)']]},
+ products:{rows:86,size:'48 kB',cols:[['id','integer','PK'],['sku','text','UQ'],['name','text'],['price','numeric(10,2)'],['active','boolean']],idx:[['products_pkey','btree (id)'],['products_sku_key','unique btree (sku)']]},
+ events:{rows:412880,size:'96 MB',cols:[['id','bigint','PK'],['customer_id','bigint','FK'],['kind','text'],['payload','jsonb'],['created_at','timestamptz']],idx:[['events_pkey','btree (id)'],['idx_events_customer_kind','btree (customer_id, kind)']]},
+};
+const KW=new Set('select from where and or not null is in as on join left right inner outer full cross group by order having limit offset with union all distinct case when then else end asc desc insert into values update set delete create table alter drop index primary key references interval true false between like ilike exists returning explain analyze truncate'.split(' '));
+const FNS=['count','sum','avg','min','max','now','date_trunc','coalesce','round','lower','upper','version','extract','jsonb_agg'];
+const W={bigint:84,integer:76,text:170,citext:230,plan_tier:104,numeric:120,timestamptz:200,order_status:112,boolean:80,jsonb:280,date:120,'?column?':100};
+const NUMT=new Set(['bigint','integer','numeric']);
+const SQL1=`-- Customers active in the last two years, with lifetime order stats
+SELECT
+  c.id,
+  c.name,
+  c.email,
+  c.plan,
+  c.mrr,
+  count(o.id) AS orders,
+  max(o.created_at) AS last_order_at,
+  c.region
+FROM customers c
+LEFT JOIN orders o ON o.customer_id = c.id
+WHERE c.created_at > now() - interval '2 years'
+GROUP BY c.id
+ORDER BY c.mrr DESC
+LIMIT 5000;`;
+const SQL2=`SELECT
+  date_trunc('month', created_at) AS month,
+  count(*) AS orders,
+  sum(total) AS revenue,
+  round(avg(total), 2) AS avg_order
+FROM orders
+WHERE status = 'paid'
+GROUP BY 1
+ORDER BY 1 DESC;`;
+const SNIPPETS=[
+ {name:'Top N rows',body:'SELECT *\nFROM customers\nLIMIT 100;'},
+ {name:'Count by group',body:'SELECT plan, count(*)\nFROM customers\nGROUP BY plan\nORDER BY 2 DESC;'},
+ {name:'Recent orders (24h)',body:"SELECT *\nFROM orders\nWHERE created_at > now() - interval '1 day';"},
+ {name:'Table sizes',body:"SELECT relname, pg_size_pretty(pg_total_relation_size(relid))\nFROM pg_catalog.pg_statio_user_tables\nORDER BY 2 DESC;"},
+ {name:'Active sessions',body:"SELECT pid, state, query\nFROM pg_stat_activity\nWHERE state <> 'idle';"},
+];
+const ENGINES={
+ postgres:{label:'PostgreSQL',desc:'Relational, extensible. The default choice for most apps.',versions:['17.0','16.4','15.8'],port:5432,mb:38.2,disk:'≈ 180 MB',file:v=>`postgresql-${v}-macos-arm64.tar.gz`,user:'postgres',db:'postgres',stages:['Checking prerequisites','Preparing storage','Downloading runtime','Verifying files','Initializing database','Applying configuration','Starting server','Health check','Creating connection']},
+ mysql:{label:'MySQL',desc:'Popular relational database, wide hosting support.',versions:['8.4 LTS','8.0'],port:3306,mb:61.4,disk:'≈ 420 MB',file:v=>`mysql-${v.split(' ')[0]}-macos14-arm64.tar.gz`,user:'root',db:'app',stages:['Checking prerequisites','Preparing storage','Downloading runtime','Verifying files','Initializing database','Applying configuration','Starting server','Health check','Creating connection']},
+ sqlite:{label:'SQLite',desc:'Single-file database. No server process, no port.',versions:['3.46'],port:null,mb:0,disk:'< 1 MB',file:()=>'',user:'—',db:'main',stages:['Checking prerequisites','Preparing storage','Initializing database','Applying configuration','Creating connection']},
+};
+const ENV_STYLE={Production:{bg:'var(--danger-soft)',fg:'var(--danger)',c:'var(--danger)'},Staging:{bg:'var(--warning-soft)',fg:'var(--warning)',c:'var(--warning)'},Development:{bg:'var(--info-soft)',fg:'var(--info)',c:'var(--info)'},Local:{bg:'var(--muted)',fg:'var(--fg3)',c:'var(--fg4)'}};
+const PAGE=500;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const nowStr=()=>new Date().toTimeString().slice(0,8);
+const esc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+
+function tokenize(line){
+  const out=[];const re=/(--.*$)|('(?:[^']|'')*'?)|(\b\d+(?:\.\d+)?\b)|([A-Za-z_][A-Za-z0-9_]*)|(\s+)|([^\sA-Za-z0-9_']+)/g;let m;
+  while((m=re.exec(line))){
+    if(m[1])out.push({t:m[1],c:'var(--syn-com)',it:'italic'});
+    else if(m[2])out.push({t:m[2],c:'var(--syn-str)',it:'normal'});
+    else if(m[3])out.push({t:m[3],c:'var(--syn-num)',it:'normal'});
+    else if(m[4]){const w=m[4].toLowerCase();const next=line.slice(re.lastIndex).trimStart()[0];
+      out.push({t:m[4],c:KW.has(w)?'var(--syn-kw)':next==='('?'var(--syn-fn)':TABLES[w]?'var(--syn-tbl)':'var(--fg)',it:'normal'});}
+    else if(m[5])out.push({t:m[5],c:'var(--fg)',it:'normal'});
+    else out.push({t:m[6],c:'var(--fg3)',it:'normal'});
+  }
+  return out;
+}
+function splitTop(s){const out=[];let d=0,cur='';for(const ch of s){if(ch==='(')d++;if(ch===')')d--;if(ch===','&&d===0){out.push(cur.trim());cur='';}else cur+=ch;}if(cur.trim())out.push(cur.trim());return out;}
+function formatSQL(src){
+  const lines=src.split('\n');const head=[];while(lines.length&&lines[0].trim().startsWith('--'))head.push(lines.shift().trim());
+  let t=lines.join(' ').replace(/\s+/g,' ').trim();if(!t)return src;
+  t=t.replace(/'(?:[^']|'')*'|\b[a-z_]+\b/gi,m=>m[0]==="'"?m:(KW.has(m.toLowerCase())?m.toUpperCase():m));
+  t=t.replace(/\s+(FROM|WHERE|GROUP BY|ORDER BY|HAVING|LIMIT|OFFSET|LEFT JOIN|RIGHT JOIN|INNER JOIN|JOIN|UNION ALL|RETURNING)\b/g,'\n$1');
+  t=t.replace(/\s+(AND|OR)\s+/g,'\n  $1 ');
+  t=t.replace(/^SELECT\s+(DISTINCT\s+)?([^\n]*)/,(m,d,cols)=>{const parts=splitTop(cols);return 'SELECT '+(d||'')+(parts.length>1?'\n  '+parts.join(',\n  '):parts[0]);});
+  return [...head,t].join('\n');
+}
+function moneyFmt(v){return v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmtCell(v,t){if(v===null||v===undefined)return null;if(t==='numeric')return moneyFmt(v);if(t==='boolean')return v?'true':'false';return String(v);}
+
+function dsCustomers(limit){
+  const cols=[['id','bigint'],['name','text'],['email','citext'],['plan','plan_tier'],['mrr','numeric'],['orders','bigint'],['last_order_at','timestamptz'],['region','text']];
+  return {cols,count:Math.min(1248,limit),row:i=>{const f=FIRST[Math.floor(rnd(i*3+1)*30)],l=LAST[Math.floor(rnd(i*3+2)*30)];
+    const mrr=Math.max(0,Math.round((4800*Math.exp(-i/170)+rnd(i*5)*9)*100)/100);const plan=mrr>1500?'Enterprise':mrr>300?'Pro':mrr>12?'Starter':'Free';
+    const orders=Math.floor(rnd(i*7)*(plan==='Free'?3:60));
+    return [10000+i*7,f+' '+l,(f+'.'+l).toLowerCase()+'@'+DOMAINS[i%4],plan,mrr,orders,orders===0?null:ts(90,i*11),REGIONS[Math.floor(rnd(i*13)*5)]];}};
+}
+function dsRevenue(){
+  const cols=[['month','timestamptz'],['orders','bigint'],['revenue','numeric'],['avg_order','numeric']];
+  return {cols,count:12,row:i=>{const d=new Date(Date.UTC(2026,9-i,1));const o=1700-i*38+Math.floor(rnd(i+3)*120);const avg=Math.round((86+rnd(i*9)*14-i*0.6)*100)/100;return [d.toISOString().slice(0,10)+' 00:00:00+00',o,Math.round(o*avg*100)/100,avg];}};
+}
+function dsTable(name,limit){
+  const T=TABLES[name];const cols=T.cols.map(c=>[c[0],c[1].replace(/\(.*\)/,'')]);
+  return {cols,count:Math.min(T.rows,limit),row:i=>cols.map(([n,t],j)=>{const s=i*17+j*101;
+    if(n==='id')return (t==='integer'?1:100000)+i;if(n.endsWith('_id'))return 10000+Math.floor(rnd(s)*1248)*7;
+    if(t==='numeric')return Math.round(rnd(s)*48000)/100;if(t==='timestamptz')return n==='paid_at'&&rnd(s+1)<0.18?null:ts(400,s);
+    if(t==='boolean')return rnd(s)>0.15;if(n==='status')return ['paid','paid','paid','pending','refunded'][Math.floor(rnd(s)*5)];
+    if(n==='kind')return ['page_view','signup','checkout','api_call'][Math.floor(rnd(s)*4)];if(n==='payload')return `{"path": "/app/${['billing','settings','reports'][i%3]}", "ms": ${Math.floor(rnd(s)*900)}}`;
+    if(n==='sku')return 'SKU-'+String(1000+i);if(n==='name')return ['Seat licence','Storage add-on','Support plan','API credits','Audit log'][i%5]+(i>4?' '+(Math.floor(i/5)+1):'');
+    if(n==='email')return 'user'+i+'@'+DOMAINS[i%4];return n+'_'+i;})};
+}
+function planFor(sql){
+  const tbls=[...sql.matchAll(/\b(?:from|join)\s+([a-z_][\w]*)/gi)].map(m=>m[1].toLowerCase());
+  if(/customers/i.test(sql)&&/orders/i.test(sql))return [
+    ['Limit','rows=5000',0,0.4,'1,248'],['Sort','key: c.mrr DESC · quicksort 212kB',1,3.1,'1,248'],['HashAggregate','group: c.id',2,11.8,'1,248'],
+    ['Hash Right Join','cond: o.customer_id = c.id',3,24.6,'18,412'],['Seq Scan','on orders o',4,38.2,'18,412'],['Hash','buckets: 2048',4,1.2,'1,248'],['Index Scan','using idx_customers_created_at on customers c',5,4.9,'1,248']];
+  if(/date_trunc/i.test(sql))return [['Sort','key: (date_trunc(...)) DESC',0,0.6,'12'],['HashAggregate','group: date_trunc(\'month\', created_at)',1,9.4,'12'],['Index Scan','using idx_orders_status on orders · filter status = \'paid\'',2,21.3,'14,906']];
+  if(tbls.length)return [['Limit','',0,0.1,'100'],['Seq Scan','on '+tbls[0],1,2.4,(TABLES[tbls[0]]?.rows||1).toLocaleString()]];
+  return [['Result','',0,0.01,'1']];
+}
+
+class Component extends DCLogic {
+  constructor(p){super(p);
+    const ls=k=>{try{return JSON.parse(localStorage.getItem('qc.'+k));}catch(e){return null;}};
+    this.rootRef=React.createRef();this.themeThumbRef=React.createRef();this.railIndRef=React.createRef();this.sideRef=React.createRef();this.sideInnerRef=React.createRef();
+    this.mainRef=React.createRef();this.tabIndRef=React.createRef();this.runRef=React.createRef();this.edScrollRef=React.createRef();this.taRef=React.createRef();
+    this.resRef=React.createRef();this.rtabIndRef=React.createRef();this.gridRef=React.createRef();this.inspRef=React.createRef();this.inspInnerRef=React.createRef();this.palInputRef=React.createRef();
+    this._sp={};this._enter={};this._timers=new Set();
+    this._resH=ls('resH')||300;
+    const t0=Date.now();
+    this.state={
+      theme:ls('theme')||'dark',nav:'workspace',side:ls('side')!==false,insp:false,
+      tabs:[{id:'t1',name:'active_customers.sql',sql:SQL1,dirty:false,conn:'c1'},{id:'t2',name:'revenue_by_month.sql',sql:SQL2,dirty:true,conn:'c1'},{id:'t3',name:'scratch.sql',sql:'SELECT version(), now();',dirty:false,conn:'c1'}],
+      active:'t1',tabSeq:4,
+      conns:[{id:'c1',name:'local-postgres',engine:'PostgreSQL 16.4',env:'Local',host:'127.0.0.1:5432',status:'connected',server:'s1'},
+        {id:'c4',name:'analytics.sqlite',engine:'SQLite 3.46',env:'Local',host:'~/data/analytics.sqlite',status:'idle'},
+        {id:'c5',name:'billing-dev',engine:'MySQL 8.4',env:'Development',host:'dev-db.internal:3306',status:'idle'},
+        {id:'c2',name:'staging-eu',engine:'PostgreSQL 15.6',env:'Staging',host:'stg-eu.internal:5432',status:'idle'},
+        {id:'c3',name:'prod-primary',engine:'PostgreSQL 15.6',env:'Production',host:'db-prod-1.internal:5432',status:'idle',readOnly:true}],
+      servers:[{id:'s1',name:'local-postgres',engine:'PostgreSQL',version:'16.4',port:5432,status:'running'}],
+      expanded:{c1:true,'c1/public':true},selTable:null,
+      saved:[{name:'active_customers.sql',conn:'local-postgres',when:'2h',sql:SQL1},{name:'revenue_by_month.sql',conn:'local-postgres',when:'Yesterday',sql:SQL2},{name:'churn_cohorts.sql',conn:'staging-eu',when:'Oct 28',sql:"SELECT plan, count(*)\nFROM customers\nWHERE mrr = 0\nGROUP BY plan;"}],
+      history:[{sql:'SELECT count(*) FROM events;',conn:'local-postgres',at:t0-3600e3,dur:212,rows:1,ok:true},{sql:"SELECT * FROM invoces LIMIT 10;",conn:'local-postgres',at:t0-3500e3,dur:4,rows:0,ok:false},{sql:'SELECT * FROM products;',conn:'local-postgres',at:t0-7200e3,dur:18,rows:86,ok:true}],
+      results:{},resTab:'results',page:0,gridTop:0,selRow:null,
+      running:null,elapsedMs:0,caret:{line:1,col:1,sel:''},
+      ac:null,menu:null,palette:false,palQ:'',palIdx:0,qFilter:'',
+      wiz:null,cf:null,confirm:null,toasts:[],motion:null,
+    };
+  }
+  // ---------- physics ----------
+  motion(){if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)return 'off';return this.state.motion||this.props.motion||'spring';}
+  cfg(){return this.motion()==='subtle'?{k:520,c:46}:{k:340,c:24};}
+  sp(key,target,apply,o={}){let s=this._sp[key];
+    if(!s){s=this._sp[key]={x:o.from!=null?o.from:target,v:0,t:target,apply,eps:o.eps||0.01,k:o.k,c:o.c};apply(s.x);if(o.from==null)return;}
+    s.apply=apply;if(o.v!=null)s.v=o.v;if(s.t===target&&Math.abs(s.x-target)<s.eps&&Math.abs(s.v)<s.eps)return;s.t=target;
+    if(this.motion()==='off'){s.x=target;s.v=0;apply(target);return;}this._kick();}
+  _kick(){if(this._raf)return;let last=performance.now();const step=now=>{const dt=Math.min(0.034,(now-last)/1000);last=now;let act=false;const g=this.cfg();
+    for(const key in this._sp){const s=this._sp[key];if(Math.abs(s.t-s.x)<s.eps&&Math.abs(s.v)<s.eps){if(s.x!==s.t){s.x=s.t;s.v=0;s.apply(s.x);}continue;}
+      const k=s.k||g.k,c=s.c||g.c;for(let i=0;i<4;i++){const h=dt/4;s.v+=(-k*(s.x-s.t)-c*s.v)*h;s.x+=s.v*h;}s.apply(s.x);act=true;}
+    this._raf=act?requestAnimationFrame(step):null;};this._raf=requestAnimationFrame(step);}
+  enterRef(key,dist=8){if(this._enter[key])return this._enter[key];
+    const fn=el=>{if(!el){delete this._sp['enter:'+key];return;}
+      const apply=p=>{el.style.opacity=String(Math.min(1,Math.max(0,p)));const base=el.dataset.baseTransform||'';el.style.transform=`${base} translateY(${(1-p)*dist}px) scale(${0.97+0.03*p})`;};
+      if(!el.dataset.baseTransform)el.dataset.baseTransform=getComputedStyle(el).transform==='none'?'':(el.style.transform||'');
+      delete this._sp['enter:'+key];this.sp('enter:'+key,1,apply,{from:0,eps:0.001,k:420,c:26});};
+    return this._enter[key]=fn;}
+  later(fn,ms){const id=setTimeout(()=>{this._timers.delete(id);fn();},ms);this._timers.add(id);return id;}
+  // ---------- lifecycle ----------
+  componentDidMount(){
+    this.applyTheme(this.state.theme);
+    this._mq=matchMedia('(prefers-color-scheme: dark)');this._mqh=()=>{if(this.state.theme==='system')this.applyTheme('system');};this._mq.addEventListener('change',this._mqh);
+    this._key=e=>this.onGlobalKey(e);window.addEventListener('keydown',this._key);
+    this._rs=()=>this.forceUpdate();window.addEventListener('resize',this._rs);
+    this.measureChar();if(document.fonts)document.fonts.ready.then(()=>{this.measureChar();this.syncLayout();});
+    this.syncLayout(true);
+  }
+  componentWillUnmount(){window.removeEventListener('keydown',this._key);window.removeEventListener('resize',this._rs);this._mq&&this._mq.removeEventListener('change',this._mqh);this._timers.forEach(clearTimeout);clearInterval(this._tick);clearInterval(this._dl);cancelAnimationFrame(this._raf);}
+  componentDidUpdate(){this.syncLayout();}
+  measureChar(){const c=document.createElement('canvas').getContext('2d');c.font="13px 'JetBrains Mono', monospace";this.cw=c.measureText('MMMMMMMMMM').width/10||7.8;}
+  syncLayout(init){
+    const st=this.state;const side=this.sideRef.current,inner=this.sideInnerRef.current;
+    if(side)this.sp('side',st.side?264:0,x=>{side.style.width=Math.max(0,x)+'px';side.style.borderRightWidth=x<1?'0':'1px';if(inner)inner.style.opacity=String(clamp(x/200,0,1));});
+    const ins=this.inspRef.current,ii=this.inspInnerRef.current;
+    if(ins)this.sp('insp',st.insp?300:0,x=>{ins.style.width=Math.max(0,x)+'px';ins.style.borderLeftWidth=x<1?'0':'1px';if(ii)ii.style.opacity=String(clamp(x/220,0,1));});
+    const rail=this.railIndRef.current;const ri=['workspace','connections','queries','history','snippets'].indexOf(st.nav);
+    if(rail)this.sp('rail',ri*50,y=>rail.style.transform=`translateY(${y}px)`);
+    const th=this.themeThumbRef.current;if(th)this.sp('theme',['light','dark','system'].indexOf(st.theme)*26,x=>th.style.transform=`translateX(${x}px)`);
+    const res=this.resRef.current;if(res&&!this._sp.rh){const mh=this.mainRef.current?.clientHeight||700;this._resH=clamp(this._resH,140,Math.max(140,mh*0.42));}
+    if(res&&!this._sp.rh)this.sp('rh',this._resH,h=>{res.style.height=h+'px';});
+    const root=this.rootRef.current;if(!root)return;
+    const a=root.querySelector(`[data-etab="${st.active}"]`),ind=this.tabIndRef.current;
+    if(a&&ind){this.sp('etl',a.offsetLeft,x=>ind.style.transform=`translateX(${x}px)`);this.sp('etw',a.offsetWidth,w=>ind.style.width=w+'px');}
+    const rb=root.querySelector(`[data-rtab="${st.resTab}"]`),rind=this.rtabIndRef.current;
+    if(rb&&rind){this.sp('rtl',rb.offsetLeft+10,x=>rind.style.transform=`translateX(${x}px)`);this.sp('rtw',rb.offsetWidth-20,w=>rind.style.width=w+'px');}
+    const tick=this._rowsEl;const r=this.curRes();if(tick&&r&&r.ok)this.sp('rows',r.ds.count,v=>{if(this._rowsEl)this._rowsEl.textContent=Math.round(v).toLocaleString();},{eps:0.5,k:120,c:22});
+  }
+  // ---------- theme ----------
+  resolved(m){return m==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):m;}
+  applyTheme(m){document.documentElement.setAttribute('data-theme',this.resolved(m));}
+  setTheme(m,e){try{localStorage.setItem('qc.theme',JSON.stringify(m));}catch(_){}
+    const changes=this.resolved(m)!==this.resolved(this.state.theme);this.setState({theme:m});
+    if(!changes||!document.startViewTransition||this.motion()==='off'){this.applyTheme(m);return;}
+    const x=e?e.clientX:innerWidth/2,y=e?e.clientY:innerHeight/2,r=Math.hypot(Math.max(x,innerWidth-x),Math.max(y,innerHeight-y));
+    const vt=document.startViewTransition(()=>this.applyTheme(m));
+    vt.ready.then(()=>document.documentElement.animate({clipPath:[`circle(0px at ${x}px ${y}px)`,`circle(${r}px at ${x}px ${y}px)`]},{duration:560,easing:'cubic-bezier(.22,.9,.24,1)',pseudoElement:'::view-transition-new(root)'})).catch(()=>{});}
+  // ---------- helpers ----------
+  tab(){return this.state.tabs.find(t=>t.id===this.state.active)||this.state.tabs[0];}
+  conn(id){return this.state.conns.find(c=>c.id===id);}
+  curRes(){return this.state.results[this.state.active];}
+  toast(text,kind='info'){const id=Math.random().toString(36).slice(2);this.setState(s=>({toasts:[...s.toasts,{id,text,kind}]}));this.later(()=>this.setState(s=>({toasts:s.toasts.filter(t=>t.id!==id)})),3200);}
+  persist(k,v){try{localStorage.setItem('qc.'+k,JSON.stringify(v));}catch(_){}}
+  updTab(id,patch){this.setState(s=>({tabs:s.tabs.map(t=>t.id===id?{...t,...patch}:t)}));}
+  setResH(h,v){const res=this.resRef.current;this.sp('rh',h,x=>{if(res)res.style.height=x+'px';},{v});if(h>40)this._resH=h;this.persist('resH',this._resH);}
+  ensureResults(){const s=this._sp.rh;if(s&&s.t<120)this.setResH(Math.max(260,this._resH));}
+  toggleSide=()=>this.setState(s=>{this.persist('side',!s.side);return {side:!s.side};});
+  toggleInsp=()=>this.setState(s=>({insp:!s.insp}));
+  connect(id,then){const c=this.conn(id);if(!c)return;if(c.status==='connected'){then&&then(true);return;}
+    if(c.status==='offline'){then&&then(false);return;}
+    this.setState(s=>({conns:s.conns.map(x=>x.id===id?{...x,status:'connecting'}:x)}));
+    this.later(()=>{this.setState(s=>({conns:s.conns.map(x=>x.id===id?{...x,status:'connected'}:x)}));then&&then(true);},650);}
+  openTab(name,sql,conn){this.setState(s=>{const id='t'+s.tabSeq;return {tabs:[...s.tabs,{id,name,sql,dirty:false,conn:conn||this.tab().conn}],active:id,tabSeq:s.tabSeq+1,page:0,gridTop:0};});}
+  closeTab(id){const t=this.state.tabs.find(x=>x.id===id);const doIt=()=>this.setState(s=>{const tabs=s.tabs.filter(x=>x.id!==id);if(!tabs.length)tabs.push({id:'t'+s.tabSeq,name:'untitled.sql',sql:'',dirty:false,conn:'c1'});
+      const active=s.active===id?tabs[Math.max(0,s.tabs.findIndex(x=>x.id===id)-1)]?.id||tabs[0].id:s.active;return {tabs,active,tabSeq:s.tabSeq+1};});
+    if(t&&t.dirty)this.setState({confirm:{title:`Discard changes to ${t.name}?`,body:'This tab has unsaved edits. Closing it will lose them.',cta:'Discard',danger:true,action:doIt}});else doIt();}
+  save(){const t=this.tab();this.updTab(t.id,{dirty:false});this.setState(s=>({saved:s.saved.some(q=>q.name===t.name)?s.saved.map(q=>q.name===t.name?{...q,sql:t.sql,when:'now'}:q):[{name:t.name,conn:this.conn(t.conn)?.name,when:'now',sql:t.sql},...s.saved]}));this.toast(`Saved ${t.name}`,'ok');}
+  // ---------- execution ----------
+  run(mode){
+    if(this.state.running)return;const t=this.tab();const c=this.conn(t.conn);const sel=this.state.caret.sel;
+    const sql=(mode!=='explain'&&sel&&sel.trim())?sel:t.sql;const stripped=sql.replace(/--.*$/gm,'').trim();
+    if(!stripped){this.toast('Nothing to run — the editor is empty.');return;}
+    const write=/\b(insert|update|delete|drop|truncate|alter|create)\b/i.test(stripped);
+    if(write&&c.readOnly){this.finishRun(t.id,{ok:false,title:'Blocked: connection is read-only',body:`${c.name} is a Production connection opened read-only.`,hint:'Writes to production must go through a migration or a separate read-write connection.'},sql,c,0);this.ensureResults();return;}
+    const go=()=>{const start=performance.now();this.setState({running:{tab:t.id,start,mode},elapsedMs:0,resTab:mode==='explain'?'plan':this.state.resTab==='plan'?'results':this.state.resTab});this.ensureResults();
+      this._tick=setInterval(()=>this.setState({elapsedMs:performance.now()-start}),60);
+      const dur=mode==='explain'?220+Math.random()*200:/events/i.test(sql)?1400+Math.random()*600:320+Math.random()*520;
+      this._runT=this.later(()=>{clearInterval(this._tick);const ms=Math.round(performance.now()-start);this.setState({running:null});this.finishRun(t.id,this.evaluate(stripped,mode),sql,c,ms,sel&&sel.trim()&&mode!=='explain');},dur);};
+    this.connect(c.id,ok=>{if(!ok){this.finishRun(t.id,{ok:false,title:`Could not connect to ${c.name}`,body:`connection refused — 127.0.0.1:${(c.host.split(':')[1]||'')}`,hint:'The local server is stopped. Start it from Local servers in the Workspace panel.'},sql,c,0);this.ensureResults();return;}go();});
+  }
+  evaluate(sql,mode){
+    const tbls=[...sql.matchAll(/\b(?:from|join)\s+([a-z_][\w.]*)/gi)].map(m=>m[1].toLowerCase()).filter(x=>!x.startsWith('pg_'));
+    const bad=tbls.find(x=>!TABLES[x]);
+    if(bad){const ln=sql.split('\n').findIndex(l=>l.toLowerCase().includes(bad))+1;return {ok:false,title:`relation "${bad}" does not exist`,body:`ERROR:  relation "${bad}" does not exist\nLINE ${ln||1}: …${bad}…`,hint:(()=>{const near=Object.keys(TABLES).find(k=>k[0]===bad[0]&&Math.abs(k.length-bad.length)<=2);return near?`Did you mean "${near}"?`:'Check the table name in the explorer.';})()};}
+    if(mode==='explain')return {ok:true,explain:true,plan:planFor(sql)};
+    const lim=+(sql.match(/\blimit\s+(\d+)/i)||[])[1]||Infinity;
+    let ds;
+    if(/date_trunc/i.test(sql))ds=dsRevenue();
+    else if(tbls.includes('customers')&&tbls.includes('orders'))ds=dsCustomers(lim);
+    else if(tbls[0])ds=dsTable(tbls[0],lim);
+    else if(/version\(\)/i.test(sql))ds={cols:[['version','text'],['now','timestamptz']],count:1,row:()=>['PostgreSQL 16.4 on aarch64-apple-darwin23, compiled by clang 15.0.0, 64-bit',new Date().toISOString().replace('T',' ').slice(0,19)+'+00']};
+    else if(/pg_/i.test(sql))ds={cols:[['relname','text'],['size','text']],count:5,row:i=>[Object.keys(TABLES)[i],Object.values(TABLES)[i].size]};
+    else ds={cols:[['?column?','integer']],count:1,row:()=>[1]};
+    return {ok:true,ds,plan:planFor(sql)};
+  }
+  finishRun(tabId,r,sql,c,ms,isSel){
+    const prev=this.state.results[tabId]||{};const msgs=[...(prev.messages||[])];const t=nowStr();
+    if(r.ok&&r.explain)msgs.push({t,kind:'PLAN',text:`EXPLAIN ANALYZE completed in ${ms} ms`});
+    else if(r.ok)msgs.push({t,kind:'OK',text:`${isSel?'Ran selection · ':''}${r.ds.count.toLocaleString()} row${r.ds.count===1?'':'s'} returned in ${ms} ms on ${c.name}`});
+    else msgs.push({t,kind:'ERROR',text:r.title});
+    const res=r.ok&&r.explain?{...prev,plan:r.plan,messages:msgs}:{...r,ms,messages:msgs,plan:r.plan||prev.plan};
+    this.setState(s=>({results:{...s.results,[tabId]:res},page:0,gridTop:0,selRow:null,resTab:r.explain?'plan':(r.ok?(s.resTab==='plan'?'results':s.resTab):'results'),
+      history:[{sql:sql.replace(/--.*$/gm,'').replace(/\s+/g,' ').trim(),conn:c.name,at:Date.now(),dur:ms,rows:r.ok&&r.ds?r.ds.count:0,ok:r.ok},...s.history].slice(0,50)}));
+    if(this.gridRef.current)this.gridRef.current.scrollTop=0;
+    if(!r.ok)this.toast(r.title,'err');
+  }
+  stop=()=>{if(!this.state.running)return;clearTimeout(this._runT);this._timers.delete(this._runT);clearInterval(this._tick);const tabId=this.state.running.tab;
+    this.setState(s=>{const prev=s.results[tabId]||{};return {running:null,results:{...s.results,[tabId]:{...prev,messages:[...(prev.messages||[]),{t:nowStr(),kind:'CANCEL',text:'Query cancelled by user'}]}}};});this.toast('Query cancelled');};
+  exportData(kind){const r=this.curRes();if(!r||!r.ok||!r.ds)return;const {cols,count,row}=r.ds;const rows=[];for(let i=0;i<count;i++)rows.push(row(i));
+    let out;if(kind==='csv'){const q=v=>v==null?'':/[",\n]/.test(String(v))?'"'+String(v).replace(/"/g,'""')+'"':String(v);out=[cols.map(c=>c[0]).join(','),...rows.map(r=>r.map(q).join(','))].join('\n');}
+    else out=JSON.stringify(rows.map(r=>Object.fromEntries(cols.map((c,i)=>[c[0],r[i]]))),null,2);
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([out],{type:kind==='csv'?'text/csv':'application/json'}));a.download=this.tab().name.replace(/\.sql$/,'')+'.'+kind;a.click();
+    this.toast(`Exported ${count.toLocaleString()} rows as ${kind.toUpperCase()}`,'ok');}
+  // ---------- editor ----------
+  setSql(v,caretPos){const t=this.tab();this.updTab(t.id,{sql:v,dirty:true});if(caretPos!=null)requestAnimationFrame(()=>{const ta=this.taRef.current;if(ta){ta.selectionStart=ta.selectionEnd=caretPos;this.readCaret();}});}
+  readCaret(){const ta=this.taRef.current;if(!ta)return;const before=ta.value.slice(0,ta.selectionStart);const line=before.split('\n').length;const col=before.length-before.lastIndexOf('\n');
+    const sel=ta.value.slice(ta.selectionStart,ta.selectionEnd);const c=this.state.caret;if(c.line!==line||c.col!==col||c.sel!==sel)this.setState({caret:{line,col,sel}});}
+  computeAc(){const ta=this.taRef.current;if(!ta)return null;const pos=ta.selectionStart;const before=ta.value.slice(0,pos);const m=before.match(/([A-Za-z_][\w]*)$/);if(!m||m[1].length<2)return null;
+    const w=m[1].toLowerCase();const cands=[];
+    Object.keys(TABLES).forEach(n=>cands.push({label:n,k:'T',detail:TABLES[n].rows.toLocaleString()+' rows',kc:'var(--syn-tbl)'}));
+    const seen=new Set();Object.entries(TABLES).forEach(([tn,T])=>T.cols.forEach(c=>{if(!seen.has(c[0])){seen.add(c[0]);cands.push({label:c[0],k:'C',detail:c[1]+' · '+tn,kc:'var(--fg2)'});}}));
+    FNS.forEach(f=>cands.push({label:f,k:'ƒ',detail:'function',kc:'var(--syn-fn)'}));KW.forEach(k=>cands.push({label:k.toUpperCase(),k:'K',detail:'keyword',kc:'var(--syn-kw)'}));
+    const items=cands.filter(c=>c.label.toLowerCase().startsWith(w)&&c.label.toLowerCase()!==w).slice(0,7);if(!items.length)return null;
+    const lines=before.split('\n');return {items,idx:0,len:m[1].length,line:lines.length-1,col:lines[lines.length-1].length-m[1].length};}
+  pickAc(i){const ac=this.state.ac;const ta=this.taRef.current;if(!ac||!ta)return;const it=ac.items[i];const pos=ta.selectionStart;const v=ta.value.slice(0,pos-ac.len)+it.label+ta.value.slice(pos);
+    this.setState({ac:null});this.setSql(v,pos-ac.len+it.label.length);}
+  insertSnippet(body){const ta=this.taRef.current;const t=this.tab();const pos=ta?ta.selectionStart:t.sql.length;const pre=t.sql.slice(0,pos);const ins=(pre&&!pre.endsWith('\n')?'\n\n':'')+body;
+    this.setSql(pre+ins+t.sql.slice(pos),pos+ins.length);ta&&ta.focus();this.toast('Snippet inserted');}
+  doFormat=()=>{const t=this.tab();const f=formatSQL(t.sql);if(f!==t.sql){this.updTab(t.id,{sql:f,dirty:true});this.toast('Formatted');}else this.toast('Already formatted');};
+  // ---------- keyboard ----------
+  onGlobalKey(e){const mod=e.metaKey||e.ctrlKey;const k=e.key.toLowerCase();const st=this.state;
+    if(mod&&k==='k'){e.preventDefault();this.setState({palette:!st.palette,palQ:'',palIdx:0,menu:null});requestAnimationFrame(()=>this.palInputRef.current&&this.palInputRef.current.focus());return;}
+    if(e.key==='Escape'){if(st.palette)return this.setState({palette:false});if(st.menu)return this.setState({menu:null});if(st.confirm)return this.setState({confirm:null});if(st.cf)return this.setState({cf:null});
+      if(st.wiz&&st.wiz.step!=='run')return this.setState({wiz:null});if(st.running)return this.stop();return;}
+    if(st.palette||st.wiz||st.cf||st.confirm)return;
+    if(mod&&k==='b'){e.preventDefault();this.toggleSide();}
+    else if(mod&&k==='i'){e.preventDefault();this.toggleInsp();}
+    else if(mod&&e.key==='Enter'){e.preventDefault();this.run();}
+    else if(mod&&k==='s'){e.preventDefault();this.save();}
+    else if(e.shiftKey&&e.altKey&&e.code==='KeyF'){e.preventDefault();this.doFormat();}
+  }
+  onEdKey=e=>{const ac=this.state.ac;
+    if(ac){if(e.key==='ArrowDown'){e.preventDefault();return this.setState({ac:{...ac,idx:(ac.idx+1)%ac.items.length}});}
+      if(e.key==='ArrowUp'){e.preventDefault();return this.setState({ac:{...ac,idx:(ac.idx-1+ac.items.length)%ac.items.length}});}
+      if(e.key==='Enter'&&!(e.metaKey||e.ctrlKey)||e.key==='Tab'){e.preventDefault();return this.pickAc(ac.idx);}
+      if(e.key==='Escape'){e.stopPropagation();e.nativeEvent.stopImmediatePropagation();return this.setState({ac:null});}}
+    if(e.key==='Tab'){e.preventDefault();const ta=e.target;const s=ta.selectionStart;this.setSql(ta.value.slice(0,s)+'  '+ta.value.slice(ta.selectionEnd),s+2);}
+    if(e.key==='Enter'&&!(e.metaKey||e.ctrlKey)){const ta=e.target;const s=ta.selectionStart;const ln=ta.value.slice(0,s).split('\n').pop();const ind=(ln.match(/^\s*/)||[''])[0];if(ind){e.preventDefault();this.setSql(ta.value.slice(0,s)+'\n'+ind+ta.value.slice(ta.selectionEnd),s+1+ind.length);}}
+  };
+  // ---------- resize ----------
+  onResizeDown=e=>{if(e.button!==0)return;e.preventDefault();const startY=e.clientY;const s0=this._sp.rh;const startH=s0?s0.x:this._resH;let lastY=startY,lastT=performance.now(),vel=0;
+    const max=(this.mainRef.current?.clientHeight||700)-170;document.body.style.cursor='row-resize';
+    const move=ev=>{const now=performance.now();const h=clamp(startH+(startY-ev.clientY),36,max);const inst=(lastY-ev.clientY)/Math.max(1,now-lastT)*1000;vel=inst*0.6+vel*0.4;lastY=ev.clientY;lastT=now;
+      const s=this._sp.rh;s.x=s.t=h;s.v=0;s.apply(h);};
+    const up=()=>{window.removeEventListener('pointermove',move);document.body.style.cursor='';const s=this._sp.rh;let tgt=clamp(s.x+vel*0.14,36,max);if(tgt<96)tgt=36;this.setResH(tgt,vel);};
+    window.addEventListener('pointermove',move);window.addEventListener('pointerup',up,{once:true});};
+  // ---------- wizard ----------
+  usedPorts(){return this.state.servers.map(s=>s.port).filter(Boolean);}
+  freePort(p){const used=this.usedPorts();while(used.includes(p))p++;return p;}
+  openWizard=()=>{const n=this.state.servers.length+1;this.setState({menu:null,palette:false,wiz:{step:0,engine:'postgres',version:'16.4',name:'pg-local-'+n,port:String(this.freePort(5432)),dir:'~/QueryCraft/servers/pg-local-'+n,stage:0,detail:'',fail:null,stageDone:[]}});};
+  setWiz(p){this.setState(s=>({wiz:{...s.wiz,...p}}));}
+  pickEngine(id){const E=ENGINES[id];const w=this.state.wiz;const base={postgres:'pg-local',mysql:'mysql-local',sqlite:'sqlite-local'}[id]+'-'+(this.state.servers.length+1);
+    this.setWiz({engine:id,version:E.versions[id==='postgres'?1:0],name:base,port:E.port?String(this.freePort(E.port)):'',dir:id==='sqlite'?`~/QueryCraft/data/${base}.db`:`~/QueryCraft/servers/${base}`});}
+  wizValid(){const w=this.state.wiz;const E=ENGINES[w.engine];const nameOk=/^[a-z0-9][a-z0-9-]{1,30}$/.test(w.name)&&!this.state.servers.some(s=>s.name===w.name);
+    const p=+w.port;const portOk=!E.port||(p>=1024&&p<=65535&&!this.usedPorts().includes(p));return {nameOk,portOk,ok:nameOk&&portOk&&w.dir.trim().length>2};}
+  startProvision(from=0){clearInterval(this._dl);this.setWiz({step:'run',stage:from,fail:null,detail:''});this.later(()=>this.runStage(from),220);}
+  stageDetail(name,w,E){const port=w.port;return {
+    'Checking prerequisites':'disk space, write access, port '+(port||'n/a')+', architecture arm64',
+    'Preparing storage':`mkdir -p ${w.dir}`,
+    'Verifying files':'sha256 matches published checksum',
+    'Initializing database':w.engine==='postgres'?'initdb --encoding=UTF8 --locale=C --auth=scram-sha-256':w.engine==='mysql'?'mysqld --initialize-insecure=off':'PRAGMA journal_mode=WAL;',
+    'Applying configuration':E.port?`listen_addresses = '127.0.0.1' · port = ${port}`:'foreign_keys = ON · synchronous = NORMAL',
+    'Starting server':`pid written to ${w.dir}/server.pid`,
+    'Health check':'SELECT 1 → ok (3 ms)',
+    'Creating connection':`${w.name} → Local connections`}[name]||'';}
+  runStage(i){const w=this.state.wiz;if(!w||w.step!=='run')return;const E=ENGINES[w.engine];const stages=E.stages;
+    if(i>=stages.length)return this.finishProvision();const name=stages[i];const fail=this.props.demoFailure||'none';
+    this.setWiz({stage:i,detail:name==='Downloading runtime'?`${E.file(w.version)} · 0.0 / ${E.mb.toFixed(1)} MB`:this.stageDetail(name,w,E)});
+    if(name==='Downloading runtime'){let mb=0;this._dl=setInterval(()=>{if(!this.state.wiz||this.state.wiz.step!=='run'){clearInterval(this._dl);return;}
+        mb=Math.min(E.mb,mb+E.mb/20*(0.5+Math.random()));this.setWiz({detail:`${E.file(w.version)} · ${mb.toFixed(1)} / ${E.mb.toFixed(1)} MB`});
+        if(fail==='download'&&mb>E.mb*0.45){clearInterval(this._dl);return this.failProvision(i,'Download interrupted — could not reach the runtime mirror (ETIMEDOUT).','Nothing was installed. Partial files were removed. Check your network and retry.');}
+        if(mb>=E.mb){clearInterval(this._dl);this._pt=this.later(()=>this.runStage(i+1),240);}},110);return;}
+    if(name==='Starting server'&&fail==='port-in-use')return this._pt=this.later(()=>this.failProvision(i,`Port ${w.port} was taken by another process while setting up.`,'Choose another port and retry — your data directory is kept.','port'),900);
+    if(name==='Health check'&&fail==='healthcheck')return this._pt=this.later(()=>this.failProvision(i,`Server did not accept connections on 127.0.0.1:${w.port} within 10 s.`,'See server.log in the data directory. You can retry from this step.'),1500);
+    this._pt=this.later(()=>this.runStage(i+1),420+Math.random()*620);}
+  failProvision(i,msg,hint,kind){this.setWiz({step:'run',stage:i,fail:{msg,hint,kind}});}
+  cancelProvision(){clearTimeout(this._pt);this._timers.delete(this._pt);clearInterval(this._dl);this.setWiz({cancelled:true,fail:{msg:'Cancelled.',hint:'Rolled back: removed partial files from '+this.state.wiz.dir+'. No system changes remain.',kind:'cancel'}});}
+  finishProvision(){const w=this.state.wiz;const E=ENGINES[w.engine];const sid='s'+Date.now(),cid='c'+Date.now();
+    this.setState(s=>({servers:[...s.servers,{id:sid,name:w.name,engine:E.label,version:w.version,port:E.port?+w.port:null,status:'running'}],
+      conns:[{id:cid,name:w.name,engine:E.label+' '+w.version,env:'Local',host:E.port?`127.0.0.1:${w.port}`:w.dir,status:'connected',server:sid},...s.conns],
+      expanded:{...s.expanded,[cid]:true},wiz:{...s.wiz,step:'done',connId:cid}}));}
+  serverAction(id,act){const sv=this.state.servers.find(s=>s.id===id);if(!sv)return;
+    const set=(st)=>this.setState(s=>({servers:s.servers.map(x=>x.id===id?{...x,status:st}:x),conns:s.conns.map(c=>c.server===id?{...c,status:st==='running'?'connected':st==='stopped'?'offline':'connecting'}:c)}));
+    if(act==='toggle'){if(sv.status==='running'){set('stopping');this.later(()=>{set('stopped');this.toast(`${sv.name} stopped`);},800);}else{set('starting');this.later(()=>{set('running');this.toast(`${sv.name} is running on :${sv.port}`,'ok');},1100);}}
+    else{set('restarting');this.later(()=>{set('running');this.toast(`${sv.name} restarted`,'ok');},1600);}}
+  // ---------- connection form ----------
+  openConnForm=()=>this.setState({menu:null,palette:false,cf:{type:'PostgreSQL',name:'',host:'',port:'5432',db:'',user:'',pass:'',env:'Development',ssl:'prefer',timeout:'10',ro:false,adv:false,test:null}});
+  setCf(p){this.setState(s=>({cf:{...s.cf,...p}}));}
+  // ---------- palette ----------
+  commands(){const st=this.state;const cmds=[
+    ['Query','Run query','⌘↵',()=>this.run()],['Query','Explain query','',()=>this.run('explain')],['Query','Format SQL','⇧⌥F',this.doFormat],['Query','Save query','⌘S',()=>this.save()],
+    ['Editor','New tab','',()=>this.openTab('untitled-'+st.tabSeq+'.sql','')],['View','Toggle sidebar','⌘B',this.toggleSide],['View','Toggle inspector','⌘I',this.toggleInsp],
+    ['View','Toggle results panel','',()=>this.toggleResults()],
+    ['Theme','Light theme','',()=>this.setTheme('light')],['Theme','Dark theme','',()=>this.setTheme('dark')],['Theme','Match system theme','',()=>this.setTheme('system')],
+    ['Server','Create local server…','',this.openWizard],['Connect','New connection…','',this.openConnForm],
+    ...Object.keys(TABLES).map(n=>['Table',`Open ${n}`,'',()=>{this.setState({selTable:n,insp:true});this.openTab(n+'.sql',`SELECT *\nFROM ${n}\nLIMIT 100;`,'c1');this.later(()=>this.run(),60);}]),
+    ...st.conns.map(c=>['Connect',`Use ${c.name}`,c.env==='Production'?'prod':'',()=>{this.updTab(st.active,{conn:c.id});this.connect(c.id);}]),
+    ...['workspace','connections','queries','history','snippets'].map(n=>['Go to',n[0].toUpperCase()+n.slice(1),'',()=>this.setState({nav:n,side:true})])];
+    const q=st.palQ.trim().toLowerCase();if(!q)return cmds.slice(0,12);
+    const score=s=>{s=s.toLowerCase();if(s.includes(q))return 2-s.indexOf(q)/100;let i=0;for(const ch of s)if(ch===q[i])i++;return i===q.length?1:0;};
+    return cmds.map(c=>[c,score(c[0]+' '+c[1])]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).map(x=>x[0]).slice(0,12);}
+  toggleResults(){const s=this._sp.rh;if(!s)return;this.setResH(s.t<=40?Math.max(220,this._resH):36);}
+  menuAt(e,kind,align){const r=e.currentTarget.getBoundingClientRect();this.setState({menu:{kind,x:align==='right'?Math.max(8,r.right-260):r.left,y:r.bottom+6}});}
+
+  renderVals(){
+    const st=this.state;const tab=this.tab();const conn=this.conn(tab.conn)||st.conns[0];const res=st.results[tab.id];const running=!!st.running;
+    const dense=(this.props.density||'compact')==='compact';const rh=dense?28:34;
+    const dotFor=s=>s==='connected'||s==='running'?'var(--success)':s==='connecting'||s==='starting'||s==='stopping'||s==='restarting'?'var(--warning)':s==='offline'||s==='stopped'?'var(--fg4)':'var(--border)';
+    const animFor=s=>/ing$/.test(s)?'qcpulse 1s ease-in-out infinite':'none';
+    // lines
+    const lines=tab.sql.split('\n').map((ln,i)=>({n:i+1,toks:tokenize(ln),bg:i+1===st.caret.line?'var(--line-hl)':'transparent',nfg:i+1===st.caret.line?'var(--fg2)':'var(--fg4)'}));
+    // tree
+    const tree=[];st.conns.forEach(c=>{const open=!!st.expanded[c.id];const es=ENV_STYLE[c.env];
+      tree.push({key:c.id,hasChevron:true,rot:open?'90deg':'0deg',isConn:true,isTable:false,dot:dotFor(c.status),anim:animFor(c.status),label:c.name,font:'inherit',pad:'4px',bg:'transparent',fg:'var(--fg)',
+        hasBadge:c.env!=='Local',badge:c.env==='Production'?'PROD':c.env==='Staging'?'STG':'DEV',badgeBg:es.bg,badgeFg:es.fg,meta:'',title:`${c.engine} · ${c.host}`,
+        onClick:()=>{this.setState(s=>({expanded:{...s.expanded,[c.id]:!open}}));if(!open)this.connect(c.id);},onDouble:()=>{}});
+      if(open&&c.status==='connected'){const sk=c.id+'/public';const so=!!st.expanded[sk];
+        tree.push({key:sk,hasChevron:true,rot:so?'90deg':'0deg',isConn:false,isTable:false,label:'public',font:'inherit',pad:'22px',bg:'transparent',fg:'var(--fg2)',hasBadge:false,meta:String(Object.keys(TABLES).length),title:'schema',onClick:()=>this.setState(s=>({expanded:{...s.expanded,[sk]:!so}})),onDouble:()=>{}});
+        if(so)Object.entries(TABLES).forEach(([n,T])=>{const sel=st.selTable===n;tree.push({key:sk+n,hasChevron:false,isConn:false,isTable:true,label:n,font:"'JetBrains Mono',monospace",pad:'40px',bg:sel?'var(--primary-soft)':'transparent',fg:sel?'var(--fg)':'var(--fg2)',hasBadge:false,
+          meta:T.rows>=1000?(T.rows/1000).toFixed(T.rows>=100000?0:1)+'k':String(T.rows),title:'Click to inspect · double-click to query',onClick:()=>this.setState({selTable:n,insp:true,selConn:c.id}),onDouble:()=>{this.openTab(n+'.sql',`SELECT *\nFROM ${n}\nLIMIT 100;`,c.id);this.later(()=>this.run(),60);}});});}
+      else if(open&&c.status==='connecting')tree.push({key:c.id+'/l',hasChevron:false,isConn:false,isTable:false,label:'Connecting…',font:'inherit',pad:'40px',bg:'transparent',fg:'var(--fg3)',hasBadge:false,meta:'',onClick:()=>{},onDouble:()=>{}});
+      else if(open&&c.status==='offline')tree.push({key:c.id+'/o',hasChevron:false,isConn:false,isTable:false,label:'Server stopped',font:'inherit',pad:'40px',bg:'transparent',fg:'var(--fg3)',hasBadge:false,meta:'',onClick:()=>{},onDouble:()=>{}});});
+    const savedRows=st.saved.map(q=>({...q,onClick:()=>{const ex=st.tabs.find(t=>t.name===q.name);if(ex)this.setState({active:ex.id});else this.openTab(q.name,q.sql);}}));
+    const ff=st.qFilter.toLowerCase();const savedRowsFiltered=savedRows.filter(q=>q.name.toLowerCase().includes(ff));
+    const serverRows=st.servers.map(s=>({name:s.name,meta:`${s.engine} ${s.version}${s.port?' · :'+s.port:''} · ${s.status}`,dot:dotFor(s.status),anim:animFor(s.status),running:s.status==='running',stopped:s.status==='stopped',busy:/ing$/.test(s.status)&&s.status!=='running',
+      actionLabel:s.status==='running'?'Stop server':'Start server',noRestart:s.status!=='running',restartOpacity:s.status==='running'?1:0.35,onToggle:()=>this.serverAction(s.id,'toggle'),onRestart:()=>this.serverAction(s.id,'restart')}));
+    const envGroups=['Local','Development','Staging','Production'].map(env=>({label:env.toUpperCase(),fg:env==='Production'?'var(--danger)':'var(--fg3)',items:st.conns.filter(c=>c.env===env).map(c=>({name:c.name,host:c.host,dot:dotFor(c.status),anim:animFor(c.status),
+      statusLabel:c.status==='connected'?'Connected':c.status==='offline'?'Stopped':c.status==='connecting'?'…':'',ring:c.env==='Production'?'inset 2px 0 0 var(--danger)':'none',onClick:()=>{this.updTab(tab.id,{conn:c.id});this.connect(c.id);this.toast(`Active connection: ${c.name}`);}}))})).filter(g=>g.items.length);
+    const ago=t=>{const m=Math.round((Date.now()-t)/60000);return m<1?'just now':m<60?m+'m ago':Math.round(m/60)+'h ago';};
+    const historyRows=st.history.map(h=>({sql:h.sql,dot:h.ok?'var(--success)':'var(--danger)',meta:`${h.conn} · ${h.ok?h.rows.toLocaleString()+' rows · '+h.dur+' ms':'failed'} · ${ago(h.at)}`,onClick:()=>this.openTab('history.sql',h.sql)}));
+    const snippetRows=SNIPPETS.map(s=>({name:s.name,preview:s.body.replace(/\s+/g,' '),onClick:()=>this.insertSnippet(s.body)}));
+    // tabs
+    const tabRows=st.tabs.map(t=>{const c=this.conn(t.conn);const a=t.id===st.active;return {id:t.id,name:t.name,dirty:t.dirty,clean:!t.dirty,bg:a?'var(--editor-bg)':'transparent',fg:a?'var(--fg)':'var(--fg3)',
+      envColor:ENV_STYLE[c?.env||'Local'].c,envTitle:c?`${c.name} · ${c.env}`:'',closeTitle:t.dirty?'Unsaved changes — close':'Close',
+      onClick:()=>{if(st.active!==t.id)this.setState({active:t.id,page:0,gridTop:0,ac:null,caret:{line:1,col:1,sel:''}});},onClose:e=>{e.stopPropagation();this.closeTab(t.id);}};});
+    // results
+    const ok=res&&res.ok&&res.ds;const r=st.resTab;
+    const resTabs=[['results','Results',ok?null:null],['messages','Messages',res&&res.messages?res.messages.length:0],['plan','Plan',0]].map(([id,label,count])=>({id,label,hasCount:!!count,count,
+      countBg:id==='messages'&&res&&res.ok===false?'var(--danger-soft)':'var(--muted)',countFg:id==='messages'&&res&&res.ok===false?'var(--danger)':'var(--fg3)',fg:r===id?'var(--fg)':'var(--fg3)',onClick:()=>this.setState({resTab:id})}));
+    let gridCols=[],gridRows=[],gridW='100%',top=0,bot=0,pageLabel='',noPrev=true,noNext=true;
+    if(ok){const ds=res.ds;const pages=Math.ceil(ds.count/PAGE);const start=st.page*PAGE;const n=Math.min(PAGE,ds.count-start);
+      gridCols=ds.cols.map(([nm,t])=>({n:nm,t,w:(W[t]||140)+'px',justify:NUMT.has(t)?'flex-end':'flex-start'}));gridW=(52+ds.cols.reduce((a,[,t])=>a+(W[t]||140),0))+'px';
+      const first=Math.max(0,Math.floor(st.gridTop/rh)-6);const last=Math.min(n,first+Math.ceil(((this.gridRef.current&&this.gridRef.current.clientHeight)||600)/rh)+14);top=first*rh;bot=(n-last)*rh;
+      for(let i=first;i<last;i++){const idx=start+i;const vals=ds.row(idx);const sel=st.selRow===idx;
+        gridRows.push({key:idx,n:idx+1,bg:sel?'var(--sel)':'transparent',onClick:()=>this.setState({selRow:idx}),cells:ds.cols.map(([nm,t],j)=>{const f=fmtCell(vals[j],t);const isNum=NUMT.has(t);
+          return {v:f===null?'NULL':f,w:(W[t]||140)+'px',justify:isNum?'flex-end':'flex-start',fg:f===null?'var(--fg4)':nm==='plan'&&f==='Enterprise'?'var(--primary-text)':isNum||t==='timestamptz'?'var(--fg)':'var(--fg)',
+            font:isNum||t==='timestamptz'||t==='jsonb'||t==='citext'?"'JetBrains Mono',monospace":'inherit',fs:isNum||t==='timestamptz'||t==='jsonb'||t==='citext'?'12px':'12.5px',it:f===null?'italic':'normal',
+            onCopy:()=>{navigator.clipboard&&navigator.clipboard.writeText(f===null?'':f).catch(()=>{});this.toast(`Copied ${nm}`);}};})});}
+      pageLabel=pages>1?`${(start+1).toLocaleString()}–${(start+n).toLocaleString()} of ${ds.count.toLocaleString()}`:`${ds.count.toLocaleString()} total`;noPrev=st.page===0;noNext=st.page>=pages-1;}
+    const isRunningHere=running&&st.running.tab===tab.id;
+    const planRows=(res&&res.plan&&r==='plan')?(()=>{const mx=Math.max(...res.plan.map(p=>p[3]));return res.plan.map(([node,detail,d,t,rows])=>({node,detail,pad:(d*18)+'px',arrow:d?'↳':'',bar:Math.max(2,t/mx*100)+'%',barC:t/mx>0.6?'var(--warning)':'var(--primary)',time:t.toFixed(1)+' ms',rows}));})():[];
+    const messages=(res&&res.messages||[]).map(m=>({...m,c:m.kind==='ERROR'?'var(--danger)':m.kind==='OK'?'var(--success)':m.kind==='CANCEL'?'var(--warning)':'var(--info)'})).reverse();
+    // inspector
+    const T=st.selTable&&TABLES[st.selTable];const selC=this.conn(st.selConn||'c1');
+    const ins=T?{name:st.selTable,where:`public · ${selC?selC.name:''}`,stats:`~${T.rows.toLocaleString()} rows · ${T.size} · ${T.cols.length} columns`,
+      cols:T.cols.map(c=>({n:c[0],t:c[1],hasKey:!!c[2],key:c[2],keyBg:c[2]==='PK'?'var(--warning-soft)':c[2]==='FK'?'var(--info-soft)':'var(--muted)',keyFg:c[2]==='PK'?'var(--warning)':c[2]==='FK'?'var(--info)':'var(--fg2)'})),
+      idx:T.idx.map(x=>({n:x[0],d:x[1]})),onSelect:()=>{this.openTab(st.selTable+'.sql',`SELECT *\nFROM ${st.selTable}\nLIMIT 100;`,st.selConn||'c1');this.later(()=>this.run(),60);},
+      onDDL:()=>{const ddl=`CREATE TABLE public.${st.selTable} (\n${T.cols.map(c=>`  ${c[0]} ${c[1]}${c[2]==='PK'?' PRIMARY KEY':c[2]==='UQ'?' UNIQUE':''}`).join(',\n')}\n);`;navigator.clipboard&&navigator.clipboard.writeText(ddl).catch(()=>{});this.toast('DDL copied to clipboard','ok');}}:{cols:[],idx:[]};
+    // menus
+    let menuItems=[],menuTitle='';const m=st.menu;
+    if(m&&m.kind==='conn'){menuTitle='CONNECTION FOR THIS TAB';menuItems=st.conns.map(c=>{const es=ENV_STYLE[c.env];return {item:true,label:c.name,sub:`${c.engine} · ${c.host}`,dot:dotFor(c.status),fg:'var(--fg)',checked:c.id===tab.conn,hasBadge:c.env!=='Local',badge:c.env,badgeBg:es.bg,badgeFg:es.fg,
+      onClick:()=>{this.updTab(tab.id,{conn:c.id});this.connect(c.id);this.setState({menu:null});}};});menuItems.push({sep:true},{item:true,label:'New connection…',sub:'',dot:'transparent',fg:'var(--fg2)',onClick:this.openConnForm});}
+    if(m&&m.kind==='export')menuItems=[{item:true,label:'Export as CSV',sub:'All rows, comma-separated',dot:'transparent',fg:'var(--fg)',onClick:()=>{this.setState({menu:null});this.exportData('csv');}},{item:true,label:'Export as JSON',sub:'Array of objects',dot:'transparent',fg:'var(--fg)',onClick:()=>{this.setState({menu:null});this.exportData('json');}}];
+    if(m&&m.kind==='ws'){menuTitle='WORKSPACES';menuItems=[{item:true,label:'Local Workspace',sub:'Stored on this machine',dot:'var(--success)',fg:'var(--fg)',checked:true,onClick:()=>this.setState({menu:null})},{sep:true},{item:true,label:'Shared workspaces',sub:'Requires sign-in · optional',dot:'transparent',fg:'var(--fg3)',disabled:true}];}
+    if(m&&m.kind==='signin'){menuTitle='CLOUD (OPTIONAL)';menuItems=[{item:true,label:'Everything works locally',sub:'Sign-in only adds shared workspaces, comments and sync. Credentials are never shared.',dot:'var(--success)',fg:'var(--fg)',onClick:()=>this.setState({menu:null})},{sep:true},{item:true,label:'Continue with email',sub:'Not available in this build',dot:'transparent',fg:'var(--fg3)',disabled:true}];}
+    if(m&&m.kind==='settings'){const mo=this.motion();menuTitle='MOTION';menuItems=[['spring','Spring physics','Natural, slightly elastic'],['subtle','Subtle','Critically damped, no overshoot'],['off','Reduced','Instant transitions']].map(([id,l,s])=>({item:true,label:l,sub:s,dot:'transparent',fg:'var(--fg)',checked:mo===id,onClick:()=>this.setState({motion:id,menu:null})}));}
+    menuItems=menuItems.map(x=>({sep:!!x.sep,item:!!x.item,label:'',sub:'',dot:'transparent',fg:'var(--fg)',checked:false,hasBadge:false,disabled:false,onClick:()=>{},...x}));
+    // palette
+    const cmds=st.palette?this.commands():[];const palIdx=Math.min(st.palIdx,Math.max(0,cmds.length-1));this._cmds=cmds;
+    const palItems=cmds.map((c,i)=>({group:c[0],label:c[1],kbd:c[2],bg:i===palIdx?'var(--muted)':'transparent',onHover:()=>{if(st.palIdx!==i)this.setState({palIdx:i});},onRun:()=>{this.setState({palette:false});c[3]();}}));
+    // wizard
+    const w=st.wiz;let wizVals={},engineOpts=[],versionOpts=[],reviewRows=[],prereqRows=[],stageRows=[],doneRows=[],wizSteps=[],wizButtons=[];
+    if(w){const E=ENGINES[w.engine];const v=this.wizValid();const p=+w.port;const conflict=E.port&&this.usedPorts().includes(p);const sug=this.freePort(p||E.port);
+      const stepIdx=w.step==='run'||w.step==='done'?3:w.step;
+      wizSteps=['Engine','Configure','Review','Create'].map((l,i)=>{const done=i<stepIdx||w.step==='done';const act=i===stepIdx&&w.step!=='done';return {label:l,mark:done?'✓':String(i+1),fg:act||done?'var(--fg)':'var(--fg3)',bg:done?'var(--primary)':act?'var(--primary-soft)':'transparent',numFg:done?'var(--primary-fg)':act?'var(--primary-text)':'var(--fg3)',ring:done||act?'none':'inset 0 0 0 1px var(--border)'};});
+      engineOpts=[...Object.entries(ENGINES).map(([id,e])=>({label:e.label,desc:e.desc,meta:e.port?':'+e.port:'file',disabled:false,opacity:1,border:w.engine===id?'var(--primary)':'var(--border-soft)',bg:w.engine===id?'var(--primary-soft)':'transparent',radio:w.engine===id?'inset 0 0 0 5px var(--primary)':'inset 0 0 0 1.5px var(--border)',onClick:()=>this.pickEngine(id)})),
+        {label:'Microsoft SQL Server',desc:'Coming later — platform and licensing requirements under evaluation.',meta:'—',disabled:true,opacity:0.5,border:'var(--border-soft)',bg:'transparent',radio:'inset 0 0 0 1.5px var(--border)',onClick:()=>{}}];
+      versionOpts=E.versions.map(x=>({label:x,border:w.version===x?'var(--primary)':'var(--border-soft)',bg:w.version===x?'var(--primary-soft)':'transparent',fg:w.version===x?'var(--primary-text)':'var(--fg2)',onClick:()=>this.setWiz({version:x})}));
+      reviewRows=[['Engine',`${E.label} ${w.version}`],['Will install',w.engine==='sqlite'?'Nothing — SQLite is bundled with QueryCraft':`${E.label} server binaries (portable, user-level). No system service.`],
+        ['Download',E.mb?`≈ ${Math.round(E.mb)} MB · ${E.file(w.version)}`:'None'],['Disk usage',E.disk+' including initial data'],['Data location',w.dir],
+        ...(E.port?[['Listens on',`127.0.0.1:${w.port} (this machine only)`]]:[]),['System changes',w.engine==='sqlite'?'Creates one file':'None outside the data directory. Starts on demand, not at login.'],
+        ['Credentials',E.port?`User “${E.user}” · random password stored in keychain`:'—']].map(([k,val])=>({k,v:val,font:/\/|:|~/.test(val)&&k!=='System changes'&&k!=='Will install'?"'JetBrains Mono',monospace":'inherit',fs:'12.5px'}));
+      const pq=[['Disk space','212 GB free on Macintosh HD',true],['Write access',w.dir.replace(/\/[^/]+$/,''),true],...(E.port?[[`Port ${w.port}`,conflict?'In use':'Available on 127.0.0.1',!conflict]]:[]),['Architecture','arm64 · supported',true],['Container runtime','Not required — native binaries','na']];
+      prereqRows=pq.map(([label,detail,okk])=>({label,detail,mark:okk==='na'?'–':okk?'✓':'!',bg:okk==='na'?'var(--muted)':okk?'var(--success-soft)':'var(--danger-soft)',fg:okk==='na'?'var(--fg3)':okk?'var(--success)':'var(--danger)'}));
+      if(w.step==='run'||w.step==='done')stageRows=E.stages.map((name,i)=>{const done=w.step==='done'||i<w.stage;const cur=i===w.stage&&w.step==='run';const failed=cur&&w.fail&&w.fail.kind!=='cancel';const canc=cur&&w.fail&&w.fail.kind==='cancel';
+        return {label:name,mark:done?'✓':failed?'!':canc?'–':'',bg:done?'var(--success-soft)':failed?'var(--danger-soft)':'transparent',fg:done?'var(--success)':failed?'var(--danger)':'var(--fg3)',
+          ring:cur&&!w.fail?'none':done||failed?'none':'inset 0 0 0 1.5px var(--border)',border:cur&&!w.fail?'1.6px solid var(--border)':'0',anim:cur&&!w.fail?'qcspin .7s linear infinite':'none',
+          labelFg:done?'var(--fg2)':cur?'var(--fg)':'var(--fg4)',weight:cur?500:400,hasDetail:cur,detail:failed||canc?w.fail.msg+'\n'+w.fail.hint:w.detail,detailFg:failed?'var(--danger)':'var(--fg3)'};}).map(x=>x.anim!=='none'?{...x,border:'1.6px solid var(--border)',ring:'inset 0 0 0 0 transparent',bg:'transparent',mark:''}:x);
+      if(stageRows.length&&w.step==='run'&&!w.fail){const cur=stageRows[w.stage];if(cur){cur.border='1.6px solid var(--border)';cur.ring='none';}}
+      const svPort=E.port?w.port:null;doneRows=[['Status','Running'],['Engine',`${E.label} ${w.version}`],...(svPort?[['Host','127.0.0.1'],['Port',svPort]]:[['File',w.dir]]),['Database',E.db],['User',E.user]].map(([k,val])=>({k,v:val}));
+      const btn=(label,onClick,kind='ghost',disabled=false)=>({label,onClick,disabled,opacity:disabled?0.45:1,bg:kind==='primary'?'var(--primary)':kind==='danger'?'var(--danger)':'transparent',fg:kind==='ghost'?'var(--fg2)':'var(--primary-fg)',border:kind==='outline'?'1px solid var(--border)':'0'});
+      const close=()=>this.setState({wiz:null});
+      if(w.step===0)wizButtons=[btn('Cancel',close),btn('Continue',()=>this.setWiz({step:1}),'primary')];
+      else if(w.step===1)wizButtons=[btn('Back',()=>this.setWiz({step:0})),btn('Review',()=>this.setWiz({step:2}),'primary',!v.ok)];
+      else if(w.step===2)wizButtons=[btn('Back',()=>this.setWiz({step:1})),btn('Create server',()=>this.startProvision(0),'primary',!v.ok)];
+      else if(w.step==='run'&&!w.fail)wizButtons=[btn('Cancel',()=>this.cancelProvision(),'outline')];
+      else if(w.step==='run'&&w.fail&&w.fail.kind==='cancel')wizButtons=[btn('Close',close),btn('Start over',()=>this.setWiz({step:2,fail:null,cancelled:false}),'primary')];
+      else if(w.step==='run'&&w.fail&&w.fail.kind==='port')wizButtons=[btn('Close',close),btn(`Use port ${sug} and retry`,()=>{this.setWiz({port:String(sug),fail:null});this.later(()=>this.startProvision(w.stage),30);},'primary')];
+      else if(w.step==='run'&&w.fail)wizButtons=[btn('Close',close),btn('Copy log',()=>{navigator.clipboard&&navigator.clipboard.writeText(`[${nowStr()}] ${E.stages[w.stage]}: ${w.fail.msg}`).catch(()=>{});this.toast('Log copied');},'outline'),btn('Retry step',()=>this.startProvision(w.stage),'primary')];
+      else if(w.step==='done')wizButtons=[btn('Connect',()=>{this.updTab(tab.id,{conn:w.connId});this.setState({wiz:null});this.toast(`Connected to ${w.name}`,'ok');},'outline'),btn('Open in workspace',()=>{this.setState({wiz:null,nav:'workspace',side:true});this.openTab(w.name+'.sql',`-- Connected to ${w.name}\nSELECT version();`,w.connId);},'primary')];
+      const failing=w.step==='run'&&w.fail;
+      wizVals={isEngine:w.step===0,isConfig:w.step===1,isReview:w.step===2,isRun:w.step==='run',isDone:w.step==='done',engineLabel:E.label,name:w.name,port:w.port,dir:w.dir,hasPort:!!E.port,dirLabel:w.engine==='sqlite'?'Database file':'Data directory',
+        nameBorder:v.nameOk?'var(--border-soft)':'var(--danger)',nameMsg:v.nameOk?'Lowercase letters, numbers and dashes.':st.servers.some(s=>s.name===w.name)?'A server with this name already exists.':'Use 2–31 lowercase letters, numbers or dashes.',nameMsgFg:v.nameOk?'var(--fg3)':'var(--danger)',
+        portBorder:v.portOk?'var(--border-soft)':'var(--danger)',portConflict:!!conflict,portSuggest:sug,portMsg:conflict?`Port ${p} is used by ${(st.servers.find(s=>s.port===p)||{}).name}.`:v.portOk?'Available on 127.0.0.1':'Use a port between 1024 and 65535.',portMsgFg:v.portOk?'var(--fg3)':'var(--danger)',
+        runTitle:failing?(w.fail.kind==='cancel'?'Setup cancelled':'Setup stopped at “'+E.stages[w.stage]+'”'):`Creating ${w.name}`,runSub:failing?(w.fail.kind==='cancel'?'Nothing was left behind.':'Fix the issue below, then retry from this step.'):'You can keep working — this runs in the background.',
+        footNote:w.step==='run'&&!w.fail?`Step ${w.stage+1} of ${E.stages.length}`:w.step===2?'Nothing is changed until you click Create.':''};
+    }
+    // conn form
+    const cf=st.cf;let cfVals={},cfTypes=[],cfEnvs=[],cfSsl=[],cfSet={};
+    if(cf){const pill=(on)=>({border:on?'var(--primary)':'var(--border-soft)',bg:on?'var(--primary-soft)':'transparent',fg:on?'var(--primary-text)':'var(--fg2)'});
+      const ports={PostgreSQL:'5432',MySQL:'3306',MariaDB:'3306','SQL Server':'1433','Azure SQL':'1433',SQLite:''};
+      cfTypes=Object.keys(ports).map(t=>({label:t,...pill(cf.type===t),onClick:()=>this.setCf({type:t,port:ports[t]})}));
+      cfEnvs=['Local','Development','Staging','Production'].map(e=>{const on=cf.env===e;const es=ENV_STYLE[e];return {label:e,border:on?es.c:'var(--border-soft)',bg:on?es.bg:'transparent',fg:on?es.fg:'var(--fg2)',onClick:()=>this.setCf({env:e,ro:e==='Production'?true:cf.ro})};});
+      cfSsl=['disable','prefer','require','verify-full'].map(s=>({label:s,...pill(cf.ssl===s),onClick:()=>this.setCf({ssl:s})}));
+      ['name','host','port','db','user','pass','timeout'].forEach(k=>cfSet[k]=e=>this.setCf({[k]:e.target.value,test:k==='name'?cf.test:null}));
+      const t=cf.test;cfVals={...cf,isProd:cf.env==='Production',advRot:cf.adv?'90deg':'0deg',roTrack:cf.ro?'var(--primary)':'var(--border)',roKnob:cf.ro?'14px':'2px',hasTest:!!t,testing:t==='testing',
+        testBg:t==='ok'?'var(--success-soft)':t&&t.err?'var(--danger-soft)':'var(--muted)',testFg:t==='ok'?'var(--success)':t&&t.err?'var(--danger)':'var(--fg2)',
+        testMsg:t==='testing'?`Connecting to ${cf.host}:${cf.port}…`:t==='ok'?`Reachable · ${cf.type} responded in 38 ms`:t&&t.err?t.err:'',cantSave:!cf.name.trim()||!cf.host.trim(),saveOpacity:!cf.name.trim()||!cf.host.trim()?0.45:1};}
+    const confirm=st.confirm?{...st.confirm,bg:st.confirm.danger?'var(--danger)':'var(--primary)'}:{};
+    const toasts=st.toasts.map(t=>({...t,dot:t.kind==='ok'?'var(--success)':t.kind==='err'?'var(--danger)':'var(--primary)',ref:this.enterRef('toast'+t.id,14)}));
+    const isProd=conn.env==='Production';const rel=st.selTable&&st.insp;
+    const navFg={};['workspace','connections','queries','history','snippets'].forEach(n=>navFg[n]=st.nav===n&&st.side?'var(--fg)':'var(--fg3)');
+    const nav={};['workspace','connections','queries','history','snippets'].forEach(n=>nav[n]=()=>this.setState(s=>{const side=s.nav===n?!s.side:true;this.persist('side',side);return {nav:n,side};}));
+    const showGrid=r==='results'&&!!ok&&!isRunningHere;
+    return {
+      rootRef:this.rootRef,themeThumbRef:this.themeThumbRef,railIndRef:this.railIndRef,sideRef:this.sideRef,sideInnerRef:this.sideInnerRef,mainRef:this.mainRef,tabIndRef:this.tabIndRef,runRef:this.runRef,edScrollRef:this.edScrollRef,taRef:this.taRef,
+      resRef:this.resRef,rtabIndRef:this.rtabIndRef,gridRef:this.gridRef,inspRef:this.inspRef,inspInnerRef:this.inspInnerRef,palInputRef:this.palInputRef,
+      rowsTickRef:this._rowsRefFn||(this._rowsRefFn=el=>{this._rowsEl=el;if(el){const s=this._sp.rows;el.textContent=Math.round(s?s.x:(this.curRes()?.ds?.count||0)).toLocaleString();}}),
+      menuEnterRef:this.enterRef('menu',-6),paletteEnterRef:this.enterRef('palette',-10),wizEnterRef:this.enterRef('wiz',12),cfEnterRef:this.enterRef('cf',12),confirmEnterRef:this.enterRef('confirm',8),doneEnterRef:this.enterRef('done',0),
+      themeFg:{light:st.theme==='light'?'var(--fg)':'var(--fg3)',dark:st.theme==='dark'?'var(--fg)':'var(--fg3)',system:st.theme==='system'?'var(--fg)':'var(--fg3)'},
+      themeLight:e=>this.setTheme('light',e),themeDark:e=>this.setTheme('dark',e),themeSystem:e=>this.setTheme('system',e),
+      openWsMenu:e=>this.menuAt(e,'ws'),openSignIn:e=>this.menuAt(e,'signin','right'),openSettings:e=>this.menuAt(e,'settings','right'),openConnMenu:e=>this.menuAt(e,'conn','right'),openExport:e=>this.menuAt(e,'export','right'),
+      openPalette:()=>{this.setState({palette:true,palQ:'',palIdx:0});requestAnimationFrame(()=>this.palInputRef.current&&this.palInputRef.current.focus());},
+      nav,navFg,navIs:{workspace:st.nav==='workspace',connections:st.nav==='connections',queries:st.nav==='queries',history:st.nav==='history',snippets:st.nav==='snippets'},
+      panelTitle:{workspace:'Workspace',connections:'Connections',queries:'Saved queries',history:'History',snippets:'Snippets'}[st.nav],
+      toggleSide:this.toggleSide,toggleInspector:this.toggleInsp,inspectorBtnFg:st.insp?'var(--primary-text)':'var(--fg3)',
+      tree,savedRows,savedRowsFiltered,noSaved:!savedRowsFiltered.length,qFilter:st.qFilter,onQFilter:e=>this.setState({qFilter:e.target.value}),
+      serverRows,envGroups,historyRows,snippetRows,openWizard:this.openWizard,openConnForm:this.openConnForm,
+      tabRows,newTab:()=>this.openTab('untitled-'+st.tabSeq+'.sql',''),
+      run:()=>this.run(),stop:this.stop,explain:()=>this.run('explain'),format:this.doFormat,running:isRunningHere,notRunning:!isRunningHere,runOpacity:isRunningHere?0.55:1,stopFg:isRunningHere?'var(--danger)':'var(--fg4)',
+      runLabel:st.caret.sel&&st.caret.sel.trim()?'Run selection':'Run',elapsed:(st.elapsedMs/1000).toFixed(2)+'s',
+      magMove:e=>{const b=this.runRef.current;if(!b||this.motion()==='off')return;const r=b.getBoundingClientRect();const dx=(e.clientX-(r.left+r.width/2))*0.18,dy=(e.clientY-(r.top+r.height/2))*0.28;
+        const ap=()=>{b.style.transform=`translate(${this._sp.mx?this._sp.mx.x:0}px,${this._sp.my?this._sp.my.x:0}px)`;};this.sp('mx',dx,ap,{k:500,c:20});this.sp('my',dy,ap,{k:500,c:20});},
+      magLeave:()=>{const b=this.runRef.current;if(!b)return;const ap=()=>{b.style.transform=`translate(${this._sp.mx?this._sp.mx.x:0}px,${this._sp.my?this._sp.my.x:0}px)`;};this.sp('mx',0,ap,{k:300,c:12});this.sp('my',0,ap,{k:300,c:12});},
+      isProd,prodLine:isProd?'var(--danger)':'transparent',connName:conn.name,connDot:dotFor(conn.status),connAnim:animFor(conn.status),dialect:conn.engine.split(' ')[0],
+      lines,sql:tab.sql,onSql:e=>{this.setSql(e.target.value);const ta=e.target;requestAnimationFrame(()=>{this.readCaret();this.setState({ac:this.computeAc()});});},
+      onEdKey:this.onEdKey,onCaret:()=>this.readCaret(),onEdBlur:()=>this.later(()=>this.setState({ac:null}),120),
+      acOpen:!!st.ac,acTop:st.ac?(12+(st.ac.line+1)*20+2)+'px':'0',acLeft:st.ac?(8+st.ac.col*(this.cw||7.8)-26)+'px':'0',
+      acItems:st.ac?st.ac.items.map((a,i)=>({...a,bg:i===st.ac.idx?'var(--muted)':'transparent',onPick:e=>{e.preventDefault();this.pickAc(i);}})):[],
+      onResizeDown:this.onResizeDown,toggleResults:()=>this.toggleResults(),
+      resTabs,hasRows:!!ok&&r==='results'&&!isRunningHere,duration:ok?res.ms+' ms':'',pageLabel,noPrev,noNext,prevOpacity:noPrev?0.35:1,nextOpacity:noNext?0.35:1,
+      prevPage:()=>{this.setState(s=>({page:Math.max(0,s.page-1),gridTop:0}));if(this.gridRef.current)this.gridRef.current.scrollTop=0;},nextPage:()=>{this.setState(s=>({page:s.page+1,gridTop:0}));if(this.gridRef.current)this.gridRef.current.scrollTop=0;},
+      showEmpty:r==='results'&&!res&&!isRunningHere,showRunning:r==='results'&&isRunningHere,showError:r==='results'&&res&&res.ok===false&&!isRunningHere,showGrid,
+      errTitle:res&&res.title,errBody:res&&res.body,errHint:res&&res.hint,
+      gridCols,gridRows,gridW,gridTopPad:top+'px',gridBotPad:bot+'px',rowH:rh+'px',
+      onGridScroll:e=>{const t=e.target.scrollTop;if(this._gs)return;this._gs=requestAnimationFrame(()=>{this._gs=null;this.setState({gridTop:t});});},
+      showMessages:r==='messages',messages,noMessages:!messages.length,showPlan:r==='plan',planRows,noPlan:!planRows.length,
+      noInspect:!T,hasInspect:!!T,ins,
+      statusConn:`${conn.name} · ${conn.engine}`,caretLabel:`Ln ${st.caret.line}, Col ${st.caret.col}${st.caret.sel?` (${st.caret.sel.length} selected)`:''}`,statusRight:'Local · Offline   ⌘K Commands',
+      menuOpen:!!m,menuX:m?m.x+'px':'0',menuY:m?m.y+'px':'0',menuTitle,menuHasTitle:!!menuTitle,menuItems,closeMenu:()=>this.setState({menu:null}),
+      paletteOpen:st.palette,palQuery:st.palQ,palItems,palEmpty:st.palette&&!palItems.length,closePalette:()=>this.setState({palette:false}),
+      onPalQuery:e=>this.setState({palQ:e.target.value,palIdx:0}),
+      onPalKey:e=>{const n=(this._cmds||[]).length;if(e.key==='ArrowDown'){e.preventDefault();this.setState(s=>({palIdx:(s.palIdx+1)%Math.max(1,n)}));}else if(e.key==='ArrowUp'){e.preventDefault();this.setState(s=>({palIdx:(s.palIdx-1+n)%Math.max(1,n)}));}
+        else if(e.key==='Enter'){e.preventDefault();const c=(this._cmds||[])[palIdx];this.setState({palette:false});c&&c[3]();}},
+      wizOpen:!!w,wiz:wizVals,wizSteps,engineOpts,versionOpts,reviewRows,prereqRows,stageRows,doneRows,wizButtons,
+      onWizName:e=>this.setWiz({name:e.target.value.toLowerCase(),dir:w&&w.engine==='sqlite'?`~/QueryCraft/data/${e.target.value.toLowerCase()}.db`:`~/QueryCraft/servers/${e.target.value.toLowerCase()}`}),
+      onWizPort:e=>this.setWiz({port:e.target.value.replace(/\D/g,'').slice(0,5)}),onWizDir:e=>this.setWiz({dir:e.target.value}),
+      usePortSuggestion:e=>{e.preventDefault();if(w)this.setWiz({port:String(this.freePort(+w.port||5432))});},
+      cfOpen:!!cf,cf:cfVals,cfTypes,cfEnvs,cfSsl,cfSet,closeConnForm:()=>this.setState({cf:null}),cfToggleAdv:()=>this.setCf({adv:!cf.adv}),cfToggleRO:()=>this.setCf({ro:!cf.ro}),
+      cfTest:()=>{if(!cf.host.trim())return this.setCf({test:{err:'Host is required to test the connection.'}});this.setCf({test:'testing'});
+        this.later(()=>{const c=this.state.cf;if(!c)return;this.setCf({test:/^(localhost|127\.|[\w-]+\.(internal|local|dev|com|io|net))/.test(c.host)?'ok':{err:`Could not resolve host “${c.host}”.`}});},900);},
+      cfSave:()=>{const id='c'+Date.now();this.setState(s=>({conns:[...s.conns,{id,name:cf.name.trim(),engine:cf.type,env:cf.env,host:cf.type==='SQLite'?cf.host:`${cf.host}:${cf.port}`,status:'idle',readOnly:cf.ro}],cf:null}));this.toast(`Saved ${cf.name.trim()}`,'ok');},
+      confirmOpen:!!st.confirm,confirm,confirmNo:()=>this.setState({confirm:null}),confirmYes:()=>{const a=st.confirm.action;this.setState({confirm:null});a&&a();},
+      toasts,
+    };
+  }
+}</script>
+</body>
+</html>
