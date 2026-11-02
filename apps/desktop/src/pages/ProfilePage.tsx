@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { apiFetch, auth } from "../lib/auth";
 
 type User = { id: string; name: string; email: string };
@@ -18,24 +19,29 @@ export function ProfilePage({ image }: { image?: string | null }) {
   }, []);
 
   return (
-    <main className="container">
-      <h1>Profile</h1>
-      {error && <p role="alert">{error}</p>}
-      {!user && !error && <p>Loading...</p>}
-      {user && (
-        <>
-          {image && <img src={image} alt="" width={96} height={96} style={{ borderRadius: "50%", margin: "0 auto" }} />}
-          <dl>
-            <dt>Name</dt>
-            <dd>{user.name}</dd>
-            <dt>Email</dt>
-            <dd>{user.email}</dd>
-            <dt>User ID</dt>
-            <dd>{user.id}</dd>
-          </dl>
-        </>
+    <div className="flex flex-col gap-4">
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
       )}
-      <button onClick={() => auth.signOut()}>Sign out</button>
-    </main>
+      {!user && !error && <p className="text-muted-foreground">Loading...</p>}
+      {user && (
+        <div className="flex items-center gap-3">
+          {image && <img src={image} alt="" className="size-12 rounded-full" />}
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+            <dt className="text-muted-foreground">Name</dt>
+            <dd>{user.name}</dd>
+            <dt className="text-muted-foreground">Email</dt>
+            <dd>{user.email}</dd>
+            <dt className="text-muted-foreground">User ID</dt>
+            <dd className="font-mono text-xs">{user.id}</dd>
+          </dl>
+        </div>
+      )}
+      <Button variant="outline" onClick={() => auth.signOut()}>
+        Sign out
+      </Button>
+    </div>
   );
 }

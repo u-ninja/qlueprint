@@ -1,16 +1,12 @@
 #[cfg(not(dev))]
-use tauri::{ipc::CapabilityBuilder, Manager, Url};
+use tauri::{Manager, Url, ipc::CapabilityBuilder};
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
 // Fixed so the origin (and the stored auth session) stays the same across launches.
 // shortcut: app fails to start if another process holds this port, pick a fallback if that bites.
 const LOCALHOST_PORT: u16 = 14200;
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
+mod db;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -25,7 +21,9 @@ pub fn run() {
 
             #[cfg(not(dev))]
             let url = {
-                let url: Url = format!("http://localhost:{LOCALHOST_PORT}").parse().unwrap();
+                let url: Url = format!("http://localhost:{LOCALHOST_PORT}")
+                    .parse()
+                    .unwrap();
                 app.add_capability(
                     CapabilityBuilder::new("localhost")
                         .remote(url.to_string())
@@ -34,7 +32,10 @@ pub fn run() {
                         .permission("core:default")
                         .permission("opener:default")
                         .permission("oauth:allow-start")
-                        .permission("oauth:allow-cancel"),
+                        .permission("oauth:allow-cancel")
+                        .permission("allow-connect")
+                        .permission("allow-disconnect")
+                        .permission("allow-list-schemas"),
                 )?;
                 WebviewUrl::External(url)
             };
@@ -46,7 +47,12 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![greet])
+        .manage(db::Connections::default())
+        .invoke_handler(tauri::generate_handler![
+            db::connect,
+            db::disconnect,
+            db::list_schemas
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

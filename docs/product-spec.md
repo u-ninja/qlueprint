@@ -345,20 +345,52 @@ Motion communicates state changes; it does not decorate the UI.
 
 ## 5. Core UI screens and detailed behavior
 
-### 5.1 First launch and onboarding
+### 5.1 Launch behavior
 
-The first-run experience helps a user reach a useful database workspace quickly.
+QueryCraft opens directly into the database workspace. There is no dashboard, welcome page, feature-selection screen, or unnecessary loading screen. It should feel like opening VS Code, not an admin dashboard: the workspace is ready, and the user decides what to do next.
 
-Show:
+**First launch: empty workspace**
 
-- Welcome to QueryCraft.
-- Create a database connection.
-- Create a local database server.
-- Open an existing SQL file or workspace.
-- A concise explanation that local-first use does not require an account.
-- Optional sign-in for collaboration, clearly secondary and skippable.
+| Area | What to show |
+| --- | --- |
+| Top bar | QueryCraft logo, Local Workspace, theme switch, optional sign-in |
+| Left navigation | Workspace, Connections, Queries, History |
+| Main area | Empty SQL editor |
+| Bottom panel | Collapsed results panel |
+| Connection selector | Select a database or create one |
 
-Do not force account creation. Do not show a long feature tour before the user can connect to a database.
+The editor's empty state shows a small welcome:
+
+- "Welcome to QueryCraft" and "Your database workspace is ready."
+- Three actions:
+  1. **Connect to a database:** opens the connection dialog with the supported database types (PostgreSQL, MySQL, SQL Server, SQLite).
+  2. **Create a local database:** opens the provisioning wizard ([§6.4](#64-creation-flow)).
+  3. **Open SQL file:** opens a `.sql` document in the editor without requiring a connection.
+- A keyboard hint: `Ctrl + Enter` (`⌘ Enter` on macOS) to execute a query.
+
+No large cards, statistics, promotional content, or forced onboarding.
+
+**Returning user: restore the workspace**
+
+- Restore the previous workspace, open SQL tabs, and editor content, including unsaved drafts.
+- Restore panel sizes and visibility, and the last selected theme.
+- Restore the connection list and workspace state.
+- Reconnect to databases only according to each connection's preferences. If a connection is unavailable, show a disconnected indicator instead of blocking startup.
+- Never automatically execute previously open queries.
+
+**Once a database is connected**, the empty state disappears and the workspace is the primary interface: database explorer on the left, SQL editor in the center, query results at the bottom, and the optional inspector on the right.
+
+| Decision | Behavior |
+| --- | --- |
+| Login | Never required for local usage |
+| First launch | Open the empty workspace |
+| Later launches | Restore the previous workspace |
+| No database connected | Show the useful empty state |
+| Database connected | Show the database explorer |
+| Local servers | Available directly from the workspace |
+| Theme | Light, Dark, System |
+| Cloud collaboration | Optional |
+| Startup | No unnecessary loading screen |
 
 ### 5.2 Connection manager
 

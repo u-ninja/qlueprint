@@ -1,0 +1,177 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/jetbrains-mono";
+
+/* Theme is set as data-theme on <html> by src/stores/ui.ts */
+@custom-variant dark (&:is([data-theme=dark] *));
+
+/* Design tokens copied from docs/design/QueryCraft.dc.html; keep the two in sync */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: oklch(0.17 0.006 265);
+  --chrome: oklch(0.185 0.006 265);
+  --panel: oklch(0.185 0.006 265);
+  --editor-bg: oklch(0.205 0.006 265);
+  --surface: oklch(0.205 0.006 265);
+  --elev: oklch(0.235 0.007 265);
+  --muted: oklch(0.255 0.008 265);
+  --hover: oklch(1 0 0 / 0.045);
+  --border: oklch(0.32 0.008 265);
+  --border-soft: oklch(0.26 0.007 265);
+  --fg: oklch(0.95 0.003 265);
+  --fg2: oklch(0.77 0.008 265);
+  --fg3: oklch(0.62 0.01 265);
+  --fg4: oklch(0.46 0.01 265);
+  --primary: oklch(0.62 0.17 258);
+  --primary-hover: oklch(0.67 0.16 258);
+  --primary-fg: oklch(0.99 0 0);
+  --primary-soft: oklch(0.64 0.17 258 / 0.16);
+  --primary-text: oklch(0.77 0.12 258);
+  --success: oklch(0.74 0.15 155);
+  --success-soft: oklch(0.74 0.15 155 / 0.14);
+  --warning: oklch(0.8 0.14 80);
+  --warning-soft: oklch(0.8 0.14 80 / 0.14);
+  --danger: oklch(0.7 0.17 25);
+  --danger-soft: oklch(0.68 0.18 25 / 0.15);
+  --info: oklch(0.76 0.11 230);
+  --info-soft: oklch(0.74 0.11 230 / 0.14);
+  --focus: oklch(0.64 0.17 258 / 0.45);
+  --sel: oklch(0.64 0.17 258 / 0.2);
+  --scrim: oklch(0.1 0.005 265 / 0.55);
+  --shadow: 0 18px 48px -12px oklch(0 0 0 / 0.6), 0 0 0 1px oklch(0.32 0.008 265);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: oklch(0.972 0.002 265);
+  --chrome: oklch(0.985 0.002 265);
+  --panel: oklch(0.985 0.002 265);
+  --editor-bg: oklch(1 0 0);
+  --surface: oklch(1 0 0);
+  --elev: oklch(1 0 0);
+  --muted: oklch(0.948 0.004 265);
+  --hover: oklch(0.2 0.01 265 / 0.045);
+  --border: oklch(0.88 0.005 265);
+  --border-soft: oklch(0.925 0.004 265);
+  --fg: oklch(0.23 0.01 265);
+  --fg2: oklch(0.42 0.012 265);
+  --fg3: oklch(0.54 0.012 265);
+  --fg4: oklch(0.7 0.008 265);
+  --primary: oklch(0.54 0.2 260);
+  --primary-hover: oklch(0.49 0.2 260);
+  --primary-fg: oklch(0.99 0 0);
+  --primary-soft: oklch(0.55 0.2 260 / 0.1);
+  --primary-text: oklch(0.5 0.19 260);
+  --success: oklch(0.55 0.14 155);
+  --success-soft: oklch(0.55 0.14 155 / 0.12);
+  --warning: oklch(0.6 0.14 65);
+  --warning-soft: oklch(0.7 0.14 75 / 0.16);
+  --danger: oklch(0.55 0.2 25);
+  --danger-soft: oklch(0.56 0.2 25 / 0.1);
+  --info: oklch(0.52 0.12 230);
+  --info-soft: oklch(0.55 0.12 230 / 0.1);
+  --focus: oklch(0.55 0.2 260 / 0.35);
+  --sel: oklch(0.55 0.2 260 / 0.12);
+  --scrim: oklch(0.3 0.01 265 / 0.22);
+  --shadow: 0 18px 44px -14px oklch(0.2 0.02 265 / 0.25), 0 0 0 1px oklch(0.88 0.005 265);
+}
+
+/* shadcn's token names, pointed at the design tokens so its components match the design */
+:root {
+  --background: var(--bg);
+  --foreground: var(--fg);
+  --card: var(--surface);
+  --card-foreground: var(--fg);
+  --popover: var(--elev);
+  --popover-foreground: var(--fg);
+  --primary-foreground: var(--primary-fg);
+  --secondary: var(--muted);
+  --secondary-foreground: var(--fg);
+  --muted-foreground: var(--fg3);
+  --accent: var(--muted);
+  --accent-foreground: var(--fg);
+  --destructive: var(--danger);
+  --input: var(--border);
+  --ring: var(--primary);
+  --radius: 0.5rem;
+}
+
+@theme inline {
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-sans);
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+
+  /* shadcn */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+
+  /* Design-only tokens */
+  --color-chrome: var(--chrome);
+  --color-panel: var(--panel);
+  --color-editor: var(--editor-bg);
+  --color-surface: var(--surface);
+  --color-elev: var(--elev);
+  --color-hover: var(--hover);
+  --color-border-soft: var(--border-soft);
+  --color-fg2: var(--fg2);
+  --color-fg3: var(--fg3);
+  --color-fg4: var(--fg4);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-text: var(--primary-text);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-sel: var(--sel);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body,
+  #root {
+    @apply h-full overflow-hidden;
+  }
+  body {
+    @apply bg-background font-sans text-[13px] text-foreground antialiased;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0s !important;
+    transition-duration: 0s !important;
+  }
+}

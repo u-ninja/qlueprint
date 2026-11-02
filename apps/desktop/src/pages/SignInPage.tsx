@@ -1,4 +1,8 @@
 import { useState, type FormEvent } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { auth, signInWithGoogle } from "../lib/auth";
 
 export function SignInPage() {
@@ -23,41 +27,49 @@ export function SignInPage() {
   }
 
   return (
-    <main className="container">
-      <h1>QueryCraft</h1>
-      <form className="auth-form" onSubmit={onSubmit}>
+    <div className="flex flex-col gap-4">
+      <form className="flex flex-col gap-3" onSubmit={onSubmit}>
         {mode === "signUp" && (
-          <label>
-            Name
-            <input name="name" autoComplete="name" required />
-          </label>
+          <div className="grid gap-1.5">
+            <Label htmlFor="name">Name</Label>
+            <Input id="name" name="name" autoComplete="name" required />
+          </div>
         )}
-        <label>
-          Email
-          <input name="email" type="email" autoComplete="email" required />
-        </label>
-        <label>
-          Password
-          <input
+        <div className="grid gap-1.5">
+          <Label htmlFor="email">Email</Label>
+          <Input id="email" name="email" type="email" autoComplete="email" required />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
             name="password"
             type="password"
             autoComplete={mode === "signIn" ? "current-password" : "new-password"}
             minLength={8}
             required
           />
-        </label>
-        <button type="submit" disabled={pending}>
+        </div>
+        <Button type="submit" disabled={pending}>
           {mode === "signIn" ? "Sign in" : "Create account"}
-        </button>
+        </Button>
       </form>
-      <button type="button" className="link-button" onClick={() => setMode(mode === "signIn" ? "signUp" : "signIn")}>
+      <Button variant="link" className="h-auto p-0" onClick={() => setMode(mode === "signIn" ? "signUp" : "signIn")}>
         {mode === "signIn" ? "No account? Create one" : "Have an account? Sign in"}
-      </button>
-      <p>or</p>
-      <button onClick={() => signInWithGoogle(setError).catch((err) => setError(String(err)))}>
+      </Button>
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <Separator className="flex-1" />
+        or
+        <Separator className="flex-1" />
+      </div>
+      <Button variant="outline" onClick={() => signInWithGoogle(setError).catch((err) => setError(String(err)))}>
         Continue with Google
-      </button>
-      {error && <p role="alert">{error}</p>}
-    </main>
+      </Button>
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
