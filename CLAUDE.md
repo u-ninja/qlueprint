@@ -1,5 +1,19 @@
 # Project rules
 
+## UI and UX work
+
+The design source of truth is `docs/design/` and product-spec §4 (Obsidian Flow);
+skills guide execution, they don't override it. For any change in
+`apps/desktop/src`:
+
+- While building: follow `frontend-design`, `ui-typography` (quotes, dashes,
+  spacing, hierarchy) and `bencium-controlled-ux-designer` (stay inside the
+  existing design system rather than inventing new styles).
+- React code: follow `react-best-practices` (skip its Next.js/server rules, this
+  is a Vite SPA) and `composition-patterns`.
+- Before committing UI changes: run `web-design-guidelines` on the changed
+  files and fix what it finds.
+
 ## Before committing
 
 Run `/simplify` on the pending diff and apply its fixes: reuse existing code
