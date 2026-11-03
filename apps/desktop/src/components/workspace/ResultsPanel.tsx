@@ -1,0 +1,145 @@
+import { useEffect, useState } from "react";
+import { Kbd } from "@/components/ui/kbd";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useConnections } from "@/stores/connections";
+import { activeConnection, useQuery, type Outcome } from "@/stores/query";
+import { cn, count, runShortcut } from "@/lib/utils";
+
+const time = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+// Ticks on its own so only this label re-renders while a query runs
+function Elapsed({ since }: { since: number }) {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 100);
+    return () => clearInterval(timer);
+  }, []);
+  // aria-hidden: inside a live region, a 100 ms tick would be read out continuously
+  return (
+    <span className="font-mono tabular-nums" aria-hidden>
+      {((now - since) / 1000).toFixed(1)} s
+    </span>
+  );
+}
+
+function Spinner() {
+  return <span className="size-3.5 animate-spin rounded-full border-[1.8px] border-border border-t-primary" aria-hidden />;
+}
+
+function Running({ since }: { since: number }) {
+  const connectionId = useQuery((s) => s.connectionId);
+  const label = useConnections((s) => activeConnection(s.connections, connectionId)?.label);
+  return (
+    <div role="status" className="grid h-full place-items-center text-fg3">
+      <span className="flex items-center gap-2.5">
+        <Spinner />
+        Executing on {label}… <Elapsed since={since} />
+      </span>
+    </div>
+  );
+}
+
+function Empty() {
+  return (
+    <div className="grid h-full place-items-center text-fg3">
+      <div className="flex flex-col items-center gap-2">
+        <span>Run a query to see results here.</span>
+        <span className="text-xs">
+          <Kbd className="px-1.5 font-mono text-fg2">{runShortcut}</Kbd> runs the query, or just the selected part
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function Failed({ error }: { error: string }) {
+  return (
+    <div role="alert" className="flex gap-3 overflow-auto px-5 py-4.5">
+      <span className="grid size-5.5 flex-none place-items-center rounded-full bg-danger-soft text-xs font-semibold text-danger" aria-hidden>
+        !
+      </span>
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <span className="font-medium">Query failed</span>
+        <span className="font-mono text-xs wrap-anywhere whitespace-pre-wrap text-fg2">{error}</span>
+      </div>
+    </div>
+  );
+}
+
+function OutcomeView({ outcome }: { outcome: Outcome }) {
+  if (!outcome.ok) return <Failed error={outcome.error} />;
+  const { rows, columns } = outcome.output;
+  // shortcut: summary only until the results grid (TanStack Table + Virtual) lands in the next commit
+  return (
+    <div className="grid h-full place-items-center text-fg3">
+      {columns.length
+        ? `${count(rows.length, "row")} across ${count(columns.length, "column")}. The results grid is not built yet.`
+        : "Statement ran. See Messages for the rows affected."}
+    </div>
+  );
+}
+
+function ResultsView() {
+  const runningSince = useQuery((s) => s.runningSince);
+  const last = useQuery((s) => s.last);
+
+  if (!last) return runningSince === null ? <Empty /> : <Running since={runningSince} />;
+  return (
+    <div className="relative h-full">
+      {/* The previous result stays visible but dimmed until the new one returns */}
+      <div className={cn("h-full", runningSince !== null && "opacity-50")}>
+        <OutcomeView outcome={last} />
+      </div>
+      {runningSince !== null && (
+        <span
+          role="status"
+          className="absolute top-2 right-3 flex items-center gap-2 rounded-md bg-elev px-2.5 py-1 text-xs text-fg2 ring-1 ring-border"
+        >
+          <Spinner /> Running, showing previous result · <Elapsed since={runningSince} />
+        </span>
+      )}
+    </div>
+  );
+}
+
+function MessagesView() {
+  const messages = useQuery((s) => s.messages);
+  if (!messages.length) return <div className="grid h-full place-items-center text-fg3">No messages yet.</div>;
+  return (
+    <ol className="h-full overflow-auto py-2 font-mono text-xs select-text">
+      {messages.map((m, i) => (
+        <li key={i} className="flex items-baseline gap-3.5 px-4 py-1">
+          <span className="flex-none text-fg4 tabular-nums">{time.format(m.at)}</span>
+          <span className={cn("w-11 flex-none", m.ok ? "text-success" : "text-danger")}>{m.ok ? "OK" : "ERROR"}</span>
+          <span className="min-w-0 whitespace-pre-wrap text-fg2">{m.text}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+const tab = "flex-none px-0.5 text-[13px]";
+
+export function ResultsPanel() {
+  return (
+    <Tabs defaultValue="results" className="h-full gap-0 bg-surface">
+      <TabsList variant="line" className="h-10 w-full flex-none justify-start gap-4 rounded-none border-b border-border-soft px-4 py-0">
+        <TabsTrigger value="results" className={tab}>
+          Results
+        </TabsTrigger>
+        <TabsTrigger value="messages" className={tab}>
+          Messages
+        </TabsTrigger>
+        <TabsTrigger value="plan" className={tab} disabled title="Not built yet">
+          Plan
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="results" className="min-h-0">
+        <ResultsView />
+      </TabsContent>
+      <TabsContent value="messages" className="min-h-0">
+        <MessagesView />
+      </TabsContent>
+    </Tabs>
+  );
+}
