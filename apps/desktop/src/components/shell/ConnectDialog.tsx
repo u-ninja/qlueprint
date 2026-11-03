@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { errorMessage, useConnections, type ConnectRequest } from "@/stores/connections";
+import type { ConnectRequest } from "@/bindings";
+import { errorMessage, useConnections } from "@/stores/connections";
 import { cn } from "@/lib/utils";
 
 type Kind = ConnectRequest["kind"];

@@ -8,8 +8,6 @@
     "opener:default",
     "oauth:allow-start",
     "oauth:allow-cancel",
-    "allow-connect",
-    "allow-disconnect",
-    "allow-list-schemas"
+    "app-commands"
   ]
 }

@@ -1,0 +1,6 @@
+# One set for every app command, so both capabilities (capabilities/default.json and the
+# localhost one in src/lib.rs) grant the same list without repeating it.
+[[set]]
+identifier = "app-commands"
+description = "Allows every QueryCraft command."
+permissions = ["allow-connect", "allow-disconnect", "allow-list-schemas", "allow-run-query"]

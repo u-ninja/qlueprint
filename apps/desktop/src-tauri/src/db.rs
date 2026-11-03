@@ -9,6 +9,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+use specta::Type;
 use sqlx::postgres::{PgConnectOptions, PgPool, PgPoolOptions};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 use tauri::State;
@@ -37,7 +38,7 @@ const SQLITE_TABLES: &str = r"
     WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite\_%' ESCAPE '\'
     ORDER BY name";
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Type)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum ConnectRequest {
     Postgres {
@@ -55,7 +56,7 @@ pub enum ConnectRequest {
 
 // Both pool types are an Arc inside, so cloning one out of the map is O(1).
 #[derive(Clone)]
-enum Pool {
+pub(crate) enum Pool {
     Postgres(PgPool),
     Sqlite(SqlitePool),
 }
@@ -69,26 +70,26 @@ pub struct Connections {
 }
 
 impl Connections {
-    fn get(&self, id: u32) -> Result<Pool, CommandError> {
+    pub(crate) fn get(&self, id: u32) -> Result<Pool, CommandError> {
         self.pools
             .lock()
             .expect("connections lock poisoned")
             .get(&id)
             .cloned()
             .ok_or(CommandError::new(
-                "not_connected",
+                ErrorCode::NotConnected,
                 "This connection is closed.",
             ))
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Type)]
 pub struct Schema {
     name: String,
     tables: Vec<Table>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Type)]
 pub struct Table {
     name: String,
     view: bool,
@@ -96,14 +97,23 @@ pub struct Table {
 
 /// Typed error for the UI: a stable `code` to branch on and a message safe to show.
 /// sqlx's messages never include the password or a connection string.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Type)]
 pub struct CommandError {
-    code: &'static str,
+    code: ErrorCode,
     message: String,
 }
 
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum ErrorCode {
+    InvalidInput,
+    NotConnected,
+    ConnectFailed,
+    QueryFailed,
+}
+
 impl CommandError {
-    fn new(code: &'static str, message: impl Into<String>) -> Self {
+    pub(crate) fn new(code: ErrorCode, message: impl Into<String>) -> Self {
         Self {
             code,
             message: message.into(),
@@ -111,10 +121,10 @@ impl CommandError {
     }
 }
 
-fn require(value: &str, field: &str) -> Result<(), CommandError> {
+pub(crate) fn require(value: &str, field: &str) -> Result<(), CommandError> {
     if value.trim().is_empty() {
         return Err(CommandError::new(
-            "invalid_input",
+            ErrorCode::InvalidInput,
             format!("{field} is required."),
         ));
     }
@@ -122,11 +132,12 @@ fn require(value: &str, field: &str) -> Result<(), CommandError> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn connect(
     request: ConnectRequest,
     connections: State<'_, Connections>,
 ) -> Result<u32, CommandError> {
-    let failed = |e: sqlx::Error| CommandError::new("connect_failed", e.to_string());
+    let failed = |e: sqlx::Error| CommandError::new(ErrorCode::ConnectFailed, e.to_string());
 
     // connect_with opens one connection up front, so bad credentials fail here, not on first use.
     let pool = match request {
@@ -180,6 +191,7 @@ pub async fn connect(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn disconnect(id: u32, connections: State<'_, Connections>) -> Result<(), CommandError> {
     let pool = connections
         .pools
@@ -197,11 +209,12 @@ pub async fn disconnect(id: u32, connections: State<'_, Connections>) -> Result<
 
 /// Every schema with its tables and views, sorted by name, in one round trip.
 #[tauri::command]
+#[specta::specta]
 pub async fn list_schemas(
     id: u32,
     connections: State<'_, Connections>,
 ) -> Result<Vec<Schema>, CommandError> {
-    let failed = |e: sqlx::Error| CommandError::new("query_failed", e.to_string());
+    let failed = |e: sqlx::Error| CommandError::new(ErrorCode::QueryFailed, e.to_string());
 
     match connections.get(id)? {
         Pool::Postgres(pool) => {

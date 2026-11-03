@@ -1,14 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
 import { create } from "zustand";
-
-// These types mirror src-tauri/src/db.rs; keep them in sync.
-export type Table = { name: string; view: boolean };
-export type Schema = { name: string; tables: Table[] };
-export type ConnectRequest =
-  | { kind: "postgres"; host: string; port: number; user: string; password: string; database: string }
-  | { kind: "sqlite"; path: string };
-/** What every failed command rejects with. */
-export type CommandError = { code: string; message: string };
+import { commands, type CommandError, type ConnectRequest, type Schema } from "@/bindings";
 
 export type Connection = { id: number; label: string; schemas: Schema[] };
 
@@ -33,19 +24,19 @@ export const useConnections = create<ConnectionsState>()((set) => ({
   connections: [],
 
   connect: async (request) => {
-    const id = await invoke<number>("connect", { request });
+    const id = await commands.connect(request);
     try {
-      const schemas = await invoke<Schema[]>("list_schemas", { id });
+      const schemas = await commands.listSchemas(id);
       set((s) => ({ connections: [...s.connections, { id, label: labelOf(request), schemas }] }));
     } catch (error) {
       // Don't leave an open pool the UI can't see
-      await invoke("disconnect", { id });
+      await commands.disconnect(id);
       throw error;
     }
   },
 
   disconnect: async (id) => {
     set((s) => ({ connections: s.connections.filter((c) => c.id !== id) }));
-    await invoke("disconnect", { id });
+    await commands.disconnect(id);
   },
 }));
