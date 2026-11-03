@@ -2,3 +2,6 @@ node_modules
 pnpm-*
 .env
 .playwright-mcp
+
+# Python bytecode from vendored skill scripts
+__pycache__/

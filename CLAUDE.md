@@ -9,6 +9,9 @@ skills guide execution, they don't override it. For any change in
 - While building: follow `frontend-design`, `ui-typography` (quotes, dashes,
   spacing, hierarchy) and `bencium-controlled-ux-designer` (stay inside the
   existing design system rather than inventing new styles).
+- Use `ui-ux-pro-max` for `--domain` / `--stack react` lookups (UX,
+  accessibility, charts). Don't use its `--design-system` or `--persist`
+  output: the palette and typography come from Obsidian Flow.
 - React code: follow `react-best-practices` (skip its Next.js/server rules, this
   is a Vite SPA) and `composition-patterns`.
 - Before committing UI changes: run `web-design-guidelines` on the changed
