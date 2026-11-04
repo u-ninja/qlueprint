@@ -93,8 +93,8 @@ function EditorAndResults() {
 }
 
 export function Workspace() {
-  // The welcome is the empty editor's state: it gives way once something is connected or drafted
-  const noConnections = useConnections((s) => s.connections.length === 0);
+  // The welcome is the empty editor's state: it gives way once a connection is saved or a query drafted
+  const noConnections = useConnections((s) => s.saved.length === 0);
   const noDraft = useQuery((s) => s.sql === "");
   const showWelcome = noConnections && noDraft;
 

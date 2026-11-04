@@ -17,7 +17,7 @@ const emptyText: Record<View, string> = {
 export function Sidebar() {
   const view = useUi((s) => s.view);
   const title = views.find((v) => v.value === view)?.label;
-  const connected = useConnections((s) => s.connections.length > 0);
+  const connected = useConnections((s) => s.saved.length > 0);
 
   return (
     <aside aria-label={title} className="flex h-full flex-col bg-panel">

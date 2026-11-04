@@ -1,6 +1,6 @@
 #[cfg(not(dev))]
-use tauri::{Manager, Url, ipc::CapabilityBuilder};
-use tauri::{WebviewUrl, WebviewWindowBuilder};
+use tauri::{Url, ipc::CapabilityBuilder};
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_specta::{ErrorHandlingMode, collect_commands};
 
 // Fixed so the origin (and the stored auth session) stays the same across launches.
@@ -12,16 +12,20 @@ const BINDINGS_PATH: &str = "../src/bindings.ts";
 
 mod db;
 mod query;
+mod saved;
 
 /// Every command the UI can call. Adding one here also puts it in src/bindings.ts.
 /// New commands also need an entry in build.rs and permissions/app.toml.
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::new()
         .commands(collect_commands![
-            db::connect,
             db::disconnect,
             db::list_schemas,
             query::run_query,
+            saved::list_saved,
+            saved::connect_and_save,
+            saved::connect_saved,
+            saved::forget_saved,
         ])
         // Rejects with CommandError, so callers keep using try/catch.
         .error_handling(ErrorHandlingMode::Throw)
@@ -45,6 +49,8 @@ pub fn run() {
         // Serve the built app over http://localhost: Neon Auth rejects the tauri:// origin
         .plugin(tauri_plugin_localhost::Builder::new(LOCALHOST_PORT).build())
         .setup(|app| {
+            app.manage(saved::Saved::load(app.path().app_data_dir()?));
+
             #[cfg(dev)]
             let url = WebviewUrl::App(std::path::PathBuf::from("/"));
 

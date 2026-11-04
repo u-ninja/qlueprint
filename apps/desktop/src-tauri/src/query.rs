@@ -37,13 +37,51 @@ pub struct ResultColumn {
     name: String,
     /// The database's own type name, e.g. `INT4` or `TEXT`. Empty when SQLite has none.
     type_name: String,
+    /// How the UI should align and size the column.
+    kind: ColumnKind,
+}
+
+/// Display family of a column, decided here where the driver's type info is.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Type)]
+#[serde(rename_all = "lowercase")]
+pub enum ColumnKind {
+    Number,
+    Bool,
+    Temporal,
+    Uuid,
+    Json,
+    Binary,
+    Text,
+}
+
+impl ColumnKind {
+    /// From a Postgres type name as sqlx reports it (`INT4`, `TIMESTAMPTZ`, `INT4[]`…) or a
+    /// SQLite declared/storage type (`INTEGER`, `DATETIME`, `BLOB`…).
+    fn of(type_name: &str) -> Self {
+        let name = type_name.to_ascii_uppercase();
+        if name.ends_with("[]") {
+            return Self::Text;
+        }
+        match name.as_str() {
+            "INT2" | "INT4" | "INT8" | "FLOAT4" | "FLOAT8" | "NUMERIC" | "OID" | "MONEY"
+            | "INTEGER" | "REAL" => Self::Number,
+            "BOOL" | "BOOLEAN" => Self::Bool,
+            "DATE" | "TIME" | "TIMETZ" | "TIMESTAMP" | "TIMESTAMPTZ" | "INTERVAL" | "DATETIME" => {
+                Self::Temporal
+            }
+            "UUID" => Self::Uuid,
+            "JSON" | "JSONB" => Self::Json,
+            "BYTEA" | "BLOB" => Self::Binary,
+            _ => Self::Text,
+        }
+    }
 }
 
 /// Runs one or more `;`-separated statements and returns the last statement's result.
 #[tauri::command]
 #[specta::specta]
 pub async fn run_query(
-    id: u32,
+    id: String,
     sql: String,
     connections: State<'_, Connections>,
 ) -> Result<QueryOutput, CommandError> {
@@ -53,17 +91,18 @@ pub async fn run_query(
     let sql = AssertSqlSafe(sql);
     let started = Instant::now();
 
-    let mut output = match connections.get(id)? {
+    let mut output = match connections.get(&id)? {
         // raw_sql uses Postgres' simple query protocol, which sends every value as text.
         Pool::Postgres(pool) => {
             let results = sqlx::raw_sql(sql).fetch_many(&pool);
             collect(
                 results.map_ok(|r| r.map_left(|done| done.rows_affected())),
                 pg_cell,
+                pg_type,
             )
             .await
         }
-        Pool::Sqlite(pool) => collect(sqlite_results(&pool, sql), sqlite_cell).await,
+        Pool::Sqlite(pool) => collect(sqlite_results(&pool, sql), sqlite_cell, sqlite_type).await,
     }
     .map_err(|e| CommandError::new(ErrorCode::QueryFailed, e.to_string()))?;
 
@@ -86,6 +125,7 @@ fn sqlite_results<'a>(
 async fn collect<R: Row>(
     mut results: impl Stream<Item = Result<Either<u64, R>, sqlx::Error>> + Unpin,
     cell: fn(&R, usize) -> Result<Option<String>, sqlx::Error>,
+    type_name: fn(&R, usize) -> String,
 ) -> Result<QueryOutput, sqlx::Error> {
     let mut output = QueryOutput::default();
     let mut statement_has_rows = false;
@@ -97,7 +137,7 @@ async fn collect<R: Row>(
                     // First row of a new statement: drop the previous statement's result.
                     statement_has_rows = true;
                     output = QueryOutput {
-                        columns: columns_of(&row),
+                        columns: columns_of(&row, type_name),
                         ..Default::default()
                     };
                 }
@@ -123,14 +163,36 @@ async fn collect<R: Row>(
     Ok(output)
 }
 
-fn columns_of<R: Row>(row: &R) -> Vec<ResultColumn> {
+fn columns_of<R: Row>(row: &R, type_name: fn(&R, usize) -> String) -> Vec<ResultColumn> {
     row.columns()
         .iter()
-        .map(|c| ResultColumn {
-            name: c.name().to_owned(),
-            type_name: c.type_info().name().to_owned(),
+        .enumerate()
+        .map(|(i, c)| {
+            let type_name = type_name(row, i);
+            ResultColumn {
+                name: c.name().to_owned(),
+                kind: ColumnKind::of(&type_name),
+                type_name,
+            }
         })
         .collect()
+}
+
+fn pg_type(row: &PgRow, i: usize) -> String {
+    row.column(i).type_info().name().to_owned()
+}
+
+/// The declared type; for an expression like `count(*)`, which has none, the first row's
+/// value type instead (so it still lines up as a number).
+fn sqlite_type(row: &SqliteRow, i: usize) -> String {
+    let declared = row.column(i).type_info();
+    if !declared.is_null() && !declared.name().is_empty() {
+        return declared.name().to_owned();
+    }
+    match row.try_get_raw(i) {
+        Ok(value) if !value.is_null() => value.type_info().name().to_owned(),
+        _ => String::new(),
+    }
 }
 
 /// The simple query protocol returns text, so read it as-is instead of decoding per type.
@@ -160,7 +222,7 @@ fn sqlite_cell(row: &SqliteRow, i: usize) -> Result<Option<String>, sqlx::Error>
 mod tests {
     use super::*;
     async fn run(pool: &SqlitePool, sql: &'static str) -> Result<QueryOutput, sqlx::Error> {
-        collect(sqlite_results(pool, sql), sqlite_cell).await
+        collect(sqlite_results(pool, sql), sqlite_cell, sqlite_type).await
     }
 
     async fn pool() -> SqlitePool {
@@ -178,6 +240,10 @@ mod tests {
         .unwrap();
         let names: Vec<_> = out.columns.iter().map(|c| c.name.as_str()).collect();
         assert_eq!(names, ["big", "real", "txt", "bin", "empty"]);
+        // Expressions have no declared type, so the first row's value types decide
+        let kinds: Vec<_> = out.columns.iter().map(|c| c.kind).collect();
+        use ColumnKind::*;
+        assert_eq!(kinds, [Number, Number, Text, Binary, Text]);
         assert_eq!(
             out.rows,
             [[

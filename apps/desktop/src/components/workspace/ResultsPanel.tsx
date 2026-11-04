@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { Kbd } from "@/components/ui/kbd";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useConnections } from "@/stores/connections";
-import { activeConnection, useQuery, type Outcome } from "@/stores/query";
-import { cn, count, runShortcut } from "@/lib/utils";
+import { activeConnection, summary, useQuery, type Outcome } from "@/stores/query";
+import { ResultsGrid } from "./ResultsGrid";
+import { cn, runShortcut } from "@/lib/utils";
 
 const time = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
@@ -68,15 +69,9 @@ function Failed({ error }: { error: string }) {
 
 function OutcomeView({ outcome }: { outcome: Outcome }) {
   if (!outcome.ok) return <Failed error={outcome.error} />;
-  const { rows, columns } = outcome.output;
-  // shortcut: summary only until the results grid (TanStack Table + Virtual) lands in the next commit
-  return (
-    <div className="grid h-full place-items-center text-fg3">
-      {columns.length
-        ? `${count(rows.length, "row")} across ${count(columns.length, "column")}. The results grid is not built yet.`
-        : "Statement ran. See Messages for the rows affected."}
-    </div>
-  );
+  const { output } = outcome;
+  if (output.columns.length) return <ResultsGrid output={output} />;
+  return <div className="grid h-full place-items-center text-fg3">{summary(output)}</div>;
 }
 
 function ResultsView() {
@@ -85,21 +80,24 @@ function ResultsView() {
 
   if (!last) return runningSince === null ? <Empty /> : <Running since={runningSince} />;
   return (
-    <div className="relative h-full">
-      {/* The previous result stays visible but dimmed until the new one returns */}
-      <div className={cn("h-full", runningSince !== null && "opacity-50")}>
-        <OutcomeView outcome={last} />
-      </div>
-      {runningSince !== null && (
-        <span
-          role="status"
-          className="absolute top-2 right-3 flex items-center gap-2 rounded-md bg-elev px-2.5 py-1 text-xs text-fg2 ring-1 ring-border"
-        >
-          <Spinner /> Running, showing previous result · <Elapsed since={runningSince} />
-        </span>
-      )}
+    // The previous result stays visible but dimmed until the new one returns; the tab strip says so
+    <div className={cn("h-full", runningSince !== null && "opacity-50")}>
+      <OutcomeView outcome={last} />
     </div>
   );
+}
+
+/** Right side of the tab strip: what's running, or what the shown result is */
+function Status() {
+  const runningSince = useQuery((s) => s.runningSince);
+  const last = useQuery((s) => s.last);
+  if (runningSince !== null)
+    return (
+      <span role="status" className="flex items-center gap-2">
+        <Spinner /> {last ? "Running, showing previous result" : "Running"} · <Elapsed since={runningSince} />
+      </span>
+    );
+  return last?.ok ? <span>{summary(last.output)}</span> : null;
 }
 
 function MessagesView() {
@@ -123,7 +121,8 @@ const tab = "flex-none px-0.5 text-[13px]";
 export function ResultsPanel() {
   return (
     <Tabs defaultValue="results" className="h-full gap-0 bg-surface">
-      <TabsList variant="line" className="h-10 w-full flex-none justify-start gap-4 rounded-none border-b border-border-soft px-4 py-0">
+      <div className="flex h-10 flex-none items-center gap-4 border-b border-border-soft pr-4 text-xs text-fg3">
+      <TabsList variant="line" className="h-full flex-none justify-start gap-4 rounded-none px-4 py-0">
         <TabsTrigger value="results" className={tab}>
           Results
         </TabsTrigger>
@@ -134,6 +133,10 @@ export function ResultsPanel() {
           Plan
         </TabsTrigger>
       </TabsList>
+        <div className="ml-auto min-w-0 truncate">
+          <Status />
+        </div>
+      </div>
       <TabsContent value="results" className="min-h-0">
         <ResultsView />
       </TabsContent>

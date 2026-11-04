@@ -34,10 +34,11 @@ export function activeConnection(connections: Connection[], id: number | null) {
   return connections.find((c) => c.id === id) ?? connections[connections.length - 1];
 }
 
-function summary({ columns, rowsAffected, rows, truncated, elapsedMs }: QueryOutput) {
+/** "2 rows · 12 ms", "3 rows affected · 4 ms", with a note when the row cap cut it short */
+export function summary({ columns, rowsAffected, rows, truncated, elapsedMs }: QueryOutput) {
   const what = `${count(rowsAffected, "row")}${columns.length ? "" : " affected"}`;
   const shown = truncated ? `, first ${rows.length.toLocaleString()} shown` : "";
-  return `${what}${shown} Â· ${elapsedMs.toLocaleString()} ms`;
+  return `${what}${shown} · ${elapsedMs.toLocaleString()} ms`;
 }
 
 // persist writes after every set(), i.e. every keystroke; batch those into one write per pause

@@ -1,11 +1,10 @@
 //! Open database connections and read their schema tree.
 //!
-//! The UI holds only a numeric connection id; the pools (and the passwords inside
-//! their options) never leave Rust.
+//! Pools are keyed by the saved connection's id, so the UI and Rust share one id space and a
+//! reloaded UI finds its pools still open. The passwords inside them never leave Rust.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -61,25 +60,52 @@ pub(crate) enum Pool {
     Sqlite(SqlitePool),
 }
 
-/// Open connections, keyed by the id handed to the UI.
+impl Pool {
+    pub(crate) async fn close(self) {
+        match self {
+            Pool::Postgres(p) => p.close().await,
+            Pool::Sqlite(p) => p.close().await,
+        }
+    }
+}
+
+/// Open pools, keyed by saved connection id.
 #[derive(Default)]
 pub struct Connections {
-    next_id: AtomicU32,
     // std Mutex, not tokio's: it is only held to insert/clone/remove, never across an await.
-    pools: Mutex<HashMap<u32, Pool>>,
+    pools: Mutex<HashMap<String, Pool>>,
 }
 
 impl Connections {
-    pub(crate) fn get(&self, id: u32) -> Result<Pool, CommandError> {
-        self.pools
-            .lock()
-            .expect("connections lock poisoned")
-            .get(&id)
-            .cloned()
-            .ok_or(CommandError::new(
-                ErrorCode::NotConnected,
-                "This connection is closed.",
-            ))
+    fn pools(&self) -> std::sync::MutexGuard<'_, HashMap<String, Pool>> {
+        self.pools.lock().expect("connections lock poisoned")
+    }
+
+    pub(crate) fn get(&self, id: &str) -> Result<Pool, CommandError> {
+        self.pools().get(id).cloned().ok_or(CommandError::new(
+            ErrorCode::NotConnected,
+            "This connection is closed.",
+        ))
+    }
+
+    pub(crate) fn is_open(&self, id: &str) -> bool {
+        self.pools().contains_key(id)
+    }
+
+    /// Stores the pool unless one is already open for `id` (two connects racing, e.g. a UI
+    /// reload); then the existing one stays and the new one comes back to be closed.
+    pub(crate) fn insert(&self, id: String, pool: Pool) -> Option<Pool> {
+        match self.pools().entry(id) {
+            std::collections::hash_map::Entry::Occupied(_) => Some(pool),
+            std::collections::hash_map::Entry::Vacant(slot) => {
+                slot.insert(pool);
+                None
+            }
+        }
+    }
+
+    pub(crate) fn remove(&self, id: &str) -> Option<Pool> {
+        self.pools().remove(id)
     }
 }
 
@@ -110,6 +136,10 @@ pub enum ErrorCode {
     NotConnected,
     ConnectFailed,
     QueryFailed,
+    /// Writing the saved-connections file failed.
+    SaveFailed,
+    /// Reading or writing a password in the OS credential store failed.
+    CredentialFailed,
 }
 
 impl CommandError {
@@ -131,12 +161,8 @@ pub(crate) fn require(value: &str, field: &str) -> Result<(), CommandError> {
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
-pub async fn connect(
-    request: ConnectRequest,
-    connections: State<'_, Connections>,
-) -> Result<u32, CommandError> {
+/// Opens a pool for the request. Doesn't register it; see `Connections::insert`.
+pub(crate) async fn open(request: ConnectRequest) -> Result<Pool, CommandError> {
     let failed = |e: sqlx::Error| CommandError::new(ErrorCode::ConnectFailed, e.to_string());
 
     // connect_with opens one connection up front, so bad credentials fail here, not on first use.
@@ -180,29 +206,15 @@ pub async fn connect(
             Pool::Sqlite(pool)
         }
     };
-
-    let id = connections.next_id.fetch_add(1, Ordering::Relaxed);
-    connections
-        .pools
-        .lock()
-        .expect("connections lock poisoned")
-        .insert(id, pool);
-    Ok(id)
+    Ok(pool)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn disconnect(id: u32, connections: State<'_, Connections>) -> Result<(), CommandError> {
-    let pool = connections
-        .pools
-        .lock()
-        .expect("connections lock poisoned")
-        .remove(&id);
+pub async fn disconnect(id: String, connections: State<'_, Connections>) -> Result<(), CommandError> {
     // Close outside the lock: it waits for in-flight queries to finish.
-    match pool {
-        Some(Pool::Postgres(p)) => p.close().await,
-        Some(Pool::Sqlite(p)) => p.close().await,
-        None => {}
+    if let Some(pool) = connections.remove(&id) {
+        pool.close().await;
     }
     Ok(())
 }
@@ -211,12 +223,12 @@ pub async fn disconnect(id: u32, connections: State<'_, Connections>) -> Result<
 #[tauri::command]
 #[specta::specta]
 pub async fn list_schemas(
-    id: u32,
+    id: String,
     connections: State<'_, Connections>,
 ) -> Result<Vec<Schema>, CommandError> {
     let failed = |e: sqlx::Error| CommandError::new(ErrorCode::QueryFailed, e.to_string());
 
-    match connections.get(id)? {
+    match connections.get(&id)? {
         Pool::Postgres(pool) => {
             let rows: Vec<(String, Option<String>, Option<bool>)> = sqlx::query_as(PG_SCHEMAS)
                 .fetch_all(&pool)
@@ -294,13 +306,9 @@ mod tests {
             .await
             .unwrap();
         let connections = Connections::default();
-        connections
-            .pools
-            .lock()
-            .unwrap()
-            .insert(0, Pool::Sqlite(pool));
+        connections.insert("test".into(), Pool::Sqlite(pool));
         // Calls the query path directly; State can't be built outside a running app.
-        let Pool::Sqlite(pool) = connections.get(0).unwrap() else {
+        let Pool::Sqlite(pool) = connections.get("test").unwrap() else {
             unreachable!()
         };
         let rows: Vec<(String, bool)> = sqlx::query_as(SQLITE_TABLES)

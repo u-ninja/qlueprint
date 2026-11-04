@@ -4,15 +4,24 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 
 /** Commands */
 export const commands = {
-	connect: (request: ConnectRequest) => __TAURI_INVOKE<number>("connect", { request }),
-	disconnect: (id: number) => __TAURI_INVOKE<null>("disconnect", { id }),
+	disconnect: (id: string) => __TAURI_INVOKE<null>("disconnect", { id }),
 	/**  Every schema with its tables and views, sorted by name, in one round trip. */
-	listSchemas: (id: number) => __TAURI_INVOKE<Schema[]>("list_schemas", { id }),
+	listSchemas: (id: string) => __TAURI_INVOKE<Schema[]>("list_schemas", { id }),
 	/**  Runs one or more `;`-separated statements and returns the last statement's result. */
-	runQuery: (id: number, sql: string) => __TAURI_INVOKE<QueryOutput>("run_query", { id, sql }),
+	runQuery: (id: string, sql: string) => __TAURI_INVOKE<QueryOutput>("run_query", { id, sql }),
+	listSaved: () => __TAURI_INVOKE<SavedConnection[]>("list_saved"),
+	/**  Connects, and saves the connection only once that worked. */
+	connectAndSave: (request: ConnectRequest, label: string) => __TAURI_INVOKE<SavedConnection>("connect_and_save", { request, label }),
+	/**  Opens a saved connection; a no-op if it's already open (e.g. after a UI reload). */
+	connectSaved: (id: string) => __TAURI_INVOKE<null>("connect_saved", { id }),
+	/**  Forgets a saved connection and its password, closing it if open. */
+	forgetSaved: (id: string) => __TAURI_INVOKE<null>("forget_saved", { id }),
 };
 
 /* Types */
+/**  Display family of a column, decided here where the driver's type info is. */
+export type ColumnKind = "number" | "bool" | "temporal" | "uuid" | "json" | "binary" | "text";
+
 /**
  *  Typed error for the UI: a stable `code` to branch on and a message safe to show.
  *  sqlx's messages never include the password or a connection string.
@@ -26,7 +35,11 @@ export type ConnectRequest = { kind: "postgres"; host: string; port: number; use
 /**  Empty means Postgres' default: a database named after the user. */
 database: string } | { kind: "sqlite"; path: string };
 
-export type ErrorCode = "invalid_input" | "not_connected" | "connect_failed" | "query_failed";
+export type ErrorCode = "invalid_input" | "not_connected" | "connect_failed" | "query_failed" | 
+/**  Writing the saved-connections file failed. */
+"save_failed" | 
+/**  Reading or writing a password in the OS credential store failed. */
+"credential_failed";
 
 export type QueryOutput = {
 	columns: ResultColumn[],
@@ -46,6 +59,17 @@ export type ResultColumn = {
 	name: string,
 	/**  The database's own type name, e.g. `INT4` or `TEXT`. Empty when SQLite has none. */
 	typeName: string,
+	/**  How the UI should align and size the column. */
+	kind: ColumnKind,
+};
+
+/**  A `ConnectRequest` minus the password. */
+export type SavedConfig = { kind: "postgres"; host: string; port: number; user: string; database: string } | { kind: "sqlite"; path: string };
+
+export type SavedConnection = {
+	id: string,
+	label: string,
+	config: SavedConfig,
 };
 
 export type Schema = {

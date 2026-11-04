@@ -66,7 +66,7 @@ export function ConnectDialog({ children }: { children: ReactNode }) {
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Connect to a database</DialogTitle>
-          <DialogDescription>The connection stays on this device.</DialogDescription>
+          <DialogDescription>Saved on this device. The password goes into your system’s credential store.</DialogDescription>
         </DialogHeader>
 
         <div role="radiogroup" aria-label="Database type" className="flex rounded-md bg-muted p-0.5">

@@ -16,6 +16,8 @@
 		"@monaco-editor/react": "4.7.0",
 		"@neondatabase/auth": "0.7.0-beta",
 		"@tailwindcss/vite": "4.3.3",
+		"@tanstack/react-table": "8.21.3",
+		"@tanstack/react-virtual": "3.14.21",
 		"@tauri-apps/api": "^2",
 		"@tauri-apps/plugin-opener": "^2",
 		"class-variance-authority": "^0.7.1",

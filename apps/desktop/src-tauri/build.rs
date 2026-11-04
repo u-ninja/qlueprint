@@ -3,10 +3,13 @@ fn main() {
     // (allow-<command>), the same rule plugin commands follow. The `app-commands` set in
     // permissions/app.toml grants them all; add each new command there too.
     let app = tauri_build::AppManifest::new().commands(&[
-        "connect",
         "disconnect",
         "list_schemas",
         "run_query",
+        "list_saved",
+        "connect_and_save",
+        "connect_saved",
+        "forget_saved",
     ]);
 
     // Tauri embeds its Windows manifest (Common Controls v6) only into the app binary, so test
