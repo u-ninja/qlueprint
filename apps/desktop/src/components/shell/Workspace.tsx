@@ -8,6 +8,7 @@ import { QueryToolbar } from '@/components/workspace/QueryToolbar';
 import { ResultsPanel } from '@/components/workspace/ResultsPanel';
 import { useConnections } from '@/stores/connections';
 import { useQuery } from '@/stores/query';
+import { useLocal } from '@/stores/local';
 import { runShortcut } from '@/lib/utils';
 import { ConnectDialog } from './ConnectDialog';
 import { PendingAction } from './PendingAction';
@@ -17,13 +18,14 @@ const SqlEditor = lazy(() => import('@/components/workspace/SqlEditor'));
 
 const startActions = [
     { icon: Database, title: 'Connect to a database', detail: 'PostgreSQL, MySQL or SQLite.', connect: true },
-    { icon: Server, title: 'Create a local database', detail: 'Set up a database server on this machine.' },
+    { icon: Server, title: 'Create a local database', detail: 'PostgreSQL, MySQL or MariaDB in Docker, or a SQLite file.', local: true },
     { icon: FileUp, title: 'Open SQL file', detail: 'Open an existing .sql file. No connection needed.' },
 ];
 
 const startActionClass = 'h-auto w-full items-start justify-start gap-3 px-3 py-2.5 text-left font-normal whitespace-normal';
 
 function Welcome() {
+    const setCreateOpen = useLocal((s) => s.setCreateOpen);
     return (
         <section aria-labelledby="welcome-title" className="grid flex-1 place-items-center overflow-auto p-6">
             <div className="w-full max-w-sm">
@@ -34,7 +36,7 @@ function Welcome() {
                     QueryCraft runs on this machine. Connections and drafts stay here, passwords go to your system’s credential store.
                 </p>
                 <ul className="mt-5 flex flex-col gap-1">
-                    {startActions.map(({ icon: Icon, title, detail, connect }) => {
+                    {startActions.map(({ icon: Icon, title, detail, connect, local }) => {
                         const content = (
                             <>
                                 <Icon className="mt-0.5 size-4 text-fg3" aria-hidden />
@@ -52,6 +54,10 @@ function Welcome() {
                                             {content}
                                         </Button>
                                     </ConnectDialog>
+                                ) : local ? (
+                                    <Button variant="ghost" className={startActionClass} onClick={() => setCreateOpen(true)}>
+                                        {content}
+                                    </Button>
                                 ) : (
                                     <PendingAction variant="ghost" wrapperClassName="flex" className={startActionClass}>
                                         {content}

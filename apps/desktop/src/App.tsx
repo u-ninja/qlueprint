@@ -6,6 +6,7 @@ import { TopBar } from '@/components/shell/TopBar';
 import { Workspace } from '@/components/shell/Workspace';
 import { AuditLog } from '@/components/audit/AuditLog';
 import { StatusDot } from '@/components/shell/StatusDot';
+import { CreateLocalDialog } from '@/components/local/CreateLocalDialog';
 import { closedState, useConnections } from '@/stores/connections';
 import { useUi } from '@/stores/ui';
 
@@ -64,6 +65,8 @@ function App() {
                 )}
                 <span className="ml-auto flex-none">Local</span>
             </footer>
+            {/* Opened from the sidebar, the welcome screen and Local servers */}
+            <CreateLocalDialog />
         </div>
     );
 }
