@@ -9,8 +9,8 @@ A local-first database workspace for the desktop: connect to databases, write an
 <details>
 <summary>More concepts</summary>
 
-| SQL workspace | Local workspace home |
-| --- | --- |
+| SQL workspace                                       | Local workspace home                                            |
+| --------------------------------------------------- | --------------------------------------------------------------- |
 | ![SQL workspace](docs/assets/workspace-concept.png) | ![Local workspace home](docs/assets/concept-workspace-home.png) |
 
 </details>
@@ -31,27 +31,27 @@ The full product, design system, and architecture specification is in [docs/prod
 
 Early development. Nothing here is ready for real use yet.
 
-| Area | State |
-| --- | --- |
-| Desktop shell (Tauri 2 + React) | Scaffolded |
-| Local backend (Rust, inside the Tauri app) | Not started |
-| Cloud API (Fastify + Drizzle + PostgreSQL) | Scaffolded, with a users module |
-| Cloud sign-in (Neon Auth: Google + email/password) | Working prototype |
-| Database connections, SQL editor, results grid | Not started |
-| Local server provisioning | Not started |
-| Collaboration | Not started |
+| Area                                               | State                           |
+| -------------------------------------------------- | ------------------------------- |
+| Desktop shell (Tauri 2 + React)                    | Scaffolded                      |
+| Local backend (Rust, inside the Tauri app)         | Not started                     |
+| Cloud API (Fastify + Drizzle + PostgreSQL)         | Scaffolded, with a users module |
+| Cloud sign-in (Neon Auth: Google + email/password) | Working prototype               |
+| Database connections, SQL editor, results grid     | Not started                     |
+| Local server provisioning                          | Not started                     |
+| Collaboration                                      | Not started                     |
 
 Windows is the first release target; the code is kept cross-platform and is currently developed on macOS.
 
 ## Tech stack
 
-| Layer | Technology |
-| --- | --- |
-| Desktop UI | [Tauri 2](https://tauri.app), React 19, TypeScript, Vite |
-| Local backend | Rust inside the Tauri app: database drivers, OS keychain, local server management. No separate local server or open port. |
-| Cloud API | Node.js, [Fastify 5](https://fastify.dev), [Drizzle ORM](https://orm.drizzle.team). Only used for optional sign-in and collaboration. |
-| Cloud database & auth | PostgreSQL on [Neon](https://neon.com), Neon Auth |
-| Package manager | pnpm |
+| Layer                 | Technology                                                                                                                            |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Desktop UI            | [Tauri 2](https://tauri.app), React 19, TypeScript, Vite                                                                              |
+| Local backend         | Rust inside the Tauri app: database drivers, OS keychain, local server management. No separate local server or open port.             |
+| Cloud API             | Node.js, [Fastify 5](https://fastify.dev), [Drizzle ORM](https://orm.drizzle.team). Only used for optional sign-in and collaboration. |
+| Cloud database & auth | PostgreSQL on [Neon](https://neon.com), Neon Auth                                                                                     |
+| Package manager       | pnpm                                                                                                                                  |
 
 Planned additions such as Monaco Editor, Tailwind CSS, and shadcn/ui are listed in the [spec](docs/product-spec.md#21-desktop-application).
 

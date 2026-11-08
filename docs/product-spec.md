@@ -1,18 +1,18 @@
 # QueryCraft — Product, UX, Design System & Local Database Provisioning Specification
 
-| | |
-| --- | --- |
-| **Status** | Product and engineering specification |
-| **Product** | QueryCraft |
-| **Design language** | Obsidian Flow |
-| **Primary platform** | Windows desktop first; architecture must remain cross-platform |
-| **Application model** | Local-first desktop application with optional cloud collaboration |
-| **Audience** | Individual developers, database administrators, engineering teams, and enterprise users |
+|                       |                                                                                         |
+| --------------------- | --------------------------------------------------------------------------------------- |
+| **Status**            | Product and engineering specification                                                   |
+| **Product**           | QueryCraft                                                                              |
+| **Design language**   | Obsidian Flow                                                                           |
+| **Primary platform**  | Windows desktop first; architecture must remain cross-platform                          |
+| **Application model** | Local-first desktop application with optional cloud collaboration                       |
+| **Audience**          | Individual developers, database administrators, engineering teams, and enterprise users |
 
-*Design concepts. Mockups only; not the current state of the app.*
+_Design concepts. Mockups only; not the current state of the app._
 
-| SQL workspace | Create local server & quick start | Local workspace home |
-| --- | --- | --- |
+| SQL workspace                                  | Create local server & quick start                                                 | Local workspace home                                                   |
+| ---------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | ![SQL workspace](assets/workspace-concept.png) | ![Create local database server and quick start](assets/concept-local-servers.png) | ![Local workspace home, signed out](assets/concept-workspace-home.png) |
 
 The second and third concepts show the signed-out experience from [§2.5](#25-accounts-and-sign-in): an "Offline Mode · No account required" indicator, an optional "Sign in" button, and the Create Local Server flow from [§6.4](#64-creation-flow). Each concept is shown in dark theme with a light-theme inset.
@@ -289,14 +289,14 @@ Use a clean, highly legible UI typeface such as Inter or a system-native equival
 
 Compact type scale:
 
-| Size | Use |
-| --- | --- |
+| Size     | Use                                                           |
+| -------- | ------------------------------------------------------------- |
 | 11–12 px | Dense metadata and secondary labels, only where still legible |
-| 13 px | Compact control and table text |
-| 14 px | Default application text |
-| 16 px | Section titles and prominent control labels |
-| 18–20 px | Dialog and panel headings |
-| Larger | Only for onboarding or empty-state headlines |
+| 13 px    | Compact control and table text                                |
+| 14 px    | Default application text                                      |
+| 16 px    | Section titles and prominent control labels                   |
+| 18–20 px | Dialog and panel headings                                     |
+| Larger   | Only for onboarding or empty-state headlines                  |
 
 Use consistent font weights; avoid bold everywhere. SQL code uses consistent line height and clear token colors.
 
@@ -304,23 +304,23 @@ Use consistent font weights; avoid bold everywhere. SQL code uses consistent lin
 
 Use a 4 px base spacing system:
 
-| Spacing | Use |
-| --- | --- |
-| 4 px | Icon/text micro gap |
-| 8 px | Compact internal spacing |
-| 12 px | Control and row spacing |
-| 16 px | Standard panel padding |
-| 20–24 px | Section separation |
-| 32 px | Major content separation |
+| Spacing  | Use                      |
+| -------- | ------------------------ |
+| 4 px     | Icon/text micro gap      |
+| 8 px     | Compact internal spacing |
+| 12 px    | Control and row spacing  |
+| 16 px    | Standard panel padding   |
+| 20–24 px | Section separation       |
+| 32 px    | Major content separation |
 
 Radii:
 
-| Element | Radius |
-| --- | --- |
-| Small controls | 5–6 px |
-| Inputs and buttons | 6–8 px |
-| Cards and panels | 8–10 px |
-| Large dialogs | 10–12 px |
+| Element            | Radius   |
+| ------------------ | -------- |
+| Small controls     | 5–6 px   |
+| Inputs and buttons | 6–8 px   |
+| Cards and panels   | 8–10 px  |
+| Large dialogs      | 10–12 px |
 
 Use subtle borders and restrained shadows. Do not wrap every group in a card; use spacing and dividers to establish hierarchy.
 
@@ -351,21 +351,21 @@ QueryCraft opens directly into the database workspace. There is no dashboard, we
 
 **First launch: empty workspace**
 
-| Area | What to show |
-| --- | --- |
-| Top bar | QueryCraft logo, Local Workspace, theme switch, optional sign-in |
-| Left navigation | Workspace, Connections, Queries, History |
-| Main area | Empty SQL editor |
-| Bottom panel | Collapsed results panel |
-| Connection selector | Select a database or create one |
+| Area                | What to show                                                     |
+| ------------------- | ---------------------------------------------------------------- |
+| Top bar             | QueryCraft logo, Local Workspace, theme switch, optional sign-in |
+| Left navigation     | Workspace, Connections, Queries, History                         |
+| Main area           | Empty SQL editor                                                 |
+| Bottom panel        | Collapsed results panel                                          |
+| Connection selector | Select a database or create one                                  |
 
 The editor's empty state shows a small welcome:
 
 - "Welcome to QueryCraft" and "Your database workspace is ready."
 - Three actions:
-  1. **Connect to a database:** opens the connection dialog with the supported database types (PostgreSQL, MySQL, SQL Server, SQLite).
-  2. **Create a local database:** opens the provisioning wizard ([§6.4](#64-creation-flow)).
-  3. **Open SQL file:** opens a `.sql` document in the editor without requiring a connection.
+    1. **Connect to a database:** opens the connection dialog with the supported database types (PostgreSQL, MySQL, SQL Server, SQLite).
+    2. **Create a local database:** opens the provisioning wizard ([§6.4](#64-creation-flow)).
+    3. **Open SQL file:** opens a `.sql` document in the editor without requiring a connection.
 - A keyboard hint: `Ctrl + Enter` (`⌘ Enter` on macOS) to execute a query.
 
 No large cards, statistics, promotional content, or forced onboarding.
@@ -380,17 +380,17 @@ No large cards, statistics, promotional content, or forced onboarding.
 
 **Once a database is connected**, the empty state disappears and the workspace is the primary interface: database explorer on the left, SQL editor in the center, query results at the bottom, and the optional inspector on the right.
 
-| Decision | Behavior |
-| --- | --- |
-| Login | Never required for local usage |
-| First launch | Open the empty workspace |
-| Later launches | Restore the previous workspace |
-| No database connected | Show the useful empty state |
-| Database connected | Show the database explorer |
-| Local servers | Available directly from the workspace |
-| Theme | Light, Dark, System |
-| Cloud collaboration | Optional |
-| Startup | No unnecessary loading screen |
+| Decision              | Behavior                              |
+| --------------------- | ------------------------------------- |
+| Login                 | Never required for local usage        |
+| First launch          | Open the empty workspace              |
+| Later launches        | Restore the previous workspace        |
+| No database connected | Show the useful empty state           |
+| Database connected    | Show the database explorer            |
+| Local servers         | Available directly from the workspace |
+| Theme                 | Light, Dark, System                   |
+| Cloud collaboration   | Optional                              |
+| Startup               | No unnecessary loading screen         |
 
 ### 5.2 Connection manager
 
@@ -461,15 +461,15 @@ Use Monaco Editor with:
 
 Important shortcuts:
 
-| Action | Shortcut |
-| --- | --- |
-| Execute query | Ctrl/Cmd + Enter |
+| Action            | Shortcut                                 |
+| ----------------- | ---------------------------------------- |
+| Execute query     | Ctrl/Cmd + Enter                         |
 | Execute selection | Ctrl/Cmd + Enter when a selection exists |
-| Format SQL | Configurable |
-| Find | Ctrl/Cmd + F |
-| Save | Ctrl/Cmd + S |
-| New query | Configurable |
-| Command palette | Ctrl/Cmd + Shift + P |
+| Format SQL        | Configurable                             |
+| Find              | Ctrl/Cmd + F                             |
+| Save              | Ctrl/Cmd + S                             |
+| New query         | Configurable                             |
+| Command palette   | Ctrl/Cmd + Shift + P                     |
 
 Shortcuts must be discoverable and configurable. Avoid conflicts with operating-system and Monaco defaults.
 
@@ -624,11 +624,11 @@ Build a **Local Runtime Provider** abstraction with different installation strat
 
 For the first release, choose a narrow and reliable support matrix:
 
-| Engine | Initial strategy |
-| --- | --- |
-| SQLite | Direct file creation |
-| PostgreSQL | Managed container when a supported container runtime is available |
-| MySQL | Managed container when a supported container runtime is available |
+| Engine     | Initial strategy                                                                               |
+| ---------- | ---------------------------------------------------------------------------------------------- |
+| SQLite     | Direct file creation                                                                           |
+| PostgreSQL | Managed container when a supported container runtime is available                              |
+| MySQL      | Managed container when a supported container runtime is available                              |
 | SQL Server | Evaluate container/native options separately, with explicit platform and licensing constraints |
 
 Do not promise universal one-click installation until each engine/OS combination has been tested.
