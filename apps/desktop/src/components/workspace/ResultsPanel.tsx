@@ -7,7 +7,11 @@ import { activeConnection, summary, useQuery, type Outcome } from '@/stores/quer
 import { ResultsGrid } from './ResultsGrid';
 import { cn, runShortcut } from '@/lib/utils';
 
+// Figures and meta in the tab strip: the running timer and, once done, the result summary in its place
+const meta = 'font-mono text-[11px] tabular-nums';
+
 const time = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const seconds = new Intl.NumberFormat(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 // Ticks on its own so only this label re-renders while a query runs
 function Elapsed({ since }: { since: number }) {
@@ -16,26 +20,33 @@ function Elapsed({ since }: { since: number }) {
         const timer = setInterval(() => setNow(Date.now()), 100);
         return () => clearInterval(timer);
     }, []);
-    // aria-hidden: inside a live region, a 100 ms tick would be read out continuously
+    // aria-hidden: inside a live region, a 100 ms tick would be read out continuously.
+    // Right-aligned in a fixed width, so 9.9 s becoming 10.0 s doesn't shift the label beside it
     return (
-        <span className="font-mono tabular-nums" aria-hidden>
-            {((now - since) / 1000).toFixed(1)} s
+        <span className={cn(meta, 'inline-block min-w-[6ch] text-right whitespace-nowrap')} aria-hidden>
+            {`${seconds.format((now - since) / 1000)}\u00a0s`}
         </span>
     );
 }
 
-function Spinner() {
-    return <span className="size-3.5 animate-spin rounded-full border-[1.8px] border-border border-t-primary" aria-hidden />;
+/** A thin accent segment sweeping along the bottom edge of the tab strip, i.e. the top of the results */
+function RunningBar() {
+    return (
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 -bottom-px h-0.5 overflow-hidden">
+            {/* Reduced motion: the segment stops and becomes a static full-width line */}
+            <div className="h-full w-1/4 animate-sweep bg-primary motion-reduce:w-full motion-reduce:animate-none motion-reduce:opacity-60" />
+        </div>
+    );
 }
 
-function Running({ since }: { since: number }) {
+// Quiet on purpose: the bar is the motion and the strip has the timer, the center only says where
+function Running() {
     const connectionId = useQuery((s) => s.connectionId);
     const label = useConnections((s) => activeConnection(s.connections, connectionId)?.label);
     return (
-        <div role="status" className="grid h-full place-items-center text-fg3">
-            <span className="flex items-center gap-2.5">
-                <Spinner />
-                Executing on {label}… <Elapsed since={since} />
+        <div className="grid h-full place-items-center px-6 text-fg3">
+            <span className="max-w-full truncate" title={label}>
+                Running on {label}…
             </span>
         </div>
     );
@@ -77,10 +88,11 @@ function ResultsView() {
     const runningSince = useQuery((s) => s.runningSince);
     const last = useQuery((s) => s.last);
 
-    if (!last) return runningSince === null ? <Empty /> : <Running since={runningSince} />;
+    if (!last) return runningSince === null ? <Empty /> : <Running />;
     return (
-        // The previous result stays visible but dimmed until the new one returns; the tab strip says so
-        <div className={cn('h-full', runningSince !== null && 'opacity-50')}>
+        // The previous result stays visible but dims until the new one returns; the tab strip says so.
+        // The dim waits 300 ms so a quick re-run swaps the result without the grid flashing, and lifts at once
+        <div className={cn('h-full transition-opacity duration-200', runningSince !== null && 'opacity-50 delay-300')}>
             <OutcomeView outcome={last} />
         </div>
     );
@@ -90,13 +102,18 @@ function ResultsView() {
 function Status() {
     const runningSince = useQuery((s) => s.runningSince);
     const last = useQuery((s) => s.last);
-    if (runningSince !== null)
+    if (runningSince !== null) {
+        const text = last ? 'Running, previous result shown' : 'Running…';
         return (
-            <span role="status" className="flex items-center gap-2">
-                <Spinner /> {last ? 'Running, showing previous result' : 'Running'} · <Elapsed since={runningSince} />
+            <span role="status" className="flex items-baseline gap-2 whitespace-nowrap">
+                <span className="min-w-0 truncate" title={text}>
+                    {text}
+                </span>
+                <Elapsed since={runningSince} />
             </span>
         );
-    return last?.ok ? <span className="font-mono text-[11px] tabular-nums">{summary(last.output)}</span> : null;
+    }
+    return last?.ok ? <span className={meta}>{summary(last.output)}</span> : null;
 }
 
 function MessagesView() {
@@ -118,9 +135,10 @@ function MessagesView() {
 const tab = 'flex-none px-0.5 text-[13px]';
 
 export function ResultsPanel() {
+    const running = useQuery((s) => s.runningSince !== null);
     return (
         <Tabs defaultValue="results" className="h-full gap-0 bg-surface">
-            <div className="flex h-10 flex-none items-center gap-4 border-b border-border-soft pr-4 text-xs text-fg3">
+            <div className="relative flex h-10 flex-none items-center gap-4 border-b border-border-soft pr-4 text-xs text-fg3">
                 <TabsList variant="line" className="h-full flex-none justify-start gap-4 rounded-none px-4 py-0">
                     <TabsTrigger value="results" className={tab}>
                         Results
@@ -135,6 +153,7 @@ export function ResultsPanel() {
                 <div className="ml-auto min-w-0 truncate">
                     <Status />
                 </div>
+                {running && <RunningBar />}
             </div>
             <TabsContent value="results" className="min-h-0">
                 <ResultsView />

@@ -166,6 +166,17 @@
     --color-info-soft: var(--info-soft);
     --color-sel: var(--sel);
     --color-header: var(--header-bg);
+
+    /* A segment sweeping along a track: the one motion shown while a query runs */
+    --animate-sweep: sweep 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    @keyframes sweep {
+        from {
+            transform: translateX(-100%);
+        }
+        to {
+            transform: translateX(400%);
+        }
+    }
 }
 
 @layer base {
