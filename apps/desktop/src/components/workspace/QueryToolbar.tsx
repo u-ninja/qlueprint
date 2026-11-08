@@ -52,8 +52,9 @@ function ConnectionPicker() {
 }
 
 /**
- * Only MySQL can switch: Postgres can't on an open connection, and SQLite has one. Other kinds show
- * their database disabled, so the toolbar keeps its layout when switching connections
+ * MySQL switches with USE; Postgres switches only with "Show all databases" on (each database gets
+ * its own pool); SQLite has one. A picker that can't switch shows its database disabled, so the
+ * toolbar keeps its layout when switching connections
  */
 function DatabasePicker() {
   const connections = useConnections((s) => s.connections);
@@ -62,7 +63,7 @@ function DatabasePicker() {
   const setDatabase = useQuery((s) => s.setDatabase);
   const active = activeConnection(connections, connectionId);
   if (!active) return null;
-  const switchable = active.kind === "mysql";
+  const { switchable } = active;
   const database = activeDatabase(active, databases) || undefined;
 
   return (
@@ -70,7 +71,7 @@ function DatabasePicker() {
       <SelectTrigger
         size="sm"
         aria-label="Database to run in"
-        title={switchable ? database : `${engineName[active.kind]} can’t switch database on an open connection`}
+        title={switchable ? database : active.kind === "postgres" ? "Turn on “Show all databases” for this connection to switch" : `${engineName[active.kind]} has one database`}
         className="w-40 min-w-24"
       >
         {/* Explicit: Radix only shows a value that matches an item, and a disabled picker has none */}
@@ -79,7 +80,7 @@ function DatabasePicker() {
       <SelectContent position="popper" align="end" className={menu}>
         <SelectGroup>
           <SelectLabel>Database</SelectLabel>
-          {switchable && active.schemas.map(({ name }) => (
+          {switchable && active.databases.map((name) => (
             <SelectItem key={name} value={name} title={name}>
               <span className="truncate">{name}</span>
             </SelectItem>

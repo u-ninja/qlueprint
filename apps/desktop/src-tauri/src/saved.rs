@@ -104,8 +104,8 @@ fn new_id() -> String {
 }
 
 /// Registers a pool for a saved connection, closing it if one was already open.
-async fn register(connections: &Connections, id: String, pool: db::Pool) {
-    if let Some(duplicate) = connections.insert(id, pool) {
+async fn register(connections: &Connections, id: String, open: db::Open) {
+    if let Some(duplicate) = connections.insert(id, open) {
         duplicate.close().await;
     }
 }
@@ -245,12 +245,14 @@ mod tests {
                 port: 5432,
                 user: "postgres".into(),
                 database: "shop".into(),
+                show_all_databases: true,
             }),
         };
         saved.replace(vec![entry]).unwrap();
 
         let text = fs::read_to_string(dir.join(FILE)).unwrap();
         assert!(!text.contains("password"));
+        assert!(text.contains(r#""showAllDatabases": true"#));
         let reloaded = Saved::load(dir.clone()).snapshot();
         assert_eq!(reloaded.len(), 1);
         assert_eq!(reloaded[0].label, "shop@localhost");

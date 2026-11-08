@@ -4,6 +4,7 @@ fn main() {
     // permissions/app.toml grants them all; add each new command there too.
     let app = tauri_build::AppManifest::new().commands(&[
         "list_databases",
+        "connection_databases",
         "disconnect",
         "list_schemas",
         "run_query",

@@ -1,6 +1,6 @@
-import { useState, type ReactNode } from "react";
-import { ChevronRight, Eye, Folder, Plug, Table2, Trash2, X } from "lucide-react";
-import type { SavedConnection } from "@/bindings";
+import { useEffect, useState, type ReactNode } from "react";
+import { ChevronRight, Database, Eye, Folder, Plug, Table2, Trash2, X } from "lucide-react";
+import type { SavedConnection, Schema } from "@/bindings";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,7 +12,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { closedState, useConnections, type Closed } from "@/stores/connections";
+import { closedState, errorMessage, useConnections, type Closed, type Connection } from "@/stores/connections";
 import { cn } from "@/lib/utils";
 import { StatusDot } from "./StatusDot";
 
@@ -125,6 +125,59 @@ function ClosedConnection({ saved, state }: { saved: SavedConnection; state: Clo
   );
 }
 
+const note = "h-7 truncate px-6 leading-7";
+
+/** Schema > table branches. The default schema starts open (MySQL: the saved database) */
+function Schemas({ schemas, database }: { schemas: Schema[]; database: string }) {
+  return schemas.map((s) => (
+    <Branch
+      key={s.name}
+      lead={<Folder className="size-3.5" aria-hidden />}
+      label={s.name}
+      meta={s.tables.length || undefined}
+      defaultOpen={s.name === "public" || s.name === database}
+    >
+      {s.tables.length === 0 && <li className={cn(note, "text-fg3")}>No tables</li>}
+      {/* shortcut: renders every table of an open schema, virtualize (TanStack Virtual) if 10k+ table schemas lag */}
+      {s.tables.map((t) => {
+        const Icon = t.view ? Eye : Table2;
+        return (
+          <li key={t.name} className={cn(row, "pl-6")} title={t.view ? `${t.name} (view)` : t.name}>
+            <Icon className="size-3.5 flex-none text-fg3" aria-label={t.view ? "View" : "Table"} />
+            <span className="truncate">{t.name}</span>
+          </li>
+        );
+      })}
+    </Branch>
+  ));
+}
+
+/**
+ * Another Postgres database on the same server. It mounts only when its branch opens, so its pool
+ * (opened by Rust on first use) and schemas load on demand, once: the store keeps them.
+ */
+function OtherDatabaseSchemas({ c, database }: { c: Connection; database: string }) {
+  const loadOtherDatabase = useConnections((s) => s.loadOtherDatabase);
+  const schemas = c.others[database];
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!schemas) loadOtherDatabase(c.id, database).catch((err) => setError(errorMessage(err)));
+  }, [schemas, loadOtherDatabase, c.id, database]);
+
+  if (error) return <li className={cn(note, "text-xs text-danger")} title={error}>{error}</li>;
+  if (!schemas) return <li role="status" className={cn(note, "font-mono text-[11px] text-fg4")}>loading…</li>;
+  return <Schemas schemas={schemas} database={database} />;
+}
+
+/** Postgres with "Show all databases": a database level above the schemas; its own database starts open */
+function Databases({ c }: { c: Connection }) {
+  return c.databases.map((name) => (
+    <Branch key={name} lead={<Database className="size-3.5" aria-hidden />} label={name} defaultOpen={name === c.database}>
+      {name === c.database ? <Schemas schemas={c.schemas} database={name} /> : <OtherDatabaseSchemas c={c} database={name} />}
+    </Branch>
+  ));
+}
+
 /** Saved connections; the open ones expand into their schema > table tree. */
 export function Explorer() {
   const { saved, connections, closed, disconnect } = useConnections();
@@ -147,28 +200,8 @@ export function Explorer() {
               </button>
             }
           >
-            {c.schemas.map((s) => (
-              // Open the default schema (MySQL: the saved database); the rest stay closed until asked for
-              <Branch
-                key={s.name}
-                lead={<Folder className="size-3.5" aria-hidden />}
-                label={s.name}
-                meta={s.tables.length || undefined}
-                defaultOpen={s.name === "public" || s.name === "main" || s.name === c.database}
-              >
-                {s.tables.length === 0 && <li className="h-7 px-6 leading-7 text-fg3">No tables</li>}
-                {/* shortcut: renders every table of an open schema, virtualize (TanStack Virtual) if 10k+ table schemas lag */}
-                {s.tables.map((t) => {
-                  const Icon = t.view ? Eye : Table2;
-                  return (
-                    <li key={t.name} className={cn(row, "pl-6")} title={t.view ? `${t.name} (view)` : t.name}>
-                      <Icon className="size-3.5 flex-none text-fg3" aria-label={t.view ? "View" : "Table"} />
-                      <span className="truncate">{t.name}</span>
-                    </li>
-                  );
-                })}
-              </Branch>
-            ))}
+            {/* Postgres has schemas inside each database; MySQL's databases are its schemas */}
+            {c.kind === "postgres" && c.switchable ? <Databases c={c} /> : <Schemas schemas={c.schemas} database={c.database} />}
           </Branch>
         );
       })}

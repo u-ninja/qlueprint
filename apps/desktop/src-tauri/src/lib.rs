@@ -20,6 +20,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::new()
         .commands(collect_commands![
             db::list_databases,
+            db::connection_databases,
             db::disconnect,
             db::list_schemas,
             query::run_query,

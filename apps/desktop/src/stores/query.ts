@@ -37,7 +37,7 @@ export function activeConnection(connections: Connection[], id: string | null) {
   return connections.find((c) => c.id === id) ?? connections[connections.length - 1];
 }
 
-/** The toolbar's database pick, else the saved one. Rust only acts on it for MySQL */
+/** The toolbar's database pick, else the one Rust says the connection is in */
 export function activeDatabase(connection: Connection, databases: Record<string, string>) {
   return databases[connection.id] ?? connection.database;
 }

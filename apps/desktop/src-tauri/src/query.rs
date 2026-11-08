@@ -11,7 +11,7 @@ use sqlx::sqlite::{SqliteQueryResult, SqliteRow};
 use sqlx::{AssertSqlSafe, Column, Either, Row, TypeInfo, ValueRef};
 use tauri::State;
 
-use crate::db::{CommandError, Connections, ErrorCode, Pool, require};
+use crate::db::{CommandError, Connections, Pool, query_failed, require};
 
 /// Rows kept per result. The rest are still read (to count them) but not stored,
 /// so a large SELECT can't exhaust memory in Rust or in the UI.
@@ -97,8 +97,9 @@ fn is_binary(type_name: &str) -> bool {
 }
 
 /// Runs one or more `;`-separated statements and returns the last statement's result.
-/// `database` (MySQL only, ignored otherwise) is the toolbar's database: it becomes the default
-/// database for the statements, as if they started with `USE`.
+/// `database` is the toolbar's database. MySQL makes it the default database for the statements,
+/// as if they started with `USE`; Postgres runs them on that database's pool (another database
+/// needs "Show all databases"); SQLite ignores it.
 #[tauri::command]
 #[specta::specta]
 pub async fn run_query(
@@ -113,9 +114,11 @@ pub async fn run_query(
     // Running the user's own SQL against their own database is the feature, so there is
     // nothing to sanitize here; values never get spliced into SQL by the app (the database
     // name is quoted by `use_database`).
-    let mut output = match connections.get(&id)? {
+    let open = connections.get(&id)?;
+    let mut output = match &open.pool {
         // raw_sql uses Postgres' simple query protocol, which sends every value as text.
-        Pool::Postgres(pool) => {
+        Pool::Postgres(_) => {
+            let pool = open.pg_pool(database.as_deref()).await?;
             let results = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(&pool);
             collect(results, PgQueryResult::rows_affected, pg_cell, column_type).await
         }
@@ -126,7 +129,7 @@ pub async fn run_query(
                 Some(database) => format!("{};\n{sql}", use_database(&database)),
                 None => sql,
             };
-            let results = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(&pool);
+            let results = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(pool);
             collect(
                 results,
                 MySqlQueryResult::rows_affected,
@@ -136,7 +139,7 @@ pub async fn run_query(
             .await
         }
         Pool::Sqlite(pool) => {
-            let results = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(&pool);
+            let results = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(pool);
             collect(
                 results,
                 SqliteQueryResult::rows_affected,
@@ -146,7 +149,7 @@ pub async fn run_query(
             .await
         }
     }
-    .map_err(|e| CommandError::new(ErrorCode::QueryFailed, e.to_string()))?;
+    .map_err(query_failed)?;
 
     output.elapsed_ms = started.elapsed().as_millis().try_into().unwrap_or(u32::MAX);
     Ok(output)

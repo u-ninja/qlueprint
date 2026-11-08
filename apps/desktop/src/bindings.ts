@@ -8,19 +8,25 @@ export const commands = {
 	 *  The databases on a server, for the connect dialog's picker, using a short-lived connection.
 	 *  SQLite has no list (the file is the database), so it comes back empty.
 	 */
-	listDatabases: (request: ConnectRequest) => __TAURI_INVOKE<string[]>("list_databases", { request }),
+	listDatabases: (request: ConnectRequest_Deserialize) => __TAURI_INVOKE<string[]>("list_databases", { request }),
+	connectionDatabases: (id: string) => __TAURI_INVOKE<ConnectionDatabases>("connection_databases", { id }),
 	disconnect: (id: string) => __TAURI_INVOKE<null>("disconnect", { id }),
-	/**  Every schema with its tables and views, sorted by name, in one round trip. */
-	listSchemas: (id: string) => __TAURI_INVOKE<Schema[]>("list_schemas", { id }),
+	/**
+	 *  Every schema with its tables and views, sorted by name, in one round trip. `database`
+	 *  (Postgres only) is another database on the same server; its pool opens on first use.
+	 *  MySQL lists its databases as schemas: only the saved one unless "Show all databases" is on.
+	 */
+	listSchemas: (id: string, database: string | null) => __TAURI_INVOKE<Schema[]>("list_schemas", { id, database }),
 	/**
 	 *  Runs one or more `;`-separated statements and returns the last statement's result.
-	 *  `database` (MySQL only, ignored otherwise) is the toolbar's database: it becomes the default
-	 *  database for the statements, as if they started with `USE`.
+	 *  `database` is the toolbar's database. MySQL makes it the default database for the statements,
+	 *  as if they started with `USE`; Postgres runs them on that database's pool (another database
+	 *  needs "Show all databases"); SQLite ignores it.
 	 */
 	runQuery: (id: string, sql: string, database: string | null) => __TAURI_INVOKE<QueryOutput>("run_query", { id, sql, database }),
-	listSaved: () => __TAURI_INVOKE<SavedConnection[]>("list_saved"),
+	listSaved: () => __TAURI_INVOKE<SavedConnection_Serialize[]>("list_saved"),
 	/**  Connects, and saves the connection only once that worked. */
-	connectAndSave: (request: ConnectRequest, label: string) => __TAURI_INVOKE<SavedConnection>("connect_and_save", { request, label }),
+	connectAndSave: (request: ConnectRequest_Deserialize, label: string) => __TAURI_INVOKE<SavedConnection_Serialize>("connect_and_save", { request, label }),
 	/**  Opens a saved connection; a no-op if it's already open (e.g. after a UI reload). */
 	connectSaved: (id: string) => __TAURI_INVOKE<null>("connect_saved", { id }),
 	/**  Forgets a saved connection and its password, closing it if open. */
@@ -40,11 +46,38 @@ export type CommandError = {
 	message: string,
 };
 
-export type ConnectRequest = {
+export type ConnectRequest = ConnectRequest_Serialize | ConnectRequest_Deserialize;
+
+export type ConnectRequest_Deserialize = {
 	kind: "postgres",
-} & ServerLogin | {
+} & ServerLogin_Deserialize | {
 	kind: "mysql",
-} & ServerLogin | { kind: "sqlite"; path: string };
+} & ServerLogin_Deserialize | { kind: "sqlite"; path: string };
+
+export type ConnectRequest_Serialize = {
+	kind: "postgres",
+} & ServerLogin_Serialize | {
+	kind: "mysql",
+} & ServerLogin_Serialize | { kind: "sqlite"; path: string };
+
+/**  What the explorer and the toolbar's database picker show for an open connection. */
+export type ConnectionDatabases = {
+	/**
+	 *  The database queries run in (see `Open::database`); MySQL with none saved starts in
+	 *  the first listed one.
+	 */
+	current: string,
+	/**
+	 *  The databases the picker offers: the whole server or just `current` (see `Open::scope`).
+	 *  Empty for SQLite.
+	 */
+	listed: string[],
+	/**
+	 *  Whether the picker can switch: MySQL always (USE), Postgres with "Show all databases"
+	 *  (a pool per database), SQLite never.
+	 */
+	switchable: boolean,
+};
 
 export type ErrorCode = "invalid_input" | "not_connected" | "connect_failed" | "query_failed" | 
 /**  Writing the saved-connections file failed. */
@@ -75,16 +108,34 @@ export type ResultColumn = {
 };
 
 /**  A `ConnectRequest` minus the password. */
-export type SavedConfig = {
-	kind: "postgres",
-} & Server | {
-	kind: "mysql",
-} & Server | { kind: "sqlite"; path: string };
+export type SavedConfig = SavedConfig_Serialize | SavedConfig_Deserialize;
 
-export type SavedConnection = {
+/**  A `ConnectRequest` minus the password. */
+export type SavedConfig_Deserialize = {
+	kind: "postgres",
+} & Server_Deserialize | {
+	kind: "mysql",
+} & Server_Deserialize | { kind: "sqlite"; path: string };
+
+/**  A `ConnectRequest` minus the password. */
+export type SavedConfig_Serialize = {
+	kind: "postgres",
+} & Server_Serialize | {
+	kind: "mysql",
+} & Server_Serialize | { kind: "sqlite"; path: string };
+
+export type SavedConnection = SavedConnection_Serialize | SavedConnection_Deserialize;
+
+export type SavedConnection_Deserialize = {
 	id: string,
 	label: string,
-	config: SavedConfig,
+	config: SavedConfig_Deserialize,
+};
+
+export type SavedConnection_Serialize = {
+	id: string,
+	label: string,
+	config: SavedConfig_Serialize,
 };
 
 export type Schema = {
@@ -93,7 +144,20 @@ export type Schema = {
 };
 
 /**  Where a network database server is and who to sign in as. */
-export type Server = {
+export type Server = Server_Serialize | Server_Deserialize;
+
+export type ServerLogin = ServerLogin_Serialize | ServerLogin_Deserialize;
+
+export type ServerLogin_Deserialize = {
+	password: string,
+} & Server_Deserialize;
+
+export type ServerLogin_Serialize = {
+	password: string,
+} & Server_Serialize;
+
+/**  Where a network database server is and who to sign in as. */
+export type Server_Deserialize = {
 	host: string,
 	port: number,
 	user: string,
@@ -102,11 +166,31 @@ export type Server = {
 	 *  MySQL none (queries then name the database, as in `shop.orders`).
 	 */
 	database: string,
+	/**
+	 *  List every database on the server in the explorer, not just `database`. Missing means
+	 *  off, so connections saved before the option existed still load. (specta splits types with
+	 *  a defaulted field into `_Serialize`/`_Deserialize` copies; here both have the same shape.)
+	 */
+	showAllDatabases?: boolean,
 };
 
-export type ServerLogin = {
-	password: string,
-} & Server;
+/**  Where a network database server is and who to sign in as. */
+export type Server_Serialize = {
+	host: string,
+	port: number,
+	user: string,
+	/**
+	 *  Empty means the server's default: for Postgres a database named after the user, for
+	 *  MySQL none (queries then name the database, as in `shop.orders`).
+	 */
+	database: string,
+	/**
+	 *  List every database on the server in the explorer, not just `database`. Missing means
+	 *  off, so connections saved before the option existed still load. (specta splits types with
+	 *  a defaulted field into `_Serialize`/`_Deserialize` copies; here both have the same shape.)
+	 */
+	showAllDatabases?: boolean,
+};
 
 export type Table = {
 	name: string,

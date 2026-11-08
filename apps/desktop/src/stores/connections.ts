@@ -3,7 +3,8 @@ import { commands, type CommandError, type ConnectRequest, type SavedConfig, typ
 
 /**
  * An open connection: `id` is the Rust pool, which is keyed by `savedId`, the saved entry it was opened from.
- * `database` is the one it was saved with, empty for none (and always for SQLite).
+ * `database`, `databases` and `switchable` are Rust's `ConnectionDatabases`: what the explorer and the
+ * toolbar's picker show. `others` caches the schemas of other Postgres databases once loaded.
  */
 export type Connection = {
   id: string;
@@ -11,7 +12,10 @@ export type Connection = {
   label: string;
   kind: SavedConfig["kind"];
   database: string;
+  databases: string[];
+  switchable: boolean;
   schemas: Schema[];
+  others: Record<string, Schema[]>;
 };
 
 /** A saved connection that isn't open: still connecting, or failed with this message */
@@ -35,6 +39,8 @@ type ConnectionsState = {
   open: (savedId: string) => Promise<void>;
   disconnect: (id: string) => Promise<void>;
   forget: (savedId: string) => Promise<void>;
+  /** Loads another Postgres database's schemas into `others` (its pool opens on first use) */
+  loadOtherDatabase: (id: string, database: string) => Promise<void>;
 };
 
 function labelOf(request: ConnectRequest) {
@@ -60,7 +66,10 @@ export const useConnections = create<ConnectionsState>()((set, get) => {
   async function show(saved: SavedConnection) {
     const { config } = saved;
     try {
-      const schemas = await commands.listSchemas(saved.id);
+      const [schemas, { current, listed, switchable }] = await Promise.all([
+        commands.listSchemas(saved.id, null),
+        commands.connectionDatabases(saved.id),
+      ]);
       setClosed(saved.id, undefined);
       set((s) => ({
         // Replace rather than add: after a UI reload Rust hands back the pool that was already open
@@ -71,8 +80,11 @@ export const useConnections = create<ConnectionsState>()((set, get) => {
             savedId: saved.id,
             label: saved.label,
             kind: config.kind,
-            database: config.kind === "sqlite" ? "" : config.database,
+            database: current,
+            databases: listed,
+            switchable,
             schemas,
+            others: {},
           },
         ],
       }));
@@ -112,6 +124,13 @@ export const useConnections = create<ConnectionsState>()((set, get) => {
     disconnect: async (id) => {
       set((s) => ({ connections: s.connections.filter((c) => c.id !== id) }));
       await commands.disconnect(id);
+    },
+
+    loadOtherDatabase: async (id, database) => {
+      const schemas = await commands.listSchemas(id, database);
+      set((s) => ({
+        connections: s.connections.map((c) => (c.id === id ? { ...c, others: { ...c.others, [database]: schemas } } : c)),
+      }));
     },
 
     forget: async (savedId) => {

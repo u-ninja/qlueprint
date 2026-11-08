@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { commands, type ConnectRequest } from "@/bindings";
 import { errorMessage, useConnections } from "@/stores/connections";
 import { engineName } from "@/lib/engines";
@@ -33,6 +34,8 @@ function requestFrom(form: HTMLFormElement, kind: Kind): ConnectRequest {
         user: text("user"),
         password: text("password"),
         database: text("database"),
+        // A Radix Switch with a name submits "on" through a hidden checkbox when checked
+        showAllDatabases: data.get("showAllDatabases") === "on",
       };
 }
 
@@ -164,6 +167,13 @@ export function ConnectDialog({ children }: { children: ReactNode }) {
               <Field label="User" name="user" defaultValue={serverDefaults[kind].user} autoComplete="username" required />
               <Field label="Password" name="password" type="password" autoComplete="current-password" />
               <DatabaseField kind={kind} />
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="connect-show-all" className="flex flex-col items-start gap-0.5 font-normal">
+                  Show all databases
+                  <span className="text-xs text-fg3">List every database on the server, not just this one</span>
+                </Label>
+                <Switch id="connect-show-all" name="showAllDatabases" />
+              </div>
             </>
           ) : (
             // shortcut: typed path, add a native file picker (tauri-plugin-dialog) when the wizard UI lands
