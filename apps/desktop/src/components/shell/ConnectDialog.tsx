@@ -12,7 +12,8 @@ import { cn } from '@/lib/utils';
 
 type Kind = ConnectRequest['kind'];
 
-const kinds = Object.keys(engineName) as Kind[];
+// MariaDB servers connect as MySQL
+const kinds: Kind[] = ['postgres', 'mysql', 'sqlite'];
 
 type ServerKind = Exclude<Kind, 'sqlite'>;
 

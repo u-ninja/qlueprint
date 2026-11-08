@@ -5,4 +5,5 @@ identifier = "app-commands"
 description = "Allows every QueryCraft command."
 permissions = ["allow-list-databases", "allow-connection-databases", "allow-disconnect", "allow-list-schemas", "allow-run-query",
   "allow-list-saved", "allow-connect-and-save", "allow-connect-saved", "allow-forget-saved",
-  "allow-list-audit-events", "allow-verify-audit-log", "allow-export-audit-log"]
+  "allow-list-audit-events", "allow-verify-audit-log", "allow-export-audit-log",
+  "allow-docker-status", "allow-discover-local-databases", "allow-local-database-templates"]

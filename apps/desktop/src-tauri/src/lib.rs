@@ -13,6 +13,7 @@ const BINDINGS_PATH: &str = "../src/bindings.ts";
 mod audit;
 mod chrome;
 mod db;
+mod local;
 mod query;
 mod saved;
 
@@ -33,6 +34,9 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             audit::list_audit_events,
             audit::verify_audit_log,
             audit::export_audit_log,
+            local::docker_status,
+            local::discover_local_databases,
+            local::local_database_templates,
         ])
         // Rejects with CommandError, so callers keep using try/catch.
         .error_handling(ErrorHandlingMode::Throw)

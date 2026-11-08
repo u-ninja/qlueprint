@@ -75,6 +75,17 @@ pub enum EventKind {
     /// A password was removed from the OS credential store.
     CredentialDeleted,
     QueryRun,
+    /// A local database was provisioned (Docker, native or SQLite file).
+    LocalInstanceCreated,
+    LocalInstanceStarted,
+    LocalInstanceStopped,
+    /// A local instance's container was removed, or a native/SQLite one forgotten. Data is kept.
+    LocalInstanceRemoved,
+    /// A local instance's data (Docker volume, SQLite file) was deleted.
+    LocalDataDeleted,
+    SampleDataLoaded,
+    /// The OS package manager ran an install the user approved.
+    NativeInstallRun,
 }
 
 impl EventKind {
@@ -88,15 +99,24 @@ impl EventKind {
             Self::CredentialStored => "credential_stored",
             Self::CredentialDeleted => "credential_deleted",
             Self::QueryRun => "query_run",
+            Self::LocalInstanceCreated => "local_instance_created",
+            Self::LocalInstanceStarted => "local_instance_started",
+            Self::LocalInstanceStopped => "local_instance_stopped",
+            Self::LocalInstanceRemoved => "local_instance_removed",
+            Self::LocalDataDeleted => "local_data_deleted",
+            Self::SampleDataLoaded => "sample_data_loaded",
+            Self::NativeInstallRun => "native_install_run",
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "lowercase")]
 pub enum Engine {
     Postgres,
     Mysql,
+    /// Connects through the MySQL driver; only local databases record it separately.
+    Mariadb,
     Sqlite,
 }
 

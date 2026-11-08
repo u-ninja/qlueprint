@@ -32,6 +32,8 @@ futures-util = "0.3.34"
 hex = "0.4"
 sha2 = "=0.10.9"
 keyring = "4.2.0"
+# Runs the Docker CLI and OS package managers (local databases); already in the tree via Tauri
+tokio = { version = "1.54.1", features = ["process", "io-util", "time", "sync", "macros", "rt"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
@@ -41,6 +43,3 @@ lto = true
 opt-level = 3
 panic = "abort"
 strip = true
-
-[dev-dependencies]
-tokio = { version = "1.54.1", features = ["macros", "rt"] }

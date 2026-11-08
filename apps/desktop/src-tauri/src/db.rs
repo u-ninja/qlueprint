@@ -281,7 +281,7 @@ pub struct CommandError {
     message: String,
 }
 
-#[derive(Debug, Serialize, Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorCode {
     InvalidInput,
@@ -294,6 +294,33 @@ pub enum ErrorCode {
     CredentialFailed,
     /// Reading the audit log failed. Writing it never fails a command (see audit.rs).
     AuditFailed,
+    // Local databases (local/). Each message says what happened and what to do next.
+    /// The Docker CLI isn't installed.
+    DockerUnavailable,
+    /// Docker is installed but its daemon (Docker Desktop, dockerd) isn't running.
+    DockerStopped,
+    /// The Docker daemon refused this user (Linux: not in the docker group).
+    DockerPermission,
+    /// Pulling the image failed: offline, registry unreachable, or the tag is gone.
+    ImagePullFailed,
+    PortInUse,
+    DiskFull,
+    /// The OS or a package manager refused (elevation declined, access denied).
+    PermissionDenied,
+    /// The server didn't pass its health check in time.
+    StartupTimeout,
+    InvalidCredentials,
+    /// The container exited while QueryCraft was waiting for it.
+    ContainerStopped,
+    SampleDataFailed,
+    /// Provisioning was cancelled by the user.
+    Cancelled,
+    /// The container or volume isn't one QueryCraft created, so it isn't touched.
+    NotManaged,
+    /// Not possible on this OS or with this package manager; the message has the manual steps.
+    NativeUnsupported,
+    /// A Docker or package-manager command failed for another reason.
+    ProvisionFailed,
 }
 
 impl CommandError {
@@ -307,9 +334,25 @@ impl CommandError {
     pub(crate) fn message(&self) -> &str {
         &self.message
     }
+
+    pub(crate) fn code(&self) -> ErrorCode {
+        self.code
+    }
 }
 
 pub(crate) fn connect_failed(e: sqlx::Error) -> CommandError {
+    // 28P01/28000: Postgres authentication failed; 1045/1698: MySQL access denied
+    if let sqlx::Error::Database(db) = &e
+        && matches!(
+            db.code().as_deref(),
+            Some("28P01" | "28000" | "1045" | "1698")
+        )
+    {
+        return CommandError::new(
+            ErrorCode::InvalidCredentials,
+            format!("{e}. Check the user and password."),
+        );
+    }
     CommandError::new(ErrorCode::ConnectFailed, e.to_string())
 }
 

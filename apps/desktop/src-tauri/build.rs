@@ -15,6 +15,9 @@ fn main() {
         "list_audit_events",
         "verify_audit_log",
         "export_audit_log",
+        "docker_status",
+        "discover_local_databases",
+        "local_database_templates",
     ]);
 
     // Tauri embeds its Windows manifest (Common Controls v6) only into the app binary, so test

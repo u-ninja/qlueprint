@@ -17,6 +17,13 @@ export const eventLabel: Record<EventKind, string> = {
     credential_stored: 'Password stored',
     credential_deleted: 'Password deleted',
     query_run: 'Query',
+    local_instance_created: 'Local database created',
+    local_instance_started: 'Local database started',
+    local_instance_stopped: 'Local database stopped',
+    local_instance_removed: 'Local database removed',
+    local_data_deleted: 'Local data deleted',
+    sample_data_loaded: 'Sample data loaded',
+    native_install_run: 'Native install run',
 };
 
 /** An entry failed when it carries an error: a failed connect or query */
