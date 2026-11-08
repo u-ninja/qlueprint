@@ -9,6 +9,11 @@ skills guide execution, they don't override it. For any change in
 - While building: follow `frontend-design`, `ui-typography` (quotes, dashes,
   spacing, hierarchy) and `bencium-controlled-ux-designer` (stay inside the
   existing design system rather than inventing new styles).
+- Working from a UI reference (a `docs/design/` mockup, a prototype, a
+  screenshot, another app): don't copy it verbatim. Adapt it to the screen,
+  then run `unslop` on the result to strip generic/AI-slop patterns. Take its
+  direction, palette and type from Obsidian Flow, not from `unslop`'s own
+  picks. Do this before the `web-design-guidelines` check below.
 - Use `ui-ux-pro-max` for `--domain` / `--stack react` lookups (UX,
   accessibility, charts). Don't use its `--design-system` or `--persist`
   output: the palette and typography come from Obsidian Flow.
