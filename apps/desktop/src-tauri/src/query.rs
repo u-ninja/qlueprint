@@ -192,6 +192,11 @@ fn use_database(name: &str) -> String {
 
 /// Each statement yields its rows, then one `Left` with its QueryResult. The output keeps
 /// only the last statement, like most SQL clients' single result pane.
+///
+/// A statement that returned rows reports how many it returned, counted here: only Postgres
+/// puts that in its QueryResult. MySQL's end-of-result packet says 0, and SQLite's count is
+/// `sqlite3_changes()`, left over from the last INSERT/UPDATE/DELETE. Other statements report
+/// the driver's count of rows changed.
 async fn collect<D, R: Row>(
     mut results: impl Stream<Item = Result<Either<D, R>, sqlx::Error>> + Unpin,
     rows_affected: fn(&D) -> u64,
@@ -199,19 +204,20 @@ async fn collect<D, R: Row>(
     type_name: fn(&R, usize) -> String,
 ) -> Result<QueryOutput, sqlx::Error> {
     let mut output = QueryOutput::default();
-    let mut statement_has_rows = false;
+    // Rows the current statement has returned so far, kept or not; 0 until its first row.
+    let mut row_count: u64 = 0;
 
     while let Some(item) = results.try_next().await? {
         match item {
             Either::Right(row) => {
-                if !statement_has_rows {
+                if row_count == 0 {
                     // First row of a new statement: drop the previous statement's result.
-                    statement_has_rows = true;
                     output = QueryOutput {
                         columns: columns_of(&row, type_name),
                         ..Default::default()
                     };
                 }
+                row_count += 1;
                 if output.rows.len() < MAX_ROWS {
                     let mut cells = Vec::with_capacity(row.len());
                     for i in 0..row.len() {
@@ -223,11 +229,13 @@ async fn collect<D, R: Row>(
                 }
             }
             Either::Left(done) => {
-                if !statement_has_rows {
+                output.rows_affected = if row_count > 0 {
+                    row_count
+                } else {
                     output = QueryOutput::default();
-                }
-                output.rows_affected = rows_affected(&done);
-                statement_has_rows = false;
+                    rows_affected(&done)
+                };
+                row_count = 0;
             }
         }
     }
@@ -368,6 +376,28 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(out.rows, [[Some("4".into())], [Some("4".into())]]);
+        assert_eq!(out.rows_affected, 2);
+    }
+
+    #[tokio::test]
+    async fn counts_select_rows_not_the_drivers_change_count() {
+        let pool = pool().await;
+        // sqlite3_changes() still holds the INSERT's 3 while the SELECT runs.
+        let out = run(
+            &pool,
+            "CREATE TABLE t (x); INSERT INTO t VALUES (1), (2), (3); SELECT x FROM t WHERE x > 1",
+        )
+        .await
+        .unwrap();
+        assert_eq!(out.rows.len(), 2);
+        assert_eq!(out.rows_affected, 2);
+
+        // DML after a SELECT reports the DML's own count.
+        let out = run(&pool, "SELECT x FROM t; DELETE FROM t WHERE x = 1")
+            .await
+            .unwrap();
+        assert!(out.columns.is_empty() && out.rows.is_empty());
+        assert_eq!(out.rows_affected, 1);
     }
 
     #[tokio::test]
@@ -381,6 +411,32 @@ mod tests {
         .unwrap();
         assert_eq!(out.rows.len(), MAX_ROWS);
         assert!(out.truncated);
+        assert_eq!(out.rows_affected, 1500);
+    }
+
+    /// Needs a MySQL server, so it only runs when asked:
+    /// `QUERYCRAFT_MYSQL_URL=mysql://user:pass@localhost:3306 cargo test -- --ignored`
+    #[tokio::test]
+    #[ignore]
+    async fn counts_mysql_select_rows_after_use() {
+        let url = std::env::var("QUERYCRAFT_MYSQL_URL").expect("QUERYCRAFT_MYSQL_URL");
+        let pool = sqlx::mysql::MySqlPool::connect(&url).await.unwrap();
+        // Same batch shape as `execute`: USE first, then the user's SELECT.
+        let sql = format!(
+            "{};\nWITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 60) SELECT i FROM n",
+            use_database("mysql")
+        );
+        let results = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(&pool);
+        let out = collect(
+            results,
+            MySqlQueryResult::rows_affected,
+            mysql_cell,
+            column_type,
+        )
+        .await
+        .unwrap();
+        assert_eq!(out.rows.len(), 60);
+        assert_eq!(out.rows_affected, 60);
     }
 
     #[test]
