@@ -1,0 +1,7 @@
+# The custom title bar's window buttons and drag region (src/components/shell/TopBar.tsx).
+# Granted by both capabilities, like app-commands.
+[[set]]
+identifier = "window-controls"
+description = "Allows the title bar to move, minimize, maximize and close the window."
+permissions = ["core:window:allow-start-dragging", "core:window:allow-internal-toggle-maximize",
+  "core:window:allow-minimize", "core:window:allow-toggle-maximize", "core:window:allow-close"]

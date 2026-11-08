@@ -10,6 +10,7 @@ const LOCALHOST_PORT: u16 = 14200;
 /// Where the generated UI types go, relative to src-tauri (the cwd of `tauri dev` and `cargo test`).
 const BINDINGS_PATH: &str = "../src/bindings.ts";
 
+mod chrome;
 mod db;
 mod query;
 mod saved;
@@ -43,7 +44,13 @@ pub fn run() {
     #[cfg(debug_assertions)]
     export_bindings(&specta);
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(target_os = "macos")]
+    let builder = builder
+        .menu(chrome::menu)
+        .on_menu_event(chrome::forward_menu_event);
+
+    builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_oauth::init())
         // Serve the built app over http://localhost: Neon Auth rejects the tauri:// origin
@@ -68,12 +75,13 @@ pub fn run() {
                         .permission("opener:default")
                         .permission("oauth:allow-start")
                         .permission("oauth:allow-cancel")
-                        .permission("app-commands"),
+                        .permission("app-commands")
+                        .permission("window-controls"),
                 )?;
                 WebviewUrl::External(url)
             };
 
-            WebviewWindowBuilder::new(app, "main", url)
+            chrome::title_bar(WebviewWindowBuilder::new(app, "main", url))
                 .title("querycraft")
                 .inner_size(800.0, 600.0)
                 .build()?;
