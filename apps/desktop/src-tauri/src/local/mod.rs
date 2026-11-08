@@ -7,6 +7,7 @@
 mod docker;
 mod ports;
 mod process;
+mod sample;
 mod types;
 
 use serde::Serialize;
