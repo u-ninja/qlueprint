@@ -32,10 +32,7 @@ function Row({ event, selected }: { event: AuditEvent; selected: boolean }) {
             role="option"
             aria-selected={selected}
             onClick={() => select(event.id)}
-            className={cn(
-                'flex h-full cursor-default items-center gap-3 border-b border-border-soft px-3.5 hover:bg-hover',
-                selected && 'bg-sel hover:bg-sel',
-            )}
+            className={cn('flex h-full items-center gap-3 border-b border-border-soft px-3.5 hover:bg-hover', selected && 'bg-sel hover:bg-sel')}
         >
             <time
                 dateTime={new Date(event.at).toISOString()}
