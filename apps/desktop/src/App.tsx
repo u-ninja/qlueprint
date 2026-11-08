@@ -51,17 +51,18 @@ function App() {
                 </ResizablePanelGroup>
             </div>
             <footer className="flex h-6 flex-none items-center gap-4 border-t border-border-soft bg-chrome px-3 text-[11.5px] text-fg3">
-                <span className="flex items-center gap-1.5">
+                {/* One line at any width: a long label truncates (full text on hover) instead of wrapping */}
+                <span className="flex min-w-0 items-center gap-1.5" title={status}>
                     <StatusDot state={connections.length ? 'open' : 'closed'} />
-                    {status}
+                    <span className="truncate">{status}</span>
                 </span>
                 {failed > 0 && (
-                    <span className="flex items-center gap-1.5">
+                    <span className="flex flex-none items-center gap-1.5">
                         <StatusDot state="failed" />
                         {failed} failed
                     </span>
                 )}
-                <span className="ml-auto">Local</span>
+                <span className="ml-auto flex-none">Local</span>
             </footer>
         </div>
     );
