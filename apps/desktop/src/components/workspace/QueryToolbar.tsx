@@ -72,7 +72,8 @@ function DatabasePicker() {
         title={switchable ? database : `${engineName[active.kind]} can’t switch database on an open connection`}
         className="w-40"
       >
-        <SelectValue placeholder={switchable ? "No database" : "Default database"} />
+        {/* Explicit: Radix only shows a value that matches an item, and a disabled picker has none */}
+        <SelectValue placeholder={switchable ? "No database" : "Default database"}>{database}</SelectValue>
       </SelectTrigger>
       <SelectContent position="popper" align="end" className={menu}>
         <SelectGroup>
