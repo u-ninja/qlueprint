@@ -8,6 +8,7 @@
     "opener:default",
     "oauth:allow-start",
     "oauth:allow-cancel",
-    "app-commands"
+    "app-commands",
+    "window-controls"
   ]
 }
