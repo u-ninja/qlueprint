@@ -4,13 +4,14 @@ import { Rail } from "@/components/shell/Rail";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { TopBar } from "@/components/shell/TopBar";
 import { Workspace } from "@/components/shell/Workspace";
+import { AuditLog } from "@/components/audit/AuditLog";
 import { StatusDot } from "@/components/shell/StatusDot";
 import { closedState, useConnections } from "@/stores/connections";
 import { useUi } from "@/stores/ui";
 
 // Opens straight into the workspace: no welcome screen, no sign-in wall, no loading screen
 function App() {
-  const { sidebarOpen, inspectorOpen } = useUi();
+  const { sidebarOpen, inspectorOpen, view } = useUi();
   const connections = useConnections((s) => s.connections);
   const failed = useConnections((s) => Object.values(s.closed).filter((c) => closedState(c) === "failed").length);
   const status =
@@ -38,7 +39,8 @@ function App() {
             </>
           )}
           <ResizablePanel id="main" minSize={360}>
-            <Workspace />
+            {/* The audit log needs the width for its columns and SQL; every other view keeps the editor here */}
+            {view === "audit" ? <AuditLog /> : <Workspace />}
           </ResizablePanel>
           {inspectorOpen && (
             <>

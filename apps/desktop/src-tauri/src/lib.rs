@@ -10,6 +10,7 @@ const LOCALHOST_PORT: u16 = 14200;
 /// Where the generated UI types go, relative to src-tauri (the cwd of `tauri dev` and `cargo test`).
 const BINDINGS_PATH: &str = "../src/bindings.ts";
 
+mod audit;
 mod db;
 mod query;
 mod saved;
@@ -28,6 +29,9 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             saved::connect_and_save,
             saved::connect_saved,
             saved::forget_saved,
+            audit::list_audit_events,
+            audit::verify_audit_log,
+            audit::export_audit_log,
         ])
         // Rejects with CommandError, so callers keep using try/catch.
         .error_handling(ErrorHandlingMode::Throw)
@@ -51,7 +55,12 @@ pub fn run() {
         // Serve the built app over http://localhost: Neon Auth rejects the tauri:// origin
         .plugin(tauri_plugin_localhost::Builder::new(LOCALHOST_PORT).build())
         .setup(|app| {
-            app.manage(saved::Saved::load(app.path().app_data_dir()?));
+            let data_dir = app.path().app_data_dir()?;
+            // Opened before any command can run, so the reconnects at launch are recorded too
+            app.manage(tauri::async_runtime::block_on(audit::Audit::open(
+                &data_dir,
+            )));
+            app.manage(saved::Saved::load(data_dir));
 
             #[cfg(dev)]
             let url = WebviewUrl::App(std::path::PathBuf::from("/"));

@@ -13,6 +13,7 @@ const emptyText: Record<View, string> = {
   connections: "No saved connections.",
   queries: "No saved queries.",
   history: "No queries run yet.",
+  audit: "Every connection and query, recorded on this machine. Passwords and result rows are never written to it, and each entry is chained by hash, so an edited log fails the integrity check.",
 };
 
 export function Sidebar() {

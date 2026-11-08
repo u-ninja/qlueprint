@@ -16,6 +16,9 @@ use sqlx::postgres::{PgConnectOptions, PgPool};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
 use tauri::State;
 
+use crate::audit::{Audit, EventKind};
+use crate::saved::Saved;
+
 // Fail fast on an unreachable host instead of sqlx's 30s default.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 // A desktop client needs few connections: explorer + a couple of query tabs.
@@ -289,6 +292,8 @@ pub enum ErrorCode {
     SaveFailed,
     /// Reading or writing a password in the OS credential store failed.
     CredentialFailed,
+    /// Reading the audit log failed. Writing it never fails a command (see audit.rs).
+    AuditFailed,
 }
 
 impl CommandError {
@@ -297,6 +302,10 @@ impl CommandError {
             code,
             message: message.into(),
         }
+    }
+
+    pub(crate) fn message(&self) -> &str {
+        &self.message
     }
 }
 
@@ -470,10 +479,16 @@ pub async fn connection_databases(
 pub async fn disconnect(
     id: String,
     connections: State<'_, Connections>,
+    saved: State<'_, Saved>,
+    audit: State<'_, Audit>,
 ) -> Result<(), CommandError> {
     // Close outside the lock: it waits for in-flight queries to finish.
     if let Some(open) = connections.remove(&id) {
         open.close().await;
+        let details = saved.audit_details(&id).unwrap_or_default();
+        audit
+            .record(EventKind::ConnectionClosed, Some(&id), details)
+            .await;
     }
     Ok(())
 }

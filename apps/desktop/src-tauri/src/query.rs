@@ -11,7 +11,9 @@ use sqlx::sqlite::{SqliteQueryResult, SqliteRow};
 use sqlx::{AssertSqlSafe, Column, Either, Row, TypeInfo, ValueRef};
 use tauri::State;
 
+use crate::audit::{Audit, EventKind};
 use crate::db::{CommandError, Connections, Pool, query_failed, require};
+use crate::saved::Saved;
 
 /// Rows kept per result. The rest are still read (to count them) but not stored,
 /// so a large SELECT can't exhaust memory in Rust or in the UI.
@@ -100,6 +102,9 @@ fn is_binary(type_name: &str) -> bool {
 /// `database` is the toolbar's database. MySQL makes it the default database for the statements,
 /// as if they started with `USE`; Postgres runs them on that database's pool (another database
 /// needs "Show all databases"); SQLite ignores it.
+///
+/// Every run that gets past the empty check is audited, failed ones included: the SQL, where it
+/// ran, the outcome, the row count and the time taken. Never the result rows.
 #[tauri::command]
 #[specta::specta]
 pub async fn run_query(
@@ -107,15 +112,42 @@ pub async fn run_query(
     sql: String,
     database: Option<String>,
     connections: State<'_, Connections>,
+    saved: State<'_, Saved>,
+    audit: State<'_, Audit>,
 ) -> Result<QueryOutput, CommandError> {
     require(&sql, "Query")?;
     let started = Instant::now();
+    let mut details = saved.audit_details(&id).unwrap_or_default();
+    details.sql = Some(sql.clone());
+    if let Some(database) = database.clone().filter(|d| !d.is_empty()) {
+        details.database = Some(database);
+    }
 
+    let result = execute(&id, sql, database, &connections).await;
+    let elapsed_ms = started.elapsed().as_millis().try_into().unwrap_or(u32::MAX);
+    details.duration_ms = Some(elapsed_ms);
+    match &result {
+        Ok(output) => details.rows_affected = Some(output.rows_affected),
+        Err(error) => details.error = Some(error.message().to_owned()),
+    }
+    audit.record(EventKind::QueryRun, Some(&id), details).await;
+    result.map(|output| QueryOutput {
+        elapsed_ms,
+        ..output
+    })
+}
+
+async fn execute(
+    id: &str,
+    sql: String,
+    database: Option<String>,
+    connections: &Connections,
+) -> Result<QueryOutput, CommandError> {
     // Running the user's own SQL against their own database is the feature, so there is
     // nothing to sanitize here; values never get spliced into SQL by the app (the database
     // name is quoted by `use_database`).
-    let open = connections.get(&id)?;
-    let mut output = match &open.pool {
+    let open = connections.get(id)?;
+    let output = match &open.pool {
         // raw_sql uses Postgres' simple query protocol, which sends every value as text.
         Pool::Postgres(_) => {
             let pool = open.pg_pool(database.as_deref()).await?;
@@ -150,8 +182,6 @@ pub async fn run_query(
         }
     }
     .map_err(query_failed)?;
-
-    output.elapsed_ms = started.elapsed().as_millis().try_into().unwrap_or(u32::MAX);
     Ok(output)
 }
 

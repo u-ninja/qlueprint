@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-export-audit-log"
+description = "Enables the export_audit_log command without any pre-configured scope."
+commands.allow = ["export_audit_log"]
+
+[[permission]]
+identifier = "deny-export-audit-log"
+description = "Denies the export_audit_log command without any pre-configured scope."
+commands.deny = ["export_audit_log"]

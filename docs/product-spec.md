@@ -571,6 +571,37 @@ It shows:
 
 A prominent action is **Create Local Database**.
 
+### 5.10 Local audit log
+
+A structured, tamper-evident record of what the app did with the user's databases, kept on the device from the first launch. It is separate from History (§5.8): History is a convenience the user can clear; the audit log is append-only. The cloud `audit_logs` (§7.3) cover workspace activity and are a different thing.
+
+Recorded, each entry written by the Rust command it describes (never by the UI, so it can't be skipped), with a UTC timestamp, event type, connection id and JSON details:
+
+- Connections: saved, opened (including the reconnects at launch), failed to connect (with the error), closed, removed.
+- Credentials: a password stored in or deleted from the OS credential store.
+- Every query run: connection and label, engine, server, database, the SQL text, outcome, rows affected, duration, error.
+
+Never recorded:
+
+- Passwords, including ones inside connection strings, `password=` pairs and the literal after SQL's `PASSWORD` / `IDENTIFIED BY` (masked as `***`, best effort).
+- Result rows or cell values.
+
+Tamper evidence:
+
+- Stored in `audit.db` (SQLite) in the app data directory, next to `connections.json`.
+- Each entry stores `prev_hash` and `hash = SHA-256(prev_hash || canonical entry)`, the canonical form being compact JSON with sorted keys. Editing, inserting or deleting an entry breaks the chain from there on.
+- "Check integrity" walks the chain and reports either the entry count or the first entry that doesn't match. The JSON export carries the hashes, so it can be checked outside the app.
+- The app offers no way to edit or delete entries, and the table refuses UPDATE and DELETE.
+
+Failure policy: a failed audit write never blocks or fails the action it describes. It is logged and counted, and the Audit log screen shows how many entries are missing.
+
+The **Audit log** screen (navigation rail) lists entries newest first with filters for event type, connection and text, shows the selected entry in full, runs the integrity check and exports CSV or JSON.
+
+Open questions:
+
+- Retention: everything is kept for now. Decide on size or age limits, and how to drop old entries without breaking verification (for example, a signed checkpoint of the last dropped hash).
+- Truncation: removing entries from the end leaves a valid, shorter chain. Anchoring the newest hash outside the file (OS credential store, signed export) would catch it.
+
 ## 6. One-click local database server provisioning
 
 ### 6.1 Product goal
@@ -1013,6 +1044,7 @@ Do not create folders or modules simply because they appear in this diagram. Eac
 - Implement one database adapter end-to-end.
 - Implement connection management and schema discovery.
 - Add typed query execution and result types.
+- Local audit log: hash-chained `audit.db`, integrity check, export, Audit log screen (§5.10).
 
 **Phase 4 — SQL workspace**
 

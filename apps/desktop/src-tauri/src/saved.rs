@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::State;
 
+use crate::audit::{Audit, Details, Engine, EventKind};
 use crate::db::{self, CommandError, ConnectRequest, Connections, ErrorCode, Server, ServerLogin};
 
 const KEYRING_SERVICE: &str = "QueryCraft";
@@ -31,6 +32,31 @@ pub struct SavedConnection {
     id: String,
     label: String,
     config: SavedConfig,
+}
+
+impl SavedConnection {
+    /// What audit entries say about this connection: never the password.
+    fn audit_details(&self) -> Details {
+        let server = |engine, s: &Server| Details {
+            engine: Some(engine),
+            target: Some(format!("{}@{}:{}", s.user, s.host, s.port)),
+            database: (!s.database.is_empty()).then(|| s.database.clone()),
+            ..Default::default()
+        };
+        let details = match &self.config {
+            SavedConfig::Postgres(s) => server(Engine::Postgres, s),
+            SavedConfig::Mysql(s) => server(Engine::Mysql, s),
+            SavedConfig::Sqlite { path } => Details {
+                engine: Some(Engine::Sqlite),
+                target: Some(path.clone()),
+                ..Default::default()
+            },
+        };
+        Details {
+            label: Some(self.label.clone()),
+            ..details
+        }
+    }
 }
 
 pub struct Saved {
@@ -79,6 +105,16 @@ impl Saved {
         self.list.lock().expect("saved lock poisoned").clone()
     }
 
+    fn find(&self, id: &str) -> Option<SavedConnection> {
+        let list = self.list.lock().expect("saved lock poisoned");
+        list.iter().find(|s| s.id == id).cloned()
+    }
+
+    /// The audit details of a saved connection, `None` if it no longer exists.
+    pub(crate) fn audit_details(&self, id: &str) -> Option<Details> {
+        self.find(id).map(|s| s.audit_details())
+    }
+
     /// Writes the new list to disk, then makes it current. Write-then-rename, so a crash
     /// mid-write leaves the previous file intact.
     fn replace(&self, list: Vec<SavedConnection>) -> Result<(), CommandError> {
@@ -124,6 +160,18 @@ pub async fn connect_and_save(
     label: String,
     saved: State<'_, Saved>,
     connections: State<'_, Connections>,
+    audit: State<'_, Audit>,
+) -> Result<SavedConnection, CommandError> {
+    save_connection(request, label, &saved, &connections, &audit).await
+}
+
+/// `connect_and_save` without Tauri's State, so tests can call it.
+async fn save_connection(
+    request: ConnectRequest,
+    label: String,
+    saved: &Saved,
+    connections: &Connections,
+    audit: &Audit,
 ) -> Result<SavedConnection, CommandError> {
     let (config, password) = match &request {
         ConnectRequest::Postgres(login) => (
@@ -138,30 +186,53 @@ pub async fn connect_and_save(
             (SavedConfig::Sqlite { path: path.clone() }, String::new())
         }
     };
-    let pool = db::open(request).await?;
-
     let entry = SavedConnection {
         id: new_id(),
         label,
         config,
     };
+    let details = entry.audit_details();
+    let pool = match db::open(request).await {
+        Ok(pool) => pool,
+        Err(error) => {
+            // No connection id: nothing was saved
+            let details = details.with_error(&error);
+            audit
+                .record(EventKind::ConnectionFailed, None, details)
+                .await;
+            return Err(error);
+        }
+    };
+
+    let mut password_stored = false;
     let stored = (|| {
         if !password.is_empty() {
             credential(&entry.id)?
                 .set_password(&password)
                 .map_err(credential_failed)?;
+            password_stored = true;
         }
         let mut list = saved.snapshot();
         list.push(entry.clone());
         saved.replace(list)
     })();
+    let id = Some(entry.id.as_str());
+    if password_stored {
+        audit
+            .record(EventKind::CredentialStored, id, details.clone())
+            .await;
+    }
     if let Err(error) = stored {
         // Not saved, so don't leave it open either: the UI shows the error instead
         pool.close().await;
         return Err(error);
     }
 
-    register(&connections, entry.id.clone(), pool).await;
+    register(connections, entry.id.clone(), pool).await;
+    audit
+        .record(EventKind::ConnectionSaved, id, details.clone())
+        .await;
+    audit.record(EventKind::ConnectionOpened, id, details).await;
     Ok(entry)
 }
 
@@ -172,23 +243,44 @@ pub async fn connect_saved(
     id: String,
     saved: State<'_, Saved>,
     connections: State<'_, Connections>,
+    audit: State<'_, Audit>,
 ) -> Result<(), CommandError> {
     if connections.is_open(&id) {
         return Ok(());
     }
-    let config = saved
-        .snapshot()
-        .into_iter()
-        .find(|s| s.id == id)
-        .map(|s| s.config)
-        .ok_or(CommandError::new(
+    let Some(entry) = saved.find(&id) else {
+        return Err(CommandError::new(
             ErrorCode::InvalidInput,
             "This saved connection no longer exists.",
-        ))?;
+        ));
+    };
+    let details = entry.audit_details();
+    match open_saved(&id, entry.config).await {
+        Ok(pool) => {
+            register(&connections, id.clone(), pool).await;
+            audit
+                .record(EventKind::ConnectionOpened, Some(&id), details)
+                .await;
+            Ok(())
+        }
+        Err(error) => {
+            audit
+                .record(
+                    EventKind::ConnectionFailed,
+                    Some(&id),
+                    details.with_error(&error),
+                )
+                .await;
+            Err(error)
+        }
+    }
+}
 
+/// Reads the saved password (if any) and opens a pool for a saved connection.
+async fn open_saved(id: &str, config: SavedConfig) -> Result<db::Open, CommandError> {
     let login = |server| -> Result<ServerLogin, CommandError> {
         // No entry means it was saved without a password
-        let password = match credential(&id)?.get_password() {
+        let password = match credential(id)?.get_password() {
             Ok(password) => password,
             Err(keyring::Error::NoEntry) => String::new(),
             Err(e) => return Err(credential_failed(e)),
@@ -200,9 +292,7 @@ pub async fn connect_saved(
         SavedConfig::Mysql(server) => ConnectRequest::Mysql(login(server)?),
         SavedConfig::Sqlite { path } => ConnectRequest::Sqlite { path },
     };
-    let pool = db::open(request).await?;
-    register(&connections, id, pool).await;
-    Ok(())
+    db::open(request).await
 }
 
 /// Forgets a saved connection and its password, closing it if open.
@@ -212,19 +302,33 @@ pub async fn forget_saved(
     id: String,
     saved: State<'_, Saved>,
     connections: State<'_, Connections>,
+    audit: State<'_, Audit>,
 ) -> Result<(), CommandError> {
+    let details = saved.audit_details(&id).unwrap_or_default();
     let list = saved
         .snapshot()
         .into_iter()
         .filter(|s| s.id != id)
         .collect();
     saved.replace(list)?;
+    let forgotten = Some(id.as_str());
+    audit
+        .record(EventKind::ConnectionForgotten, forgotten, details.clone())
+        .await;
     match credential(&id)?.delete_credential() {
-        Ok(()) | Err(keyring::Error::NoEntry) => {}
+        Ok(()) => {
+            audit
+                .record(EventKind::CredentialDeleted, forgotten, details.clone())
+                .await;
+        }
+        Err(keyring::Error::NoEntry) => {}
         Err(e) => return Err(credential_failed(e)),
     }
     if let Some(pool) = connections.remove(&id) {
         pool.close().await;
+        audit
+            .record(EventKind::ConnectionClosed, forgotten, details)
+            .await;
     }
     Ok(())
 }
@@ -280,6 +384,48 @@ mod tests {
         let list: Vec<SavedConnection> = serde_json::from_str(json).unwrap();
         assert!(matches!(&list[0].config, SavedConfig::Postgres(s) if s.port == 5432));
         assert!(matches!(&list[1].config, SavedConfig::Mysql(s) if s.database == "shop"));
+    }
+
+    /// The password goes to the OS store only; the audit file never sees it, even when the
+    /// connect fails and the entry records the error.
+    #[tokio::test]
+    async fn connect_and_save_never_writes_the_password_to_the_audit_log() {
+        use crate::audit::tests::{file_text, temp_dir};
+        let dir = temp_dir();
+        let saved = Saved::load(dir.clone());
+        let connections = Connections::default();
+        let audit = Audit::open(&dir).await;
+        let password = "hunter2-do-not-log";
+        // Nothing listens on port 1, so the connect fails before the credential store is used
+        let request = ConnectRequest::Postgres(ServerLogin {
+            server: Server {
+                host: "127.0.0.1".into(),
+                port: 1,
+                user: "app".into(),
+                database: "shop".into(),
+                show_all_databases: false,
+            },
+            password: password.into(),
+        });
+        let result = save_connection(request, "shop".into(), &saved, &connections, &audit).await;
+        assert!(result.is_err());
+
+        // A SQLite connection saves and opens for real
+        let file = dir.join("shop.db");
+        fs::write(&file, b"").unwrap();
+        let path = file.to_string_lossy().into_owned();
+        let request = ConnectRequest::Sqlite { path };
+        save_connection(request, "shop.db".into(), &saved, &connections, &audit)
+            .await
+            .unwrap();
+        let report = audit.verify().await.unwrap();
+        assert!(report.intact && report.entries == 3);
+
+        let text = file_text(audit, &dir).await;
+        assert!(text.contains("connection_failed") && text.contains("app@127.0.0.1:1"));
+        assert!(text.contains("connection_saved") && text.contains("connection_opened"));
+        assert!(!text.contains(password));
+        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]

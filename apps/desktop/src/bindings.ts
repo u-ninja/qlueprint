@@ -22,6 +22,9 @@ export const commands = {
 	 *  `database` is the toolbar's database. MySQL makes it the default database for the statements,
 	 *  as if they started with `USE`; Postgres runs them on that database's pool (another database
 	 *  needs "Show all databases"); SQLite ignores it.
+	 * 
+	 *  Every run that gets past the empty check is audited, failed ones included: the SQL, where it
+	 *  ran, the outcome, the row count and the time taken. Never the result rows.
 	 */
 	runQuery: (id: string, sql: string, database: string | null) => __TAURI_INVOKE<QueryOutput>("run_query", { id, sql, database }),
 	listSaved: () => __TAURI_INVOKE<SavedConnection_Serialize[]>("list_saved"),
@@ -31,9 +34,100 @@ export const commands = {
 	connectSaved: (id: string) => __TAURI_INVOKE<null>("connect_saved", { id }),
 	/**  Forgets a saved connection and its password, closing it if open. */
 	forgetSaved: (id: string) => __TAURI_INVOKE<null>("forget_saved", { id }),
+	listAuditEvents: (filter: AuditFilter_Deserialize) => __TAURI_INVOKE<AuditPage_Serialize>("list_audit_events", { filter }),
+	verifyAuditLog: () => __TAURI_INVOKE<Verification_Serialize>("verify_audit_log"),
+	/**
+	 *  Returns the export as text; the UI saves it as a download. Rust takes no path from the UI,
+	 *  so this can't be turned into a write-anywhere command.
+	 */
+	exportAuditLog: (format: ExportFormat) => __TAURI_INVOKE<string>("export_audit_log", { format }),
 };
 
 /* Types */
+export type AuditEvent = AuditEvent_Serialize | AuditEvent_Deserialize;
+
+export type AuditEvent_Deserialize = {
+	id: number,
+	/**  Unix time in milliseconds (UTC). */
+	at: number,
+	event: EventKind,
+	connectionId?: string | null,
+	details: Details_Deserialize,
+	hash: string,
+};
+
+export type AuditEvent_Serialize = {
+	id: number,
+	/**  Unix time in milliseconds (UTC). */
+	at: number,
+	event: EventKind,
+	connectionId: string | null,
+	details: Details_Serialize,
+	hash: string,
+};
+
+/**  Every field narrows the list; `null` means no filter. */
+export type AuditFilter = AuditFilter_Serialize | AuditFilter_Deserialize;
+
+/**  Every field narrows the list; `null` means no filter. */
+export type AuditFilter_Deserialize = {
+	event?: EventKind | null,
+	connectionId?: string | null,
+	/**
+	 *  Matched, case-insensitively for ASCII, against every value in `details` (SQL, label,
+	 *  error, target, database).
+	 */
+	search?: string | null,
+	/**  Unix ms, inclusive. */
+	from?: number | null,
+	/**  Unix ms, exclusive. */
+	to?: number | null,
+	/**  The previous page's `nextCursor`: entries older than it. */
+	before?: number | null,
+	/**  Defaults to 200, at most 1000. */
+	limit?: number | null,
+};
+
+/**  Every field narrows the list; `null` means no filter. */
+export type AuditFilter_Serialize = {
+	event: EventKind | null,
+	connectionId: string | null,
+	/**
+	 *  Matched, case-insensitively for ASCII, against every value in `details` (SQL, label,
+	 *  error, target, database).
+	 */
+	search: string | null,
+	/**  Unix ms, inclusive. */
+	from: number | null,
+	/**  Unix ms, exclusive. */
+	to: number | null,
+	/**  The previous page's `nextCursor`: entries older than it. */
+	before: number | null,
+	/**  Defaults to 200, at most 1000. */
+	limit: number | null,
+};
+
+/**  One page, newest first. */
+export type AuditPage = AuditPage_Serialize | AuditPage_Deserialize;
+
+/**  One page, newest first. */
+export type AuditPage_Deserialize = {
+	events: AuditEvent_Deserialize[],
+	/**  Pass as `before` to get the next (older) page; `null` on the last one. */
+	nextCursor?: number | null,
+	/**  Entries that couldn't be written since the app started (see the failure policy). */
+	failedWrites: number,
+};
+
+/**  One page, newest first. */
+export type AuditPage_Serialize = {
+	events: AuditEvent_Serialize[],
+	/**  Pass as `before` to get the next (older) page; `null` on the last one. */
+	nextCursor: number | null,
+	/**  Entries that couldn't be written since the app started (see the failure policy). */
+	failedWrites: number,
+};
+
 /**  Display family of a column, decided here where the driver's type info is. */
 export type ColumnKind = "number" | "bool" | "temporal" | "uuid" | "json" | "binary" | "text";
 
@@ -79,11 +173,65 @@ export type ConnectionDatabases = {
 	switchable: boolean,
 };
 
+/**
+ *  What an entry records beyond its type and connection, stored as the `details` JSON. Empty
+ *  fields are left out. Never a password, never a result value.
+ */
+export type Details = Details_Serialize | Details_Deserialize;
+
+/**
+ *  What an entry records beyond its type and connection, stored as the `details` JSON. Empty
+ *  fields are left out. Never a password, never a result value.
+ */
+export type Details_Deserialize = {
+	label?: string | null,
+	engine?: Engine | null,
+	/**  `user@host:port` for a server, the file path for SQLite. */
+	target?: string | null,
+	/**  The database a query ran in (the toolbar's), or the one a connection was saved with. */
+	database?: string | null,
+	sql?: string | null,
+	rowsAffected?: number | null,
+	durationMs?: number | null,
+	/**  Set when the action failed; an entry without one succeeded. */
+	error?: string | null,
+};
+
+/**
+ *  What an entry records beyond its type and connection, stored as the `details` JSON. Empty
+ *  fields are left out. Never a password, never a result value.
+ */
+export type Details_Serialize = {
+	label?: string,
+	engine?: Engine,
+	/**  `user@host:port` for a server, the file path for SQLite. */
+	target?: string,
+	/**  The database a query ran in (the toolbar's), or the one a connection was saved with. */
+	database?: string,
+	sql?: string,
+	rowsAffected?: number,
+	durationMs?: number,
+	/**  Set when the action failed; an entry without one succeeded. */
+	error?: string,
+};
+
+export type Engine = "postgres" | "mysql" | "sqlite";
+
 export type ErrorCode = "invalid_input" | "not_connected" | "connect_failed" | "query_failed" | 
 /**  Writing the saved-connections file failed. */
 "save_failed" | 
 /**  Reading or writing a password in the OS credential store failed. */
-"credential_failed";
+"credential_failed" | 
+/**  Reading the audit log failed. Writing it never fails a command (see audit.rs). */
+"audit_failed";
+
+export type EventKind = "connection_saved" | "connection_opened" | "connection_failed" | "connection_closed" | "connection_forgotten" | 
+/**  A password went into the OS credential store. */
+"credential_stored" | 
+/**  A password was removed from the OS credential store. */
+"credential_deleted" | "query_run";
+
+export type ExportFormat = "csv" | "json";
 
 export type QueryOutput = {
 	columns: ResultColumn[],
@@ -195,5 +343,23 @@ export type Server_Serialize = {
 export type Table = {
 	name: string,
 	view: boolean,
+};
+
+export type Verification = Verification_Serialize | Verification_Deserialize;
+
+export type Verification_Deserialize = {
+	intact: boolean,
+	/**  Entries checked: all of them when intact, otherwise the ones before the break. */
+	entries: number,
+	/**  The first entry whose hash or link to the previous entry doesn't match. */
+	brokenId?: number | null,
+};
+
+export type Verification_Serialize = {
+	intact: boolean,
+	/**  Entries checked: all of them when intact, otherwise the ones before the break. */
+	entries: number,
+	/**  The first entry whose hash or link to the previous entry doesn't match. */
+	brokenId: number | null,
 };
 
