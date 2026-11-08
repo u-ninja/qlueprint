@@ -15,7 +15,7 @@ type QueryState = {
   /** Set by the editor on mount; reads the selection only when Run needs it */
   readSelection: () => string;
   /** Picked in the toolbar; null means "the most recently opened connection" */
-  connectionId: number | null;
+  connectionId: string | null;
   /** When the current run started, null while idle */
   runningSince: number | null;
   /** Kept while a new run is in flight so the panel can show it as stale instead of blanking */
@@ -25,12 +25,12 @@ type QueryState = {
   setSql: (sql: string) => void;
   setHasSelection: (hasSelection: boolean) => void;
   setReadSelection: (read: () => string) => void;
-  setConnectionId: (id: number) => void;
+  setConnectionId: (id: string) => void;
   run: () => Promise<void>;
 };
 
 /** The toolbar's choice if it's still open, otherwise the newest connection */
-export function activeConnection(connections: Connection[], id: number | null) {
+export function activeConnection(connections: Connection[], id: string | null) {
   return connections.find((c) => c.id === id) ?? connections[connections.length - 1];
 }
 

@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import { commands, type CommandError, type ConnectRequest, type SavedConnection, type Schema } from "@/bindings";
 
-/** An open connection: `id` is the Rust pool, `savedId` the saved entry it was opened from */
-export type Connection = { id: number; savedId: string; label: string; schemas: Schema[] };
+/** An open connection: `id` is the Rust pool, which is keyed by `savedId`, the saved entry it was opened from */
+export type Connection = { id: string; savedId: string; label: string; schemas: Schema[] };
 
 /** A saved connection that isn't open: still connecting, or failed with this message */
 export type Closed = "connecting" | { error: string };
@@ -15,7 +15,7 @@ type ConnectionsState = {
   closed: Record<string, Closed>;
   connect: (request: ConnectRequest) => Promise<void>;
   open: (savedId: string) => Promise<void>;
-  disconnect: (id: number) => Promise<void>;
+  disconnect: (id: string) => Promise<void>;
   forget: (savedId: string) => Promise<void>;
 };
 
@@ -39,17 +39,17 @@ export const useConnections = create<ConnectionsState>()((set, get) => {
     });
 
   /** Loads the schema tree and shows the connection; closes the pool if that fails */
-  async function show(id: number, saved: SavedConnection) {
+  async function show(saved: SavedConnection) {
     try {
-      const schemas = await commands.listSchemas(id);
+      const schemas = await commands.listSchemas(saved.id);
       setClosed(saved.id, undefined);
       set((s) => ({
         // Replace rather than add: after a UI reload Rust hands back the pool that was already open
-        connections: [...s.connections.filter((c) => c.savedId !== saved.id), { id, savedId: saved.id, label: saved.label, schemas }],
+        connections: [...s.connections.filter((c) => c.savedId !== saved.id), { id: saved.id, savedId: saved.id, label: saved.label, schemas }],
       }));
     } catch (error) {
       // Don't leave an open pool the UI can't see
-      await commands.disconnect(id);
+      await commands.disconnect(saved.id);
       setClosed(saved.id, { error: errorMessage(error) });
       throw error;
     }
@@ -62,23 +62,22 @@ export const useConnections = create<ConnectionsState>()((set, get) => {
 
     connect: async (request) => {
       // Rust saves it only once the connection works, so a typo never ends up in the list
-      const { saved, id } = await commands.connectAndSave(request, labelOf(request));
+      const saved = await commands.connectAndSave(request, labelOf(request));
       set((s) => ({ saved: [...s.saved, saved] }));
-      await show(id, saved);
+      await show(saved);
     },
 
     open: async (savedId) => {
       const saved = get().saved.find((s) => s.id === savedId);
       if (!saved) return;
       setClosed(savedId, "connecting");
-      let id: number;
       try {
-        id = await commands.connectSaved(savedId);
+        await commands.connectSaved(savedId);
       } catch (error) {
         setClosed(savedId, { error: errorMessage(error) });
         return;
       }
-      await show(id, saved).catch(() => {});
+      await show(saved).catch(() => {});
     },
 
     disconnect: async (id) => {

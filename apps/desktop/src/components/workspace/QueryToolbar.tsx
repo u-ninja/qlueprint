@@ -16,7 +16,7 @@ function ConnectionPicker() {
   return (
     <Select
       value={active ? String(active.id) : ""}
-      onValueChange={(id) => setConnectionId(Number(id))}
+      onValueChange={(id) => setConnectionId(id)}
       disabled={!active}
     >
       <SelectTrigger size="sm" aria-label="Connection to run on" className="min-w-40">
