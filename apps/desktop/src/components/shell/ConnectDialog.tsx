@@ -1,18 +1,40 @@
-import { useState, type ComponentProps, type FormEvent, type ReactNode } from "react";
+import { useState, type ComponentProps, type FormEvent, type MouseEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { ConnectRequest } from "@/bindings";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { commands, type ConnectRequest } from "@/bindings";
 import { errorMessage, useConnections } from "@/stores/connections";
+import { engineName } from "@/lib/engines";
 import { cn } from "@/lib/utils";
 
 type Kind = ConnectRequest["kind"];
 
-const kinds: { value: Kind; label: string }[] = [
-  { value: "postgres", label: "PostgreSQL" },
-  { value: "sqlite", label: "SQLite" },
-];
+const kinds = Object.keys(engineName) as Kind[];
+
+type ServerKind = Exclude<Kind, "sqlite">;
+
+/** Starting values for the server fields, per database type */
+const serverDefaults: Record<ServerKind, { port: number; user: string; database: string }> = {
+  postgres: { port: 5432, user: "postgres", database: "Same as user" },
+  mysql: { port: 3306, user: "root", database: "None" },
+};
+
+function requestFrom(form: HTMLFormElement, kind: Kind): ConnectRequest {
+  const data = new FormData(form);
+  const text = (name: string) => String(data.get(name) ?? "");
+  return kind === "sqlite"
+    ? { kind, path: text("path") }
+    : {
+        kind,
+        host: text("host"),
+        port: Number(text("port")),
+        user: text("user"),
+        password: text("password"),
+        database: text("database"),
+      };
+}
 
 function Field({ label, name, ...props }: { label: string; name: string } & ComponentProps<typeof Input>) {
   const id = `connect-${name}`;
@@ -20,6 +42,62 @@ function Field({ label, name, ...props }: { label: string; name: string } & Comp
     <div className="grid gap-1.5">
       <Label htmlFor={id}>{label}</Label>
       <Input id={id} name={name} {...props} />
+    </div>
+  );
+}
+
+/** Free text until "Browse" loads the server's databases with the fields above, then a list to pick from */
+function DatabaseField({ kind }: { kind: ServerKind }) {
+  const [databases, setDatabases] = useState<string[] | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const placeholder = serverDefaults[kind].database;
+
+  async function browse(event: MouseEvent<HTMLButtonElement>) {
+    const form = event.currentTarget.form;
+    if (!form) return;
+    setError("");
+    setLoading(true);
+    try {
+      const found = await commands.listDatabases(requestFrom(form, kind));
+      if (found.length) setDatabases(found);
+      else setError("No databases found on this server.");
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor="connect-database">Database</Label>
+      <div className="flex gap-2">
+        {databases ? (
+          <Select name="database">
+            <SelectTrigger id="connect-database" className="min-w-0 flex-1">
+              <SelectValue placeholder={placeholder} />
+            </SelectTrigger>
+            <SelectContent position="popper">
+              {databases.map((name) => (
+                <SelectItem key={name} value={name}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Input id="connect-database" name="database" placeholder={placeholder} className="min-w-0 flex-1" />
+        )}
+        <Button type="button" variant="outline" onClick={browse} disabled={loading}>
+          {loading ? "Loading…" : "Browse"}
+        </Button>
+      </div>
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -34,19 +112,7 @@ export function ConnectDialog({ children }: { children: ReactNode }) {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const text = (name: string) => String(form.get(name) ?? "");
-    const request: ConnectRequest =
-      kind === "postgres"
-        ? {
-            kind,
-            host: text("host"),
-            port: Number(text("port")),
-            user: text("user"),
-            password: text("password"),
-            database: text("database"),
-          }
-        : { kind, path: text("path") };
+    const request = requestFrom(event.currentTarget, kind);
 
     setError("");
     setPending(true);
@@ -70,7 +136,7 @@ export function ConnectDialog({ children }: { children: ReactNode }) {
         </DialogHeader>
 
         <div role="radiogroup" aria-label="Database type" className="flex rounded-md bg-muted p-0.5">
-          {kinds.map(({ value, label }) => (
+          {kinds.map((value) => (
             <button
               key={value}
               type="button"
@@ -82,22 +148,22 @@ export function ConnectDialog({ children }: { children: ReactNode }) {
                 kind === value && "bg-primary-soft text-primary-text hover:text-primary-text",
               )}
             >
-              {label}
+              {engineName[value]}
             </button>
           ))}
         </div>
 
         {/* key resets the fields when the type changes */}
         <form key={kind} className="flex flex-col gap-3" onSubmit={onSubmit}>
-          {kind === "postgres" ? (
+          {kind !== "sqlite" ? (
             <>
               <div className="grid grid-cols-[1fr_6rem] gap-2">
                 <Field label="Host" name="host" defaultValue="localhost" required />
-                <Field label="Port" name="port" type="number" min={1} max={65535} defaultValue={5432} required />
+                <Field label="Port" name="port" type="number" min={1} max={65535} defaultValue={serverDefaults[kind].port} required />
               </div>
-              <Field label="User" name="user" defaultValue="postgres" autoComplete="username" required />
+              <Field label="User" name="user" defaultValue={serverDefaults[kind].user} autoComplete="username" required />
               <Field label="Password" name="password" type="password" autoComplete="current-password" />
-              <Field label="Database" name="database" placeholder="Same as user" />
+              <DatabaseField kind={kind} />
             </>
           ) : (
             // shortcut: typed path, add a native file picker (tauri-plugin-dialog) when the wizard UI lands

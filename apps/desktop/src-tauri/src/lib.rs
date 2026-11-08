@@ -1,6 +1,6 @@
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 #[cfg(not(dev))]
 use tauri::{Url, ipc::CapabilityBuilder};
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_specta::{ErrorHandlingMode, collect_commands};
 
 // Fixed so the origin (and the stored auth session) stays the same across launches.
@@ -19,6 +19,7 @@ mod saved;
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::new()
         .commands(collect_commands![
+            db::list_databases,
             db::disconnect,
             db::list_schemas,
             query::run_query,

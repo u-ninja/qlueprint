@@ -1,4 +1,4 @@
-//! Saved connections: settings in `<app data>/connections.json`, Postgres passwords in the OS
+//! Saved connections: settings in `<app data>/connections.json`, Postgres and MySQL passwords in the OS
 //! credential store (Windows Credential Manager, macOS Keychain, Secret Service). Neither the
 //! file nor the UI ever holds a password.
 
@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::State;
 
-use crate::db::{self, CommandError, ConnectRequest, Connections, ErrorCode};
+use crate::db::{self, CommandError, ConnectRequest, Connections, ErrorCode, Server, ServerLogin};
 
 const KEYRING_SERVICE: &str = "QueryCraft";
 const FILE: &str = "connections.json";
@@ -21,15 +21,9 @@ const FILE: &str = "connections.json";
 #[derive(Clone, Serialize, Deserialize, Type)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum SavedConfig {
-    Postgres {
-        host: String,
-        port: u16,
-        user: String,
-        database: String,
-    },
-    Sqlite {
-        path: String,
-    },
+    Postgres(Server),
+    Mysql(Server),
+    Sqlite { path: String },
 }
 
 #[derive(Clone, Serialize, Deserialize, Type)]
@@ -46,7 +40,10 @@ pub struct Saved {
 }
 
 fn save_failed(what: &str, error: impl std::fmt::Display) -> CommandError {
-    CommandError::new(ErrorCode::SaveFailed, format!("Couldn't save {what}: {error}"))
+    CommandError::new(
+        ErrorCode::SaveFailed,
+        format!("Couldn't save {what}: {error}"),
+    )
 }
 
 fn credential_failed(error: impl std::fmt::Display) -> CommandError {
@@ -99,7 +96,10 @@ impl Saved {
 }
 
 fn new_id() -> String {
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
     format!("{nanos:x}")
 }
 
@@ -126,22 +126,17 @@ pub async fn connect_and_save(
     connections: State<'_, Connections>,
 ) -> Result<SavedConnection, CommandError> {
     let (config, password) = match &request {
-        ConnectRequest::Postgres {
-            host,
-            port,
-            user,
-            password,
-            database,
-        } => (
-            SavedConfig::Postgres {
-                host: host.clone(),
-                port: *port,
-                user: user.clone(),
-                database: database.clone(),
-            },
-            password.clone(),
+        ConnectRequest::Postgres(login) => (
+            SavedConfig::Postgres(login.server.clone()),
+            login.password.clone(),
         ),
-        ConnectRequest::Sqlite { path } => (SavedConfig::Sqlite { path: path.clone() }, String::new()),
+        ConnectRequest::Mysql(login) => (
+            SavedConfig::Mysql(login.server.clone()),
+            login.password.clone(),
+        ),
+        ConnectRequest::Sqlite { path } => {
+            (SavedConfig::Sqlite { path: path.clone() }, String::new())
+        }
     };
     let pool = db::open(request).await?;
 
@@ -191,27 +186,18 @@ pub async fn connect_saved(
             "This saved connection no longer exists.",
         ))?;
 
+    let login = |server| -> Result<ServerLogin, CommandError> {
+        // No entry means it was saved without a password
+        let password = match credential(&id)?.get_password() {
+            Ok(password) => password,
+            Err(keyring::Error::NoEntry) => String::new(),
+            Err(e) => return Err(credential_failed(e)),
+        };
+        Ok(ServerLogin { server, password })
+    };
     let request = match config {
-        SavedConfig::Postgres {
-            host,
-            port,
-            user,
-            database,
-        } => {
-            // No entry means it was saved without a password
-            let password = match credential(&id)?.get_password() {
-                Ok(password) => password,
-                Err(keyring::Error::NoEntry) => String::new(),
-                Err(e) => return Err(credential_failed(e)),
-            };
-            ConnectRequest::Postgres {
-                host,
-                port,
-                user,
-                password,
-                database,
-            }
-        }
+        SavedConfig::Postgres(server) => ConnectRequest::Postgres(login(server)?),
+        SavedConfig::Mysql(server) => ConnectRequest::Mysql(login(server)?),
         SavedConfig::Sqlite { path } => ConnectRequest::Sqlite { path },
     };
     let pool = db::open(request).await?;
@@ -227,7 +213,11 @@ pub async fn forget_saved(
     saved: State<'_, Saved>,
     connections: State<'_, Connections>,
 ) -> Result<(), CommandError> {
-    let list = saved.snapshot().into_iter().filter(|s| s.id != id).collect();
+    let list = saved
+        .snapshot()
+        .into_iter()
+        .filter(|s| s.id != id)
+        .collect();
     saved.replace(list)?;
     match credential(&id)?.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => {}
@@ -250,12 +240,12 @@ mod tests {
         let entry = SavedConnection {
             id: "a".into(),
             label: "shop@localhost".into(),
-            config: SavedConfig::Postgres {
+            config: SavedConfig::Postgres(Server {
                 host: "localhost".into(),
                 port: 5432,
                 user: "postgres".into(),
                 database: "shop".into(),
-            },
+            }),
         };
         saved.replace(vec![entry]).unwrap();
 
@@ -276,6 +266,18 @@ mod tests {
         assert_eq!(entry.get_password().unwrap(), "s3cret");
         entry.delete_credential().unwrap();
         assert!(matches!(entry.get_password(), Err(keyring::Error::NoEntry)));
+    }
+
+    /// Files written before MySQL support keep loading: the JSON shape didn't change.
+    #[test]
+    fn reads_flat_server_configs() {
+        let json = r#"[
+            {"id":"a","label":"pg","config":{"kind":"postgres","host":"h","port":5432,"user":"u","database":""}},
+            {"id":"b","label":"my","config":{"kind":"mysql","host":"h","port":3306,"user":"root","database":"shop"}}
+        ]"#;
+        let list: Vec<SavedConnection> = serde_json::from_str(json).unwrap();
+        assert!(matches!(&list[0].config, SavedConfig::Postgres(s) if s.port == 5432));
+        assert!(matches!(&list[1].config, SavedConfig::Mysql(s) if s.database == "shop"));
     }
 
     #[test]

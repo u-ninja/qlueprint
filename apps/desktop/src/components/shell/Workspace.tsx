@@ -16,7 +16,7 @@ import { PendingAction } from "./PendingAction";
 const SqlEditor = lazy(() => import("@/components/workspace/SqlEditor"));
 
 const startActions = [
-  { icon: Database, title: "Connect to a database", detail: "PostgreSQL or SQLite.", connect: true },
+  { icon: Database, title: "Connect to a database", detail: "PostgreSQL, MySQL or SQLite.", connect: true },
   { icon: Server, title: "Create a local database", detail: "Set up a database server on this machine." },
   { icon: FileUp, title: "Open SQL file", detail: "Open an existing .sql file. No connection needed." },
 ];

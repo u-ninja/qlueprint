@@ -3,5 +3,5 @@
 [[set]]
 identifier = "app-commands"
 description = "Allows every QueryCraft command."
-permissions = ["allow-disconnect", "allow-list-schemas", "allow-run-query",
+permissions = ["allow-list-databases", "allow-disconnect", "allow-list-schemas", "allow-run-query",
   "allow-list-saved", "allow-connect-and-save", "allow-connect-saved", "allow-forget-saved"]

@@ -4,11 +4,20 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 
 /** Commands */
 export const commands = {
+	/**
+	 *  The databases on a server, for the connect dialog's picker, using a short-lived connection.
+	 *  SQLite has no list (the file is the database), so it comes back empty.
+	 */
+	listDatabases: (request: ConnectRequest) => __TAURI_INVOKE<string[]>("list_databases", { request }),
 	disconnect: (id: string) => __TAURI_INVOKE<null>("disconnect", { id }),
 	/**  Every schema with its tables and views, sorted by name, in one round trip. */
 	listSchemas: (id: string) => __TAURI_INVOKE<Schema[]>("list_schemas", { id }),
-	/**  Runs one or more `;`-separated statements and returns the last statement's result. */
-	runQuery: (id: string, sql: string) => __TAURI_INVOKE<QueryOutput>("run_query", { id, sql }),
+	/**
+	 *  Runs one or more `;`-separated statements and returns the last statement's result.
+	 *  `database` (MySQL only, ignored otherwise) is the toolbar's database: it becomes the default
+	 *  database for the statements, as if they started with `USE`.
+	 */
+	runQuery: (id: string, sql: string, database: string | null) => __TAURI_INVOKE<QueryOutput>("run_query", { id, sql, database }),
 	listSaved: () => __TAURI_INVOKE<SavedConnection[]>("list_saved"),
 	/**  Connects, and saves the connection only once that worked. */
 	connectAndSave: (request: ConnectRequest, label: string) => __TAURI_INVOKE<SavedConnection>("connect_and_save", { request, label }),
@@ -31,9 +40,11 @@ export type CommandError = {
 	message: string,
 };
 
-export type ConnectRequest = { kind: "postgres"; host: string; port: number; user: string; password: string; 
-/**  Empty means Postgres' default: a database named after the user. */
-database: string } | { kind: "sqlite"; path: string };
+export type ConnectRequest = {
+	kind: "postgres",
+} & ServerLogin | {
+	kind: "mysql",
+} & ServerLogin | { kind: "sqlite"; path: string };
 
 export type ErrorCode = "invalid_input" | "not_connected" | "connect_failed" | "query_failed" | 
 /**  Writing the saved-connections file failed. */
@@ -64,7 +75,11 @@ export type ResultColumn = {
 };
 
 /**  A `ConnectRequest` minus the password. */
-export type SavedConfig = { kind: "postgres"; host: string; port: number; user: string; database: string } | { kind: "sqlite"; path: string };
+export type SavedConfig = {
+	kind: "postgres",
+} & Server | {
+	kind: "mysql",
+} & Server | { kind: "sqlite"; path: string };
 
 export type SavedConnection = {
 	id: string,
@@ -76,6 +91,22 @@ export type Schema = {
 	name: string,
 	tables: Table[],
 };
+
+/**  Where a network database server is and who to sign in as. */
+export type Server = {
+	host: string,
+	port: number,
+	user: string,
+	/**
+	 *  Empty means the server's default: for Postgres a database named after the user, for
+	 *  MySQL none (queries then name the database, as in `shop.orders`).
+	 */
+	database: string,
+};
+
+export type ServerLogin = {
+	password: string,
+} & Server;
 
 export type Table = {
 	name: string,

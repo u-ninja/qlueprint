@@ -16,6 +16,8 @@ type QueryState = {
   readSelection: () => string;
   /** Picked in the toolbar; null means "the most recently opened connection" */
   connectionId: string | null;
+  /** MySQL database picked in the toolbar, per connection id; absent means the saved one */
+  databases: Record<string, string>;
   /** When the current run started, null while idle */
   runningSince: number | null;
   /** Kept while a new run is in flight so the panel can show it as stale instead of blanking */
@@ -26,12 +28,18 @@ type QueryState = {
   setHasSelection: (hasSelection: boolean) => void;
   setReadSelection: (read: () => string) => void;
   setConnectionId: (id: string) => void;
+  setDatabase: (connectionId: string, database: string) => void;
   run: () => Promise<void>;
 };
 
 /** The toolbar's choice if it's still open, otherwise the newest connection */
 export function activeConnection(connections: Connection[], id: string | null) {
   return connections.find((c) => c.id === id) ?? connections[connections.length - 1];
+}
+
+/** The toolbar's database pick, else the saved one. Rust only acts on it for MySQL */
+export function activeDatabase(connection: Connection, databases: Record<string, string>) {
+  return databases[connection.id] ?? connection.database;
 }
 
 /** "2 rows · 12 ms", "3 rows affected · 4 ms", with a note when the row cap cut it short */
@@ -68,6 +76,7 @@ export const useQuery = create<QueryState>()(
       hasSelection: false,
       readSelection: () => "",
       connectionId: null,
+      databases: {},
       runningSince: null,
       last: null,
       messages: [],
@@ -75,9 +84,10 @@ export const useQuery = create<QueryState>()(
       setHasSelection: (hasSelection) => set({ hasSelection }),
       setReadSelection: (readSelection) => set({ readSelection }),
       setConnectionId: (connectionId) => set({ connectionId }),
+      setDatabase: (connectionId, database) => set((s) => ({ databases: { ...s.databases, [connectionId]: database } })),
 
       run: async () => {
-        const { sql, readSelection, connectionId, runningSince } = get();
+        const { sql, readSelection, connectionId, databases, runningSince } = get();
         const connection = activeConnection(useConnections.getState().connections, connectionId);
         const text = readSelection().trim() || sql.trim();
         if (runningSince !== null || !connection || !text) return;
@@ -85,7 +95,7 @@ export const useQuery = create<QueryState>()(
         set({ runningSince: Date.now() });
         let outcome: Outcome;
         try {
-          outcome = { ok: true, output: await commands.runQuery(connection.id, text) };
+          outcome = { ok: true, output: await commands.runQuery(connection.id, text, activeDatabase(connection, databases)) };
         } catch (error) {
           outcome = { ok: false, error: errorMessage(error) };
         }

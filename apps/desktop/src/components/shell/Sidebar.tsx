@@ -17,15 +17,18 @@ const emptyText: Record<View, string> = {
 export function Sidebar() {
   const view = useUi((s) => s.view);
   const title = views.find((v) => v.value === view)?.label;
-  const connected = useConnections((s) => s.saved.length > 0);
+  const hasSaved = useConnections((s) => s.saved.length > 0);
+  // Both views list the saved connections; the others have nothing to list yet
+  const listsConnections = view === "workspace" || view === "connections";
+  const showExplorer = listsConnections && hasSaved;
 
   return (
     <aside aria-label={title} className="flex h-full flex-col bg-panel">
       <h2 className="flex h-10 flex-none items-center px-3.5 font-semibold">{title}</h2>
-      {view === "workspace" && connected && <Explorer />}
+      {showExplorer && <Explorer />}
       <div className="flex flex-col gap-3 px-3.5 py-2">
-        {!(view === "workspace" && connected) && <p className="text-fg3">{emptyText[view]}</p>}
-        {(view === "workspace" || view === "connections") && (
+        {!showExplorer && <p className="text-fg3">{emptyText[view]}</p>}
+        {listsConnections && (
           <div className="flex flex-col items-start gap-1.5">
             <ConnectDialog>
               <Button variant="outline" size="sm">

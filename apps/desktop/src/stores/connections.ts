@@ -1,8 +1,18 @@
 import { create } from "zustand";
-import { commands, type CommandError, type ConnectRequest, type SavedConnection, type Schema } from "@/bindings";
+import { commands, type CommandError, type ConnectRequest, type SavedConfig, type SavedConnection, type Schema } from "@/bindings";
 
-/** An open connection: `id` is the Rust pool, which is keyed by `savedId`, the saved entry it was opened from */
-export type Connection = { id: string; savedId: string; label: string; schemas: Schema[] };
+/**
+ * An open connection: `id` is the Rust pool, which is keyed by `savedId`, the saved entry it was opened from.
+ * `database` is the one it was saved with, empty for none (and always for SQLite).
+ */
+export type Connection = {
+  id: string;
+  savedId: string;
+  label: string;
+  kind: SavedConfig["kind"];
+  database: string;
+  schemas: Schema[];
+};
 
 /** A saved connection that isn't open: still connecting, or failed with this message */
 export type Closed = "connecting" | { error: string };
@@ -20,9 +30,9 @@ type ConnectionsState = {
 };
 
 function labelOf(request: ConnectRequest) {
-  return request.kind === "postgres"
-    ? `${request.database || request.user}@${request.host}`
-    : (request.path.split(/[\\/]/).pop() ?? request.path);
+  return request.kind === "sqlite"
+    ? (request.path.split(/[\\/]/).pop() ?? request.path)
+    : `${request.database || request.user}@${request.host}`;
 }
 
 export function errorMessage(error: unknown) {
@@ -40,12 +50,23 @@ export const useConnections = create<ConnectionsState>()((set, get) => {
 
   /** Loads the schema tree and shows the connection; closes the pool if that fails */
   async function show(saved: SavedConnection) {
+    const { config } = saved;
     try {
       const schemas = await commands.listSchemas(saved.id);
       setClosed(saved.id, undefined);
       set((s) => ({
         // Replace rather than add: after a UI reload Rust hands back the pool that was already open
-        connections: [...s.connections.filter((c) => c.savedId !== saved.id), { id: saved.id, savedId: saved.id, label: saved.label, schemas }],
+        connections: [
+          ...s.connections.filter((c) => c.savedId !== saved.id),
+          {
+            id: saved.id,
+            savedId: saved.id,
+            label: saved.label,
+            kind: config.kind,
+            database: config.kind === "sqlite" ? "" : config.database,
+            schemas,
+          },
+        ],
       }));
     } catch (error) {
       // Don't leave an open pool the UI can't see

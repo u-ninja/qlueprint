@@ -9,8 +9,10 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use sqlx::postgres::{PgConnectOptions, PgPool, PgPoolOptions};
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
+use sqlx::mysql::{MySqlConnectOptions, MySqlPool};
+use sqlx::pool::PoolOptions;
+use sqlx::postgres::{PgConnectOptions, PgPool};
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
 use tauri::State;
 
 // Fail fast on an unreachable host instead of sqlx's 30s default.
@@ -31,32 +33,71 @@ const PG_SCHEMAS: &str = r"
     WHERE n.nspname <> 'information_schema' AND n.nspname NOT LIKE 'pg\_%'
     ORDER BY 1, 2";
 
+/// MySQL's own databases, hidden from the explorer and the database pickers.
+macro_rules! mysql_user_databases {
+    () => {
+        "SCHEMA_NAME NOT IN ('mysql', 'sys', 'information_schema', 'performance_schema')"
+    };
+}
+
+// MySQL has no schema level under a database, so each database is listed as a schema.
+// Ordering on the binary name keeps each database's rows together even when two names differ
+// only in case.
+const MYSQL_SCHEMAS: &str = concat!(
+    "SELECT s.SCHEMA_NAME, t.TABLE_NAME, t.TABLE_TYPE = 'VIEW'
+    FROM information_schema.SCHEMATA s
+    LEFT JOIN information_schema.TABLES t ON t.TABLE_SCHEMA = s.SCHEMA_NAME
+    WHERE s.",
+    mysql_user_databases!(),
+    " ORDER BY CAST(s.SCHEMA_NAME AS BINARY), t.TABLE_NAME"
+);
+
+const MYSQL_DATABASES: &str = concat!(
+    "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE ",
+    mysql_user_databases!(),
+    " ORDER BY SCHEMA_NAME"
+);
+
+// Template databases can't be queried, and datallowconn = false ones refuse connections.
+const PG_DATABASES: &str = "SELECT datname::text FROM pg_catalog.pg_database WHERE datallowconn AND NOT datistemplate ORDER BY 1";
+
 // shortcut: only the "main" database, also list ATTACHed ones once the UI can attach.
 const SQLITE_TABLES: &str = r"
     SELECT name, type = 'view' FROM sqlite_schema
     WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite\_%' ESCAPE '\'
     ORDER BY name";
 
+/// Where a network database server is and who to sign in as.
+#[derive(Clone, Serialize, Deserialize, Type)]
+pub struct Server {
+    pub host: String,
+    pub port: u16,
+    pub user: String,
+    /// Empty means the server's default: for Postgres a database named after the user, for
+    /// MySQL none (queries then name the database, as in `shop.orders`).
+    pub database: String,
+}
+
+#[derive(Deserialize, Type)]
+pub struct ServerLogin {
+    #[serde(flatten)]
+    pub server: Server,
+    pub password: String,
+}
+
 #[derive(Deserialize, Type)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum ConnectRequest {
-    Postgres {
-        host: String,
-        port: u16,
-        user: String,
-        password: String,
-        /// Empty means Postgres' default: a database named after the user.
-        database: String,
-    },
-    Sqlite {
-        path: String,
-    },
+    Postgres(ServerLogin),
+    Mysql(ServerLogin),
+    Sqlite { path: String },
 }
 
-// Both pool types are an Arc inside, so cloning one out of the map is O(1).
+// Every pool type is an Arc inside, so cloning one out of the map is O(1).
 #[derive(Clone)]
 pub(crate) enum Pool {
     Postgres(PgPool),
+    Mysql(MySqlPool),
     Sqlite(SqlitePool),
 }
 
@@ -64,6 +105,7 @@ impl Pool {
     pub(crate) async fn close(self) {
         match self {
             Pool::Postgres(p) => p.close().await,
+            Pool::Mysql(p) => p.close().await,
             Pool::Sqlite(p) => p.close().await,
         }
     }
@@ -161,57 +203,86 @@ pub(crate) fn require(value: &str, field: &str) -> Result<(), CommandError> {
     Ok(())
 }
 
+fn pool_options<DB: sqlx::Database>() -> PoolOptions<DB> {
+    PoolOptions::new()
+        .max_connections(MAX_CONNECTIONS)
+        .acquire_timeout(CONNECT_TIMEOUT)
+}
+
+fn require_server(server: &Server) -> Result<(), CommandError> {
+    require(&server.host, "Host")?;
+    require(&server.user, "User")
+}
+
 /// Opens a pool for the request. Doesn't register it; see `Connections::insert`.
 pub(crate) async fn open(request: ConnectRequest) -> Result<Pool, CommandError> {
     let failed = |e: sqlx::Error| CommandError::new(ErrorCode::ConnectFailed, e.to_string());
 
     // connect_with opens one connection up front, so bad credentials fail here, not on first use.
     let pool = match request {
-        ConnectRequest::Postgres {
-            host,
-            port,
-            user,
-            password,
-            database,
-        } => {
-            require(&host, "Host")?;
-            require(&user, "User")?;
+        ConnectRequest::Postgres(ServerLogin { server, password }) => {
+            require_server(&server)?;
             let mut options = PgConnectOptions::new()
-                .host(&host)
-                .port(port)
-                .username(&user)
+                .host(&server.host)
+                .port(server.port)
+                .username(&server.user)
                 .password(&password)
                 .application_name("QueryCraft");
-            if !database.is_empty() {
-                options = options.database(&database);
+            if !server.database.is_empty() {
+                options = options.database(&server.database);
             }
-            let pool = PgPoolOptions::new()
-                .max_connections(MAX_CONNECTIONS)
-                .acquire_timeout(CONNECT_TIMEOUT)
-                .connect_with(options)
-                .await
-                .map_err(failed)?;
-            Pool::Postgres(pool)
+            Pool::Postgres(pool_options().connect_with(options).await.map_err(failed)?)
+        }
+        ConnectRequest::Mysql(ServerLogin { server, password }) => {
+            require_server(&server)?;
+            let mut options = MySqlConnectOptions::new()
+                .host(&server.host)
+                .port(server.port)
+                .username(&server.user)
+                .password(&password);
+            if !server.database.is_empty() {
+                options = options.database(&server.database);
+            }
+            Pool::Mysql(pool_options().connect_with(options).await.map_err(failed)?)
         }
         ConnectRequest::Sqlite { path } => {
             require(&path, "File")?;
             // create_if_missing stays false: a typo must not create an empty database file.
             let options = SqliteConnectOptions::new().filename(path);
-            let pool = SqlitePoolOptions::new()
-                .max_connections(MAX_CONNECTIONS)
-                .acquire_timeout(CONNECT_TIMEOUT)
-                .connect_with(options)
-                .await
-                .map_err(failed)?;
-            Pool::Sqlite(pool)
+            Pool::Sqlite(pool_options().connect_with(options).await.map_err(failed)?)
         }
     };
     Ok(pool)
 }
 
+/// The databases on a server, for the connect dialog's picker, using a short-lived connection.
+/// SQLite has no list (the file is the database), so it comes back empty.
 #[tauri::command]
 #[specta::specta]
-pub async fn disconnect(id: String, connections: State<'_, Connections>) -> Result<(), CommandError> {
+pub async fn list_databases(mut request: ConnectRequest) -> Result<Vec<String>, CommandError> {
+    // With no database named, Postgres connects to one named after the user, which often
+    // doesn't exist; the `postgres` database always does.
+    if let ConnectRequest::Postgres(login) = &mut request
+        && login.server.database.is_empty()
+    {
+        login.server.database = "postgres".into();
+    }
+    let pool = open(request).await?;
+    let databases = match &pool {
+        Pool::Postgres(p) => sqlx::query_scalar(PG_DATABASES).fetch_all(p).await,
+        Pool::Mysql(p) => sqlx::query_scalar(MYSQL_DATABASES).fetch_all(p).await,
+        Pool::Sqlite(_) => Ok(Vec::new()),
+    };
+    pool.close().await;
+    databases.map_err(|e| CommandError::new(ErrorCode::QueryFailed, e.to_string()))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn disconnect(
+    id: String,
+    connections: State<'_, Connections>,
+) -> Result<(), CommandError> {
     // Close outside the lock: it waits for in-flight queries to finish.
     if let Some(pool) = connections.remove(&id) {
         pool.close().await;
@@ -231,6 +302,13 @@ pub async fn list_schemas(
     match connections.get(&id)? {
         Pool::Postgres(pool) => {
             let rows: Vec<(String, Option<String>, Option<bool>)> = sqlx::query_as(PG_SCHEMAS)
+                .fetch_all(&pool)
+                .await
+                .map_err(failed)?;
+            Ok(group_by_schema(rows))
+        }
+        Pool::Mysql(pool) => {
+            let rows: Vec<(String, Option<String>, Option<bool>)> = sqlx::query_as(MYSQL_SCHEMAS)
                 .fetch_all(&pool)
                 .await
                 .map_err(failed)?;

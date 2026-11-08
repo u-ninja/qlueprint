@@ -3,6 +3,7 @@ fn main() {
     // (allow-<command>), the same rule plugin commands follow. The `app-commands` set in
     // permissions/app.toml grants them all; add each new command there too.
     let app = tauri_build::AppManifest::new().commands(&[
+        "list_databases",
         "disconnect",
         "list_schemas",
         "run_query",

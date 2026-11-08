@@ -5,9 +5,10 @@ use std::time::Instant;
 use futures_util::{Stream, TryStreamExt};
 use serde::Serialize;
 use specta::Type;
-use sqlx::postgres::PgRow;
-use sqlx::sqlite::{SqlitePool, SqliteRow};
-use sqlx::{AssertSqlSafe, Column, Either, Row, SqlSafeStr, TypeInfo, ValueRef};
+use sqlx::mysql::{MySqlQueryResult, MySqlRow};
+use sqlx::postgres::{PgQueryResult, PgRow};
+use sqlx::sqlite::{SqliteQueryResult, SqliteRow};
+use sqlx::{AssertSqlSafe, Column, Either, Row, TypeInfo, ValueRef};
 use tauri::State;
 
 use crate::db::{CommandError, Connections, ErrorCode, Pool, require};
@@ -55,54 +56,95 @@ pub enum ColumnKind {
 }
 
 impl ColumnKind {
-    /// From a Postgres type name as sqlx reports it (`INT4`, `TIMESTAMPTZ`, `INT4[]`…) or a
-    /// SQLite declared/storage type (`INTEGER`, `DATETIME`, `BLOB`…).
+    /// From a type name as sqlx reports it: Postgres (`INT4`, `TIMESTAMPTZ`, `INT4[]`…),
+    /// MySQL (`BIGINT UNSIGNED`, `DECIMAL`, `VARBINARY`…) or a SQLite declared/storage type
+    /// (`INTEGER`, `DATETIME`, `BLOB`…).
     fn of(type_name: &str) -> Self {
         let name = type_name.to_ascii_uppercase();
         if name.ends_with("[]") {
             return Self::Text;
         }
-        match name.as_str() {
+        match name.trim_end_matches(" UNSIGNED") {
             "INT2" | "INT4" | "INT8" | "FLOAT4" | "FLOAT8" | "NUMERIC" | "OID" | "MONEY"
-            | "INTEGER" | "REAL" => Self::Number,
+            | "INTEGER" | "REAL" | "TINYINT" | "SMALLINT" | "MEDIUMINT" | "INT" | "BIGINT"
+            | "DECIMAL" | "FLOAT" | "DOUBLE" | "YEAR" => Self::Number,
             "BOOL" | "BOOLEAN" => Self::Bool,
             "DATE" | "TIME" | "TIMETZ" | "TIMESTAMP" | "TIMESTAMPTZ" | "INTERVAL" | "DATETIME" => {
                 Self::Temporal
             }
             "UUID" => Self::Uuid,
             "JSON" | "JSONB" => Self::Json,
-            "BYTEA" | "BLOB" => Self::Binary,
+            name if is_binary(name) => Self::Binary,
             _ => Self::Text,
         }
     }
 }
 
+/// Takes an uppercase type name, as sqlx reports MySQL's, so it needs no allocation.
+fn is_binary(type_name: &str) -> bool {
+    matches!(
+        type_name,
+        "BYTEA"
+            | "BLOB"
+            | "BINARY"
+            | "VARBINARY"
+            | "TINYBLOB"
+            | "MEDIUMBLOB"
+            | "LONGBLOB"
+            | "BIT"
+            | "GEOMETRY"
+    )
+}
+
 /// Runs one or more `;`-separated statements and returns the last statement's result.
+/// `database` (MySQL only, ignored otherwise) is the toolbar's database: it becomes the default
+/// database for the statements, as if they started with `USE`.
 #[tauri::command]
 #[specta::specta]
 pub async fn run_query(
     id: String,
     sql: String,
+    database: Option<String>,
     connections: State<'_, Connections>,
 ) -> Result<QueryOutput, CommandError> {
     require(&sql, "Query")?;
-    // Running the user's own SQL against their own database is the feature, so there is
-    // nothing to sanitize here; values never get spliced into SQL by the app.
-    let sql = AssertSqlSafe(sql);
     let started = Instant::now();
 
+    // Running the user's own SQL against their own database is the feature, so there is
+    // nothing to sanitize here; values never get spliced into SQL by the app (the database
+    // name is quoted by `use_database`).
     let mut output = match connections.get(&id)? {
         // raw_sql uses Postgres' simple query protocol, which sends every value as text.
         Pool::Postgres(pool) => {
-            let results = sqlx::raw_sql(sql).fetch_many(&pool);
+            let results = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(&pool);
+            collect(results, PgQueryResult::rows_affected, pg_cell, column_type).await
+        }
+        // Likewise raw_sql uses MySQL's text protocol. USE goes in the same batch, so it runs on
+        // the same connection without an extra round trip; collect drops its empty result.
+        Pool::Mysql(pool) => {
+            let sql = match database.filter(|d| !d.is_empty()) {
+                Some(database) => format!("{};\n{sql}", use_database(&database)),
+                None => sql,
+            };
+            let results = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(&pool);
             collect(
-                results.map_ok(|r| r.map_left(|done| done.rows_affected())),
-                pg_cell,
-                pg_type,
+                results,
+                MySqlQueryResult::rows_affected,
+                mysql_cell,
+                column_type,
             )
             .await
         }
-        Pool::Sqlite(pool) => collect(sqlite_results(&pool, sql), sqlite_cell, sqlite_type).await,
+        Pool::Sqlite(pool) => {
+            let results = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(&pool);
+            collect(
+                results,
+                SqliteQueryResult::rows_affected,
+                sqlite_cell,
+                sqlite_type,
+            )
+            .await
+        }
     }
     .map_err(|e| CommandError::new(ErrorCode::QueryFailed, e.to_string()))?;
 
@@ -110,20 +152,16 @@ pub async fn run_query(
     Ok(output)
 }
 
-/// The driver's result stream with each statement's QueryResult reduced to its row count.
-fn sqlite_results<'a>(
-    pool: &'a SqlitePool,
-    sql: impl SqlSafeStr,
-) -> impl Stream<Item = Result<Either<u64, SqliteRow>, sqlx::Error>> + Unpin + 'a {
-    sqlx::raw_sql(sql)
-        .fetch_many(pool)
-        .map_ok(|r| r.map_left(|done| done.rows_affected()))
+/// `USE` with the name quoted as a MySQL identifier: backticks around it, inner ones doubled.
+fn use_database(name: &str) -> String {
+    format!("USE `{}`", name.replace('`', "``"))
 }
 
-/// Each statement yields its rows, then one `Left` with its row count. The output keeps
+/// Each statement yields its rows, then one `Left` with its QueryResult. The output keeps
 /// only the last statement, like most SQL clients' single result pane.
-async fn collect<R: Row>(
-    mut results: impl Stream<Item = Result<Either<u64, R>, sqlx::Error>> + Unpin,
+async fn collect<D, R: Row>(
+    mut results: impl Stream<Item = Result<Either<D, R>, sqlx::Error>> + Unpin,
+    rows_affected: fn(&D) -> u64,
     cell: fn(&R, usize) -> Result<Option<String>, sqlx::Error>,
     type_name: fn(&R, usize) -> String,
 ) -> Result<QueryOutput, sqlx::Error> {
@@ -151,11 +189,11 @@ async fn collect<R: Row>(
                     output.truncated = true;
                 }
             }
-            Either::Left(rows_affected) => {
+            Either::Left(done) => {
                 if !statement_has_rows {
                     output = QueryOutput::default();
                 }
-                output.rows_affected = rows_affected;
+                output.rows_affected = rows_affected(&done);
                 statement_has_rows = false;
             }
         }
@@ -178,8 +216,13 @@ fn columns_of<R: Row>(row: &R, type_name: fn(&R, usize) -> String) -> Vec<Result
         .collect()
 }
 
-fn pg_type(row: &PgRow, i: usize) -> String {
-    row.column(i).type_info().name().to_owned()
+fn column_type<R: Row>(row: &R, i: usize) -> String {
+    row.columns()[i].type_info().name().to_owned()
+}
+
+/// Same `\x…` form Postgres uses for bytea.
+fn hex_text(bytes: &[u8]) -> String {
+    format!("\\x{}", hex::encode(bytes))
 }
 
 /// The declared type; for an expression like `count(*)`, which has none, the first row's
@@ -201,6 +244,17 @@ fn pg_cell(row: &PgRow, i: usize) -> Result<Option<String>, sqlx::Error> {
     row.try_get_unchecked(i)
 }
 
+/// The text protocol returns every value as text, except binary columns, which come back as
+/// raw bytes. MySQL also flags `_bin`-collated text columns as binary, so a binary cell that is
+/// valid UTF-8 is shown as text and only the rest as hex.
+fn mysql_cell(row: &MySqlRow, i: usize) -> Result<Option<String>, sqlx::Error> {
+    if !is_binary(row.column(i).type_info().name()) {
+        return row.try_get_unchecked(i);
+    }
+    let bytes: Option<&[u8]> = row.try_get_unchecked(i)?;
+    Ok(bytes.map(|b| std::str::from_utf8(b).map_or_else(|_| hex_text(b), str::to_owned)))
+}
+
 /// SQLite types each value rather than each column, so branch on the value's own type.
 fn sqlite_cell(row: &SqliteRow, i: usize) -> Result<Option<String>, sqlx::Error> {
     let value = row.try_get_raw(i)?;
@@ -211,8 +265,7 @@ fn sqlite_cell(row: &SqliteRow, i: usize) -> Result<Option<String>, sqlx::Error>
         "INTEGER" => row.try_get_unchecked::<i64, _>(i)?.to_string(),
         // Debug keeps the decimal point: 1.0, not 1.
         "REAL" => format!("{:?}", row.try_get_unchecked::<f64, _>(i)?),
-        // Same `\x…` form Postgres uses for bytea.
-        "BLOB" => format!("\\x{}", hex::encode(row.try_get_unchecked::<&[u8], _>(i)?)),
+        "BLOB" => hex_text(row.try_get_unchecked::<&[u8], _>(i)?),
         _ => row.try_get_unchecked::<String, _>(i)?,
     };
     Ok(Some(text))
@@ -221,8 +274,17 @@ fn sqlite_cell(row: &SqliteRow, i: usize) -> Result<Option<String>, sqlx::Error>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sqlx::sqlite::SqlitePool;
+
     async fn run(pool: &SqlitePool, sql: &'static str) -> Result<QueryOutput, sqlx::Error> {
-        collect(sqlite_results(pool, sql), sqlite_cell, sqlite_type).await
+        let results = sqlx::raw_sql(sql).fetch_many(pool);
+        collect(
+            results,
+            SqliteQueryResult::rows_affected,
+            sqlite_cell,
+            sqlite_type,
+        )
+        .await
     }
 
     async fn pool() -> SqlitePool {
@@ -286,6 +348,36 @@ mod tests {
         .unwrap();
         assert_eq!(out.rows.len(), MAX_ROWS);
         assert!(out.truncated);
+    }
+
+    #[test]
+    fn quotes_the_database_name() {
+        assert_eq!(use_database("shop"), "USE `shop`");
+        assert_eq!(
+            use_database("a`; DROP TABLE t; --"),
+            "USE `a``; DROP TABLE t; --`"
+        );
+    }
+
+    #[test]
+    fn maps_mysql_type_names() {
+        use ColumnKind::*;
+        let kinds: Vec<_> = [
+            "BIGINT UNSIGNED",
+            "DECIMAL",
+            "BOOLEAN",
+            "DATETIME",
+            "JSON",
+            "VARBINARY",
+            "VARCHAR",
+            "ENUM",
+        ]
+        .map(ColumnKind::of)
+        .into();
+        assert_eq!(
+            kinds,
+            [Number, Number, Bool, Temporal, Json, Binary, Text, Text]
+        );
     }
 
     #[tokio::test]
