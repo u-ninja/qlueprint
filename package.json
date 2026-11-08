@@ -1,0 +1,15 @@
+{
+    "name": "database_manager",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "format": "prettier --write ."
+    },
+    "dependencies": {
+        "react": "^18.0.0",
+        "react-dom": "^18.0.0"
+    },
+    "devDependencies": {
+        "typescript": "^4.0.0"
+    }
+}
