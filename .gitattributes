@@ -1,0 +1,16 @@
+# Store text with LF in the repo and check it out with LF on every OS,
+# matching Prettier's endOfLine: lf (overrides core.autocrlf).
+* text=auto eol=lf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
