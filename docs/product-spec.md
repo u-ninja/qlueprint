@@ -633,6 +633,16 @@ For the first release, choose a narrow and reliable support matrix:
 
 Do not promise universal one-click installation until each engine/OS combination has been tested.
 
+**Decision (phase 1, built).** Docker first, native with consent, SQLite always:
+
+- **Docker is the recommended provider** for PostgreSQL, MySQL and MariaDB on Windows, macOS and Linux: pinned official images (postgres 17.11/16.15, mysql 8.4.13/8.0.46, mariadb 11.4.13/10.11.19, never `latest`), one labelled volume per instance (`com.querycraft.managed`, `com.querycraft.instance-id`, `com.querycraft.database`), a port bound to 127.0.0.1 only, a healthcheck and `restart: unless-stopped`. QueryCraft drives the `docker` CLI with argument vectors (it already resolves Docker Desktop's contexts and the Linux socket, and the user can rerun the same commands); it never installs Docker and only ever changes containers and volumes that carry its labels. MariaDB connects through the MySQL driver.
+- **Native install is a real alternative, run only after the user approves the exact commands** shown in a confirmation dialog (passwords masked): winget on Windows (PostgreSQL 17/16, MariaDB 11.4), Homebrew on macOS (never installed by QueryCraft; brew.sh is linked), and apt, dnf, pacman or zypper through `pkexec` on Linux. Then QueryCraft starts the service, creates the database and user, loads sample data, stores the password in the OS credential store and saves the connection. Not done, and said so in the UI: MySQL on Windows (its installer needs the interactive MySQL Configurator), MySQL on Arch and openSUSE, MariaDB 10.11 on Windows, starting or stopping Windows services (manual `net start` as administrator), and uninstalling (the plan shows the command). Native installs use each package's default port except on Windows.
+- **SQLite always works**, with no Docker and no install: a file in the app data directory's `databases` folder.
+- Servers already on the machine (containers found by image, native servers found on their ports) are offered for "connect existing". Passwords recovered from a container's env are only used inside the Rust backend to test and save the connection.
+- **MongoDB and Redis are deferred** until QueryCraft has adapters for them; the provider code is structured so they can be added as further engines.
+
+Instances are tracked in `local_instances.json` (no secrets) next to `connections.json`, and every lifecycle action is written to the audit log (§5.10). Sample data (customers, products, orders, order items, employees) is idempotent and refuses to touch tables QueryCraft didn't create.
+
 ### 6.3 Container runtime considerations
 
 Docker Desktop is not equivalent to a small bundled library. It has its own installation, licensing, resource, startup, and platform requirements.
