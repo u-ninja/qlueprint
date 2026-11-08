@@ -74,8 +74,6 @@ pub(crate) fn image_repository(engine: Engine) -> Option<&'static str> {
     }
 }
 
-pub(crate) const DEFAULT_DATABASE: &str = "querycraft_demo";
-
 pub fn templates() -> Vec<Template> {
     let v = |id, tag| VersionOption { id, tag };
     vec![
@@ -179,6 +177,8 @@ pub struct LocalPlan {
     pub sample_data: bool,
     pub native: Option<NativePlan>,
     pub warnings: Vec<String>,
+    /// Problems that stop creation (port taken, name taken, Docker down).
+    pub blockers: Vec<String>,
 }
 
 /// The exact commands a native install runs, as shown in the consent dialog (passwords masked).
@@ -188,6 +188,8 @@ pub struct NativePlan {
     /// winget, brew, apt-get, dnf, pacman or zypper; `None` when no supported one was found.
     pub manager: Option<String>,
     pub commands: Vec<String>,
+    /// The SQL run as the server admin to create the database and user (password masked).
+    pub setup_sql: String,
     /// True when a command asks for administrator rights (UAC, pkexec).
     pub elevated: bool,
     /// False when QueryCraft can't run this safely here: `commands` are then manual steps.
@@ -300,12 +302,12 @@ pub struct LocalProgress {
 }
 
 /// What `create_local_database` returns once the connection is registered.
-#[derive(Debug, Clone, Serialize, Type)]
+#[derive(Clone, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalCreated {
     pub instance: LocalInstance,
-    pub connection_id: String,
-    pub connection_label: String,
+    /// The saved connection, already open.
+    pub connection: crate::saved::SavedConnection,
     /// Set when the sample data failed; the instance and connection are kept.
     pub sample_error: Option<String>,
     /// The commented example queries, when sample data loaded.
@@ -466,7 +468,7 @@ pub(crate) mod tests {
                 .versions
                 .first()
                 .map_or(String::new(), |v| v.id.to_owned()),
-            database: DEFAULT_DATABASE.into(),
+            database: "querycraft_demo".into(),
             user: "querycraft".into(),
             password: "Gq7-xR2_pL9.mZ".into(),
             root_password: "Rt5-aB8_cD1.eF".into(),

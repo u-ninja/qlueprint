@@ -36,6 +36,10 @@ type ConnectionsState = {
     /** Keyed by saved id; absent means open, or closed by the user */
     closed: Record<string, Closed>;
     connect: (request: ConnectRequest) => Promise<void>;
+    /** Lists and shows a connection Rust already saved and opened (local databases) */
+    add: (saved: SavedConnection) => Promise<void>;
+    /** Drops a connection Rust already forgot (a local database whose data was deleted) */
+    discard: (savedId: string) => void;
     open: (savedId: string) => Promise<void>;
     disconnect: (id: string) => Promise<void>;
     forget: (savedId: string) => Promise<void>;
@@ -101,9 +105,20 @@ export const useConnections = create<ConnectionsState>()((set, get) => {
 
         connect: async (request) => {
             // Rust saves it only once the connection works, so a typo never ends up in the list
-            const saved = await commands.connectAndSave(request, labelOf(request));
-            set((s) => ({ saved: [...s.saved, saved] }));
+            await get().add(await commands.connectAndSave(request, labelOf(request)));
+        },
+
+        add: async (saved) => {
+            set((s) => ({ saved: [...s.saved.filter((c) => c.id !== saved.id), saved] }));
             await show(saved);
+        },
+
+        discard: (savedId) => {
+            setClosed(savedId, undefined);
+            set((s) => ({
+                saved: s.saved.filter((c) => c.id !== savedId),
+                connections: s.connections.filter((c) => c.savedId !== savedId),
+            }));
         },
 
         open: async (savedId) => {
@@ -133,11 +148,7 @@ export const useConnections = create<ConnectionsState>()((set, get) => {
 
         forget: async (savedId) => {
             await commands.forgetSaved(savedId);
-            setClosed(savedId, undefined);
-            set((s) => ({
-                saved: s.saved.filter((c) => c.id !== savedId),
-                connections: s.connections.filter((c) => c.savedId !== savedId),
-            }));
+            get().discard(savedId);
         },
     };
 });

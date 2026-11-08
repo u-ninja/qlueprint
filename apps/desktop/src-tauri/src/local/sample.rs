@@ -113,6 +113,7 @@ pub(crate) async fn load(pool: &Pool) -> Result<(), CommandError> {
 }
 
 /// Rows in each sample table, in `TABLES` order.
+#[cfg(test)]
 pub(crate) async fn row_counts(pool: &Pool) -> Result<Vec<i64>, CommandError> {
     const COUNTS: [&str; 5] = [
         "SELECT COUNT(*) FROM customers",
@@ -134,6 +135,7 @@ pub(crate) async fn row_counts(pool: &Pool) -> Result<Vec<i64>, CommandError> {
     Ok(counts)
 }
 
+#[cfg(test)]
 pub(crate) const EXPECTED_ROWS: [i64; 5] = [10, 10, 15, 25, 5];
 
 #[cfg(test)]

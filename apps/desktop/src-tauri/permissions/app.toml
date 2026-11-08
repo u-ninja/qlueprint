@@ -6,4 +6,5 @@ description = "Allows every QueryCraft command."
 permissions = ["allow-list-databases", "allow-connection-databases", "allow-disconnect", "allow-list-schemas", "allow-run-query",
   "allow-list-saved", "allow-connect-and-save", "allow-connect-saved", "allow-forget-saved",
   "allow-list-audit-events", "allow-verify-audit-log", "allow-export-audit-log",
-  "allow-docker-status", "allow-discover-local-databases", "allow-local-database-templates"]
+  "allow-docker-status", "allow-discover-local-databases", "allow-local-database-templates",
+  "allow-plan-local-database", "allow-create-local-database", "allow-cancel-provisioning", "allow-start-local-database", "allow-stop-local-database", "allow-restart-local-database", "allow-local-database-logs", "allow-test-local-database", "allow-connect-local-database", "allow-init-sample-data", "allow-remove-local-database", "allow-delete-local-database-data", "allow-list-local-instances"]

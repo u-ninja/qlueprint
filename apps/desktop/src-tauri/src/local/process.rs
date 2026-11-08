@@ -63,6 +63,7 @@ pub(crate) struct Cmd {
 }
 
 impl Cmd {
+    #[cfg(test)]
     pub(crate) fn new(program: impl Into<PathBuf>, args: &[&str]) -> Self {
         Self {
             program: program.into(),
@@ -71,11 +72,6 @@ impl Cmd {
             stdin: None,
             timeout: Duration::from_secs(30),
         }
-    }
-
-    pub(crate) fn timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = timeout;
-        self
     }
 }
 

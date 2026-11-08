@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-local-database-logs"
+description = "Enables the local_database_logs command without any pre-configured scope."
+commands.allow = ["local_database_logs"]
+
+[[permission]]
+identifier = "deny-local-database-logs"
+description = "Denies the local_database_logs command without any pre-configured scope."
+commands.deny = ["local_database_logs"]

@@ -3,7 +3,7 @@
 //! file nor the UI ever holds a password.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -35,6 +35,14 @@ pub struct SavedConnection {
 }
 
 impl SavedConnection {
+    pub(crate) fn id(&self) -> &str {
+        &self.id
+    }
+
+    pub(crate) fn label(&self) -> &str {
+        &self.label
+    }
+
     /// What audit entries say about this connection: never the password.
     fn audit_details(&self) -> Details {
         let server = |engine, s: &Server| Details {
@@ -118,20 +126,36 @@ impl Saved {
     /// Writes the new list to disk, then makes it current. Write-then-rename, so a crash
     /// mid-write leaves the previous file intact.
     fn replace(&self, list: Vec<SavedConnection>) -> Result<(), CommandError> {
-        let fail = |e: std::io::Error| save_failed("the connection", e);
-        if let Some(dir) = self.file.parent() {
-            fs::create_dir_all(dir).map_err(fail)?;
-        }
-        let json = serde_json::to_string_pretty(&list).expect("saved connections serialize");
-        let tmp = self.file.with_extension("json.tmp");
-        fs::write(&tmp, json).map_err(fail)?;
-        fs::rename(&tmp, &self.file).map_err(fail)?;
+        write_json(&self.file, &list).map_err(|e| save_failed("the connection", e))?;
         *self.list.lock().expect("saved lock poisoned") = list;
         Ok(())
     }
+
+    /// The request that opens a saved connection, with its password from the credential store.
+    pub(crate) fn request(&self, id: &str) -> Result<ConnectRequest, CommandError> {
+        let entry = self.find(id).ok_or_else(|| {
+            CommandError::new(
+                ErrorCode::InvalidInput,
+                "This saved connection no longer exists.",
+            )
+        })?;
+        connect_request(id, entry.config)
+    }
 }
 
-fn new_id() -> String {
+/// Writes `value` as pretty JSON to `file`, creating its directory. Write-then-rename, so a
+/// crash mid-write leaves the previous file intact.
+pub(crate) fn write_json(file: &Path, value: &impl Serialize) -> std::io::Result<()> {
+    if let Some(dir) = file.parent() {
+        fs::create_dir_all(dir)?;
+    }
+    let json = serde_json::to_string_pretty(value).expect("JSON serializes");
+    let tmp = file.with_extension("json.tmp");
+    fs::write(&tmp, json)?;
+    fs::rename(&tmp, file)
+}
+
+pub(crate) fn new_id() -> String {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -165,8 +189,8 @@ pub async fn connect_and_save(
     save_connection(request, label, &saved, &connections, &audit).await
 }
 
-/// `connect_and_save` without Tauri's State, so tests can call it.
-async fn save_connection(
+/// `connect_and_save` without Tauri's State, so tests and local provisioning can call it.
+pub(crate) async fn save_connection(
     request: ConnectRequest,
     label: String,
     saved: &Saved,
@@ -255,7 +279,7 @@ pub async fn connect_saved(
         ));
     };
     let details = entry.audit_details();
-    match open_saved(&id, entry.config).await {
+    match async { db::open(connect_request(&id, entry.config)?).await }.await {
         Ok(pool) => {
             register(&connections, id.clone(), pool).await;
             audit
@@ -276,8 +300,8 @@ pub async fn connect_saved(
     }
 }
 
-/// Reads the saved password (if any) and opens a pool for a saved connection.
-async fn open_saved(id: &str, config: SavedConfig) -> Result<db::Open, CommandError> {
+/// A saved connection's request, with the password (if any) from the credential store.
+fn connect_request(id: &str, config: SavedConfig) -> Result<ConnectRequest, CommandError> {
     let login = |server| -> Result<ServerLogin, CommandError> {
         // No entry means it was saved without a password
         let password = match credential(id)?.get_password() {
@@ -292,7 +316,7 @@ async fn open_saved(id: &str, config: SavedConfig) -> Result<db::Open, CommandEr
         SavedConfig::Mysql(server) => ConnectRequest::Mysql(login(server)?),
         SavedConfig::Sqlite { path } => ConnectRequest::Sqlite { path },
     };
-    db::open(request).await
+    Ok(request)
 }
 
 /// Forgets a saved connection and its password, closing it if open.
@@ -304,18 +328,28 @@ pub async fn forget_saved(
     connections: State<'_, Connections>,
     audit: State<'_, Audit>,
 ) -> Result<(), CommandError> {
-    let details = saved.audit_details(&id).unwrap_or_default();
+    forget(&id, &saved, &connections, &audit).await
+}
+
+/// `forget_saved` without Tauri's State, for local databases whose data was deleted.
+pub(crate) async fn forget(
+    id: &str,
+    saved: &Saved,
+    connections: &Connections,
+    audit: &Audit,
+) -> Result<(), CommandError> {
+    let details = saved.audit_details(id).unwrap_or_default();
     let list = saved
         .snapshot()
         .into_iter()
         .filter(|s| s.id != id)
         .collect();
     saved.replace(list)?;
-    let forgotten = Some(id.as_str());
+    let forgotten = Some(id);
     audit
         .record(EventKind::ConnectionForgotten, forgotten, details.clone())
         .await;
-    match credential(&id)?.delete_credential() {
+    match credential(id)?.delete_credential() {
         Ok(()) => {
             audit
                 .record(EventKind::CredentialDeleted, forgotten, details.clone())
@@ -324,7 +358,7 @@ pub async fn forget_saved(
         Err(keyring::Error::NoEntry) => {}
         Err(e) => return Err(credential_failed(e)),
     }
-    if let Some(pool) = connections.remove(&id) {
+    if let Some(pool) = connections.remove(id) {
         pool.close().await;
         audit
             .record(EventKind::ConnectionClosed, forgotten, details)

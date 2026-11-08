@@ -1,7 +1,7 @@
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 #[cfg(not(dev))]
 use tauri::{Url, ipc::CapabilityBuilder};
-use tauri_specta::{ErrorHandlingMode, collect_commands};
+use tauri_specta::{ErrorHandlingMode, collect_commands, collect_events};
 
 // Fixed so the origin (and the stored auth session) stays the same across launches.
 // shortcut: app fails to start if another process holds this port, pick a fallback if that bites.
@@ -37,7 +37,22 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             local::docker_status,
             local::discover_local_databases,
             local::local_database_templates,
+            local::plan_local_database,
+            local::create_local_database,
+            local::cancel_provisioning,
+            local::start_local_database,
+            local::stop_local_database,
+            local::restart_local_database,
+            local::local_database_logs,
+            local::test_local_database,
+            local::connect_local_database,
+            local::init_sample_data,
+            local::remove_local_database,
+            local::delete_local_database_data,
+            local::list_local_instances,
         ])
+        // Provisioning progress for "Create local database"
+        .events(collect_events![local::LocalProgress])
         // Rejects with CommandError, so callers keep using try/catch.
         .error_handling(ErrorHandlingMode::Throw)
 }
@@ -60,18 +75,21 @@ pub fn run() {
         .menu(chrome::menu)
         .on_menu_event(chrome::forward_menu_event);
 
+    let invoke_handler = specta.invoke_handler();
     builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_oauth::init())
         // Serve the built app over http://localhost: Neon Auth rejects the tauri:// origin
         .plugin(tauri_plugin_localhost::Builder::new(LOCALHOST_PORT).build())
-        .setup(|app| {
+        .setup(move |app| {
+            specta.mount_events(app);
             let data_dir = app.path().app_data_dir()?;
             // Opened before any command can run, so the reconnects at launch are recorded too
             app.manage(tauri::async_runtime::block_on(audit::Audit::open(
                 &data_dir,
             )));
-            app.manage(saved::Saved::load(data_dir));
+            app.manage(saved::Saved::load(data_dir.clone()));
+            app.manage(local::Local::load(data_dir));
 
             #[cfg(dev)]
             let url = WebviewUrl::App(std::path::PathBuf::from("/"));
@@ -104,7 +122,7 @@ pub fn run() {
             Ok(())
         })
         .manage(db::Connections::default())
-        .invoke_handler(specta.invoke_handler())
+        .invoke_handler(invoke_handler)
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

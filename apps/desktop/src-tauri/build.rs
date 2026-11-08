@@ -18,6 +18,19 @@ fn main() {
         "docker_status",
         "discover_local_databases",
         "local_database_templates",
+        "plan_local_database",
+        "create_local_database",
+        "cancel_provisioning",
+        "start_local_database",
+        "stop_local_database",
+        "restart_local_database",
+        "local_database_logs",
+        "test_local_database",
+        "connect_local_database",
+        "init_sample_data",
+        "remove_local_database",
+        "delete_local_database_data",
+        "list_local_instances",
     ]);
 
     // Tauri embeds its Windows manifest (Common Controls v6) only into the app binary, so test
