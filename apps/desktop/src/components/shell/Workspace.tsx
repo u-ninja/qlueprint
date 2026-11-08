@@ -28,15 +28,17 @@ function Welcome() {
   return (
     <section aria-labelledby="welcome-title" className="grid flex-1 place-items-center overflow-auto p-6">
       <div className="w-full max-w-sm">
-        <h1 id="welcome-title" className="text-lg font-semibold">
-          Welcome to QueryCraft
+        <h1 id="welcome-title" className="text-lg font-medium">
+          Connect a database to start
         </h1>
-        <p className="mt-1 text-fg3">Your database workspace is ready.</p>
+        <p className="mt-1 text-fg3">
+          QueryCraft runs on this machine. Connections and drafts stay here, passwords go to your system’s credential store.
+        </p>
         <ul className="mt-5 flex flex-col gap-1">
           {startActions.map(({ icon: Icon, title, detail, connect }) => {
             const content = (
               <>
-                <Icon className="mt-0.5 size-4 text-primary-text" aria-hidden />
+                <Icon className="mt-0.5 size-4 text-fg3" aria-hidden />
                 <span>
                   <span className="block font-medium">{title}</span>
                   <span className="block text-fg3">{detail}</span>
@@ -61,8 +63,7 @@ function Welcome() {
           })}
         </ul>
         <p className="mt-5 text-xs text-fg3">
-          <Kbd className="px-1.5 font-mono text-fg2">{runShortcut}</Kbd>{" "}
-          Execute query
+          <Kbd className="px-1.5 font-mono text-fg2">{runShortcut}</Kbd> runs the query
         </p>
       </div>
     </section>
@@ -99,7 +100,7 @@ export function Workspace() {
   const showWelcome = noConnections && noDraft;
 
   return (
-    <main className="flex h-full min-w-0 flex-col bg-editor">
+    <main className="flex h-full min-w-0 flex-col overflow-hidden bg-editor">
       <QueryToolbar />
       {showWelcome ? (
         <>

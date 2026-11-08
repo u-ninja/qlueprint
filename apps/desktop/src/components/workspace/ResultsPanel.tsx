@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { CircleAlert } from "lucide-react";
 import { Kbd } from "@/components/ui/kbd";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useConnections } from "@/stores/connections";
@@ -44,7 +45,7 @@ function Empty() {
   return (
     <div className="grid h-full place-items-center text-fg3">
       <div className="flex flex-col items-center gap-2">
-        <span>Run a query to see results here.</span>
+        <span>Run a query to see results here</span>
         <span className="text-xs">
           <Kbd className="px-1.5 font-mono text-fg2">{runShortcut}</Kbd> runs the query, or just the selected part
         </span>
@@ -56,9 +57,7 @@ function Empty() {
 function Failed({ error }: { error: string }) {
   return (
     <div role="alert" className="flex gap-3 overflow-auto px-5 py-4.5">
-      <span className="grid size-5.5 flex-none place-items-center rounded-full bg-danger-soft text-xs font-semibold text-danger" aria-hidden>
-        !
-      </span>
+      <CircleAlert className="mt-px size-4 flex-none text-danger" aria-hidden />
       <div className="flex min-w-0 flex-col gap-1.5">
         <span className="font-medium">Query failed</span>
         <span className="font-mono text-xs wrap-anywhere whitespace-pre-wrap text-fg2">{error}</span>
@@ -97,12 +96,12 @@ function Status() {
         <Spinner /> {last ? "Running, showing previous result" : "Running"} · <Elapsed since={runningSince} />
       </span>
     );
-  return last?.ok ? <span>{summary(last.output)}</span> : null;
+  return last?.ok ? <span className="font-mono text-[11px] tabular-nums">{summary(last.output)}</span> : null;
 }
 
 function MessagesView() {
   const messages = useQuery((s) => s.messages);
-  if (!messages.length) return <div className="grid h-full place-items-center text-fg3">No messages yet.</div>;
+  if (!messages.length) return <div className="grid h-full place-items-center text-fg3">No messages yet</div>;
   return (
     <ol className="h-full overflow-auto py-2 font-mono text-xs select-text">
       {messages.map((m, i) => (

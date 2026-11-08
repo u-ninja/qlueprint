@@ -4,16 +4,17 @@ import { Rail } from "@/components/shell/Rail";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { TopBar } from "@/components/shell/TopBar";
 import { Workspace } from "@/components/shell/Workspace";
-import { useConnections } from "@/stores/connections";
+import { StatusDot } from "@/components/shell/StatusDot";
+import { closedState, useConnections } from "@/stores/connections";
 import { useUi } from "@/stores/ui";
-import { cn } from "@/lib/utils";
 
 // Opens straight into the workspace: no welcome screen, no sign-in wall, no loading screen
 function App() {
   const { sidebarOpen, inspectorOpen } = useUi();
   const connections = useConnections((s) => s.connections);
+  const failed = useConnections((s) => Object.values(s.closed).filter((c) => closedState(c) === "failed").length);
   const status =
-    connections.length === 0 ? "No connection" : connections.length === 1 ? connections[0].label : `${connections.length} connections`;
+    connections.length === 0 ? "No connection" : connections.length === 1 ? connections[0].label : `${connections.length} open`;
   const panelIds = [sidebarOpen && "sidebar", "main", inspectorOpen && "inspector"].filter((id) => id !== false);
   // Saves panel sizes to localStorage so they come back on the next launch
   const layout = useDefaultLayout({ id: "qc-workspace", panelIds, storage: localStorage });
@@ -56,9 +57,15 @@ function App() {
       </div>
       <footer className="flex h-6 flex-none items-center gap-4 border-t border-border-soft bg-chrome px-3 text-[11.5px] text-fg3">
         <span className="flex items-center gap-1.5">
-          <span className={cn("size-1.5 rounded-full", connections.length ? "bg-success" : "bg-fg4")} aria-hidden />
+          <StatusDot state={connections.length ? "open" : "closed"} />
           {status}
         </span>
+        {failed > 0 && (
+          <span className="flex items-center gap-1.5">
+            <StatusDot state="failed" />
+            {failed} failed
+          </span>
+        )}
         <span className="ml-auto">Local</span>
       </footer>
     </div>

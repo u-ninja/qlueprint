@@ -135,7 +135,7 @@ export function ConnectDialog({ children }: { children: ReactNode }) {
           <DialogDescription>Saved on this device. The password goes into your system’s credential store.</DialogDescription>
         </DialogHeader>
 
-        <div role="radiogroup" aria-label="Database type" className="flex rounded-md bg-muted p-0.5">
+        <div role="radiogroup" aria-label="Database type" className="flex rounded-lg p-0.5 ring-1 ring-border">
           {kinds.map((value) => (
             <button
               key={value}
@@ -144,8 +144,8 @@ export function ConnectDialog({ children }: { children: ReactNode }) {
               aria-checked={kind === value}
               onClick={() => setKind(value)}
               className={cn(
-                "flex-1 rounded py-1 text-fg3 hover:text-foreground",
-                kind === value && "bg-primary-soft text-primary-text hover:text-primary-text",
+                "flex-1 rounded-md py-1 text-fg3 transition-colors hover:text-foreground",
+                kind === value && "bg-muted text-foreground",
               )}
             >
               {engineName[value]}

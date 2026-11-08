@@ -17,6 +17,14 @@ export type Connection = {
 /** A saved connection that isn't open: still connecting, or failed with this message */
 export type Closed = "connecting" | { error: string };
 
+export type ConnectionState = "open" | "connecting" | "failed" | "closed";
+
+/** The state of a saved connection that isn't open (no entry: closed by the user) */
+export function closedState(state: Closed | undefined): ConnectionState {
+  if (state === "connecting") return "connecting";
+  return state ? "failed" : "closed";
+}
+
 type ConnectionsState = {
   /** Every saved connection, open or not, in the order they were added */
   saved: SavedConnection[];

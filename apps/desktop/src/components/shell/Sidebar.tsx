@@ -6,6 +6,7 @@ import { ConnectDialog } from "./ConnectDialog";
 import { Explorer } from "./Explorer";
 import { PendingAction } from "./PendingAction";
 import { views } from "./Rail";
+import { cn } from "@/lib/utils";
 
 const emptyText: Record<View, string> = {
   workspace: "No connections yet. Connect to a database or create a local one to see it here.",
@@ -17,16 +18,19 @@ const emptyText: Record<View, string> = {
 export function Sidebar() {
   const view = useUi((s) => s.view);
   const title = views.find((v) => v.value === view)?.label;
-  const hasSaved = useConnections((s) => s.saved.length > 0);
+  const savedCount = useConnections((s) => s.saved.length);
   // Both views list the saved connections; the others have nothing to list yet
   const listsConnections = view === "workspace" || view === "connections";
-  const showExplorer = listsConnections && hasSaved;
+  const showExplorer = listsConnections && savedCount > 0;
 
   return (
     <aside aria-label={title} className="flex h-full flex-col bg-panel">
-      <h2 className="flex h-10 flex-none items-center px-3.5 font-semibold">{title}</h2>
+      <h2 className="flex h-10 flex-none items-center gap-2 px-3.5 font-medium">
+        {title}
+        {showExplorer && <span className="font-mono text-[11px] font-normal text-fg4 tabular-nums">{savedCount}</span>}
+      </h2>
       {showExplorer && <Explorer />}
-      <div className="flex flex-col gap-3 px-3.5 py-2">
+      <div className={cn("flex flex-col gap-3 px-3.5 py-3", showExplorer && "mt-2 border-t border-border-soft")}>
         {!showExplorer && <p className="text-fg3">{emptyText[view]}</p>}
         {listsConnections && (
           <div className="flex flex-col items-start gap-1.5">

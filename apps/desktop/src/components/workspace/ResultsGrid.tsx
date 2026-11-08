@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { QueryOutput, ResultColumn } from "@/bindings";
+import type { ColumnKind, QueryOutput, ResultColumn } from "@/bindings";
 import { cn } from "@/lib/utils";
 
 type Row = (string | null)[];
@@ -9,37 +9,26 @@ type Row = (string | null)[];
 const ROW_HEIGHT = 28;
 const GUTTER = 52;
 
-// Type names come from the database (`INT4`, `TIMESTAMPTZ`, SQLite's `INTEGER`, or empty)
-const NUMBER = /^(INT[248]?|INTEGER|SMALLINT|BIGINT|SERIAL\d?|NUMERIC|DECIMAL|FLOAT[48]?|REAL|DOUBLE( PRECISION)?|MONEY|OID)$/i;
-const MONO = /^(DATE|TIME|TIMETZ|TIMESTAMP|TIMESTAMPTZ|INTERVAL|UUID|JSONB?|BYTEA|BLOB|INET|CIDR|MACADDR8?)$/i;
-
-const typeWidths: [RegExp, number][] = [
-  [NUMBER, 100],
-  [/^BOOL(EAN)?$/i, 84],
-  [/^DATE$/i, 120],
-  [/^TIMESTAMP/i, 210],
-  [/^UUID$/i, 300],
-  [/^JSONB?$/i, 280],
-  [/^(TEXT|VARCHAR|BPCHAR|NAME|CITEXT)$/i, 180],
-];
-
-type Kind = { numeric: boolean; mono: boolean };
-
-function kindOf({ typeName }: ResultColumn): Kind {
-  const numeric = NUMBER.test(typeName);
-  return { numeric, mono: numeric || MONO.test(typeName) };
-}
+// Rust decides each column's kind from the driver's type info, for every engine
+const kindWidths: Record<ColumnKind, number> = {
+  number: 100,
+  bool: 84,
+  temporal: 190,
+  uuid: 300,
+  json: 280,
+  binary: 200,
+  text: 180,
+};
 
 /** Fits the type's usual values and the header (name + type label), within reason */
-function widthOf({ name, typeName }: ResultColumn) {
-  const byType = typeWidths.find(([pattern]) => pattern.test(typeName))?.[1] ?? 150;
+function widthOf({ name, typeName, kind }: ResultColumn) {
+  const byType = kindWidths[kind];
   const header = name.length * 7.5 + typeName.length * 6.5 + 36;
   return Math.round(Math.min(Math.max(byType, header), 420));
 }
 
 /** Virtualized, resizable grid for one result set */
 export function ResultsGrid({ output }: { output: QueryOutput }) {
-  const kinds = useMemo(() => output.columns.map(kindOf), [output.columns]);
   const columns = useMemo<ColumnDef<Row>[]>(
     () =>
       output.columns.map((column, i) => ({
@@ -98,7 +87,7 @@ export function ResultsGrid({ output }: { output: QueryOutput }) {
           <div role="row" aria-rowindex={1} className="sticky top-0 z-20 flex h-7.5 border-b border-border-soft bg-header">
             <div role="columnheader" aria-label="Row number" className={cn(gutter, "z-30 bg-header")} />
             {table.getHeaderGroups()[0].headers.map((header) => {
-              const { numeric } = kinds[header.index];
+              const numeric = output.columns[header.index].kind === "number";
               return (
                 <div
                   key={header.id}
@@ -143,7 +132,10 @@ export function ResultsGrid({ output }: { output: QueryOutput }) {
                   </div>
                   {row.getVisibleCells().map((cell) => {
                     const value = cell.getValue<string | null>();
-                    const { numeric, mono } = kinds[cell.column.getIndex()];
+                    const { kind } = output.columns[cell.column.getIndex()];
+                    const numeric = kind === "number";
+                    // Values compared character by character (figures, times, ids, JSON, bytes) are set in mono
+                    const mono = kind !== "text";
                     return (
                       <div
                         key={cell.id}
@@ -157,7 +149,8 @@ export function ResultsGrid({ output }: { output: QueryOutput }) {
                           "flex flex-none items-center overflow-hidden px-2.5 whitespace-nowrap",
                           numeric && "justify-end tabular-nums",
                           mono && "font-mono text-xs",
-                          value === null && "text-fg4 italic",
+                          // NULL reads as a marker, not a value: small mono, muted, never italic
+                          value === null && "font-mono text-[11px] text-fg4",
                         )}
                       >
                         <span className="truncate">{value ?? "NULL"}</span>

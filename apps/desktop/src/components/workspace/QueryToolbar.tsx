@@ -1,4 +1,4 @@
-import { AlignLeft, ListTree, PanelRight, Play, Square } from "lucide-react";
+import { AlignLeft, ListTree, PanelRight, Play, Square, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PendingAction } from "@/components/shell/PendingAction";
+import { StatusDot } from "@/components/shell/StatusDot";
 import { useConnections } from "@/stores/connections";
 import { activeConnection, activeDatabase, useQuery } from "@/stores/query";
 import { useUi } from "@/stores/ui";
@@ -28,8 +29,8 @@ function ConnectionPicker() {
 
   return (
     <Select value={active?.id ?? ""} onValueChange={setConnectionId} disabled={!active}>
-      <SelectTrigger size="sm" aria-label="Connection to run on" title={active?.label} className="w-56">
-        <span className={cn("size-1.5 flex-none rounded-full", active ? "bg-success" : "bg-fg4")} aria-hidden />
+      <SelectTrigger size="sm" aria-label="Connection to run on" title={active?.label} className="w-56 min-w-28">
+        <StatusDot state={active ? "open" : "closed"} />
         {/* Just the label: the default would copy the item's two-line content */}
         <SelectValue placeholder="No connection">{active?.label}</SelectValue>
       </SelectTrigger>
@@ -70,7 +71,7 @@ function DatabasePicker() {
         size="sm"
         aria-label="Database to run in"
         title={switchable ? database : `${engineName[active.kind]} can’t switch database on an open connection`}
-        className="w-40"
+        className="w-40 min-w-24"
       >
         {/* Explicit: Radix only shows a value that matches an item, and a disabled picker has none */}
         <SelectValue placeholder={switchable ? "No database" : "Default database"}>{database}</SelectValue>
@@ -86,6 +87,22 @@ function DatabasePicker() {
         </SelectGroup>
       </SelectContent>
     </Select>
+  );
+}
+
+// shortcut: Stop/Explain/Format aren't built yet; give ToolbarAction an onClick when they land
+const pendingActions: { label: string; icon: LucideIcon }[] = [
+  { label: "Stop", icon: Square },
+  { label: "Explain", icon: ListTree },
+  { label: "Format", icon: AlignLeft },
+];
+
+/** A secondary toolbar action: icon only when the toolbar is narrow, the label stays as its name */
+function ToolbarAction({ label, icon: Icon }: { label: string; icon: LucideIcon }) {
+  return (
+    <PendingAction variant="ghost" size="sm" aria-label={label}>
+      <Icon aria-hidden /> <span className="hidden @3xl:inline">{label}</span>
+    </PendingAction>
   );
 }
 
@@ -115,20 +132,16 @@ export function QueryToolbar() {
   const run = useQuery((s) => s.run);
 
   return (
-    <div className="flex h-11 flex-none items-center gap-1 border-b border-border-soft px-2.5">
+    // A container: on a narrow window the secondary actions drop their labels and the pickers
+    // shrink, so the toolbar never pushes the editor wider than its panel
+    <div className="@container flex h-11 flex-none items-center gap-1 border-b border-border-soft px-2.5">
       <Button size="sm" onClick={() => void run()} disabled={running || !hasSql || !connected} title={runShortcut}>
         <Play aria-hidden /> {hasSelection ? "Run selection" : "Run"}
       </Button>
-      <PendingAction variant="ghost" size="sm">
-        <Square aria-hidden /> Stop
-      </PendingAction>
-      <PendingAction variant="ghost" size="sm">
-        <ListTree aria-hidden /> Explain
-      </PendingAction>
-      <PendingAction variant="ghost" size="sm">
-        <AlignLeft aria-hidden /> Format
-      </PendingAction>
-      <div className="ml-auto flex items-center gap-1.5">
+      {pendingActions.map((action) => (
+        <ToolbarAction key={action.label} {...action} />
+      ))}
+      <div className="ml-auto flex min-w-0 items-center gap-1.5">
         <ConnectionPicker />
         <DatabasePicker />
         <InspectorToggle />

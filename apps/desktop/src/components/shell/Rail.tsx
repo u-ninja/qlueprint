@@ -1,4 +1,5 @@
 import { Database, FileCode, History, LayoutGrid, PanelLeft, type LucideIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useUi, type View } from "@/stores/ui";
 import { cn } from "@/lib/utils";
 
@@ -9,36 +10,42 @@ export const views: { value: View; label: string; icon: LucideIcon }[] = [
   { value: "history", label: "History", icon: History },
 ];
 
+const railButton = "text-fg3 hover:text-foreground";
+
 export function Rail() {
   const { view, sidebarOpen, setView, toggleSidebar } = useUi();
 
   return (
-    <nav aria-label="Main" className="flex w-[68px] flex-none flex-col border-r border-border-soft bg-chrome py-2">
+    <nav aria-label="Main" className="flex w-12 flex-none flex-col gap-1 border-r border-border-soft bg-chrome py-2">
       {views.map(({ value, label, icon: Icon }) => {
         const active = view === value && sidebarOpen;
         return (
-          <button
-            key={value}
-            aria-current={active ? "page" : undefined}
-            onClick={() => setView(value)}
-            className={cn(
-              "mx-1.5 mb-1 flex flex-col items-center gap-1 rounded-lg py-2 text-[11px] text-fg3 hover:bg-hover hover:text-foreground",
-              active && "bg-primary-soft text-primary-text hover:bg-primary-soft hover:text-primary-text",
-            )}
-          >
-            <Icon className="size-[18px]" aria-hidden />
-            {label}
-          </button>
+          // Full-width row, so the active view's 2px accent bar sits on the rail's left edge
+          <div key={value} className={cn("relative flex justify-center", active && "before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-r-full before:bg-primary")}>
+            <Button
+              variant="ghost"
+              size="icon-lg"
+              aria-current={active ? "page" : undefined}
+              aria-label={label}
+              title={label}
+              onClick={() => setView(value)}
+              className={cn(railButton, active && "bg-muted text-foreground hover:bg-muted")}
+            >
+              <Icon className="size-4.5" aria-hidden />
+            </Button>
+          </div>
         );
       })}
-      <button
+      <Button
+        variant="ghost"
+        size="icon-lg"
         onClick={toggleSidebar}
         aria-label={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
         title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
-        className="mx-auto mt-auto grid size-8 place-items-center rounded-md text-fg3 hover:bg-hover hover:text-foreground"
+        className={cn(railButton, "mx-auto mt-auto")}
       >
         <PanelLeft className="size-4" aria-hidden />
-      </button>
+      </Button>
     </nav>
   );
 }
