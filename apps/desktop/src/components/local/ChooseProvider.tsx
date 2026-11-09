@@ -117,7 +117,7 @@ function LoginForm({ defaults, pending, onSubmit }: { defaults: LocalLogin; pend
                         defaultValue={name === 'password' ? '' : defaults[name]}
                         autoComplete={name === 'password' ? 'current-password' : 'off'}
                         spellCheck={false}
-                        required={name !== 'database'}
+                        required={!['database', 'password'].includes(name)}
                         className="h-7"
                     />
                 </div>
