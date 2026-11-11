@@ -8,3 +8,4 @@ __pycache__/
 
 # tiberius test certificates (public upstream test keys); only its own tests use them
 apps/desktop/src-tauri/vendor/tiberius/docker/
+graphify-out/
