@@ -117,6 +117,8 @@ pub enum Engine {
     Mysql,
     /// Connects through the MySQL driver; only local databases record it separately.
     Mariadb,
+    /// SQL Server and Azure SQL; never a local database.
+    Mssql,
     Sqlite,
 }
 
@@ -372,7 +374,24 @@ impl Audit {
         connection_id: Option<&str>,
         details: Details,
     ) {
-        let details = serde_json::to_value(details.redacted()).expect("details serialize");
+        self.record_all(event, connection_id, [details]).await;
+    }
+
+    /// Appends one entry per `details`, in order, in one transaction: one sync to disk for a
+    /// batch (e.g. every statement of a save) instead of one per entry. Never fails the caller.
+    pub(crate) async fn record_all(
+        &self,
+        event: EventKind,
+        connection_id: Option<&str>,
+        details: impl IntoIterator<Item = Details>,
+    ) {
+        let details: Vec<Value> = details
+            .into_iter()
+            .map(|d| serde_json::to_value(d.redacted()).expect("details serialize"))
+            .collect();
+        if details.is_empty() {
+            return;
+        }
         let result = match &self.pool {
             Ok(pool) => Self::append(pool, event, connection_id, &details, now_ms())
                 .await
@@ -380,7 +399,8 @@ impl Audit {
             Err(error) => Err(error.clone()),
         };
         if let Err(error) = result {
-            self.failed_writes.fetch_add(1, Ordering::Relaxed);
+            let n = u32::try_from(details.len()).unwrap_or(u32::MAX);
+            self.failed_writes.fetch_add(n, Ordering::Relaxed);
             eprintln!("audit: couldn't record {}: {error}", event.as_str());
         }
     }
@@ -389,7 +409,7 @@ impl Audit {
         pool: &SqlitePool,
         event: EventKind,
         connection_id: Option<&str>,
-        details: &Value,
+        entries: &[Value],
         at: i64,
     ) -> Result<(), sqlx::Error> {
         // IMMEDIATE takes the write lock before reading the last hash, so two appends (two
@@ -399,21 +419,26 @@ impl Audit {
             sqlx::query_as("SELECT id, hash FROM audit_events ORDER BY id DESC LIMIT 1")
                 .fetch_optional(&mut *tx)
                 .await?;
-        let (id, prev_hash) = last.map_or((1, GENESIS.to_owned()), |(id, hash)| (id + 1, hash));
-        let hash = chain_hash(&prev_hash, id, at, event.as_str(), connection_id, details);
-        sqlx::query(
-            "INSERT INTO audit_events (id, at, event, connection_id, details, prev_hash, hash)
-             VALUES (?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind(id)
-        .bind(at)
-        .bind(event.as_str())
-        .bind(connection_id)
-        .bind(canonical(details))
-        .bind(&prev_hash)
-        .bind(&hash)
-        .execute(&mut *tx)
-        .await?;
+        let (mut id, mut prev_hash) =
+            last.map_or((1, GENESIS.to_owned()), |(id, hash)| (id + 1, hash));
+        for details in entries {
+            let hash = chain_hash(&prev_hash, id, at, event.as_str(), connection_id, details);
+            sqlx::query(
+                "INSERT INTO audit_events (id, at, event, connection_id, details, prev_hash, hash)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+            )
+            .bind(id)
+            .bind(at)
+            .bind(event.as_str())
+            .bind(connection_id)
+            .bind(canonical(details))
+            .bind(&prev_hash)
+            .bind(&hash)
+            .execute(&mut *tx)
+            .await?;
+            id += 1;
+            prev_hash = hash;
+        }
         tx.commit().await
     }
 
@@ -836,6 +861,30 @@ pub(crate) mod tests {
             )
             .await;
         (audit, dir)
+    }
+
+    #[tokio::test]
+    async fn chains_a_batch_in_order() {
+        let (audit, dir) = seeded().await;
+        audit
+            .record_all(
+                EventKind::QueryRun,
+                Some("a"),
+                [
+                    query("UPDATE t SET x = 1", None),
+                    query("UPDATE t SET x = 2", None),
+                ],
+            )
+            .await;
+        let report = audit.verify().await.unwrap();
+        assert!(report.intact);
+        assert_eq!(report.entries, 5);
+        let last: String = sqlx::query_scalar("SELECT details FROM audit_events WHERE id = 5")
+            .fetch_one(audit.pool().unwrap())
+            .await
+            .unwrap();
+        assert!(last.contains("x = 2"));
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[tokio::test]

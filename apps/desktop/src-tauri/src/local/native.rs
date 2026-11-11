@@ -322,7 +322,9 @@ fn macos(i: &Inputs) -> Recipe {
         (Engine::Postgres, v) => format!("postgresql@{v}"),
         (Engine::Mysql, v) => format!("mysql@{v}"),
         (Engine::Mariadb, v) => format!("mariadb@{v}"),
-        (Engine::Sqlite, _) => unreachable!("SQLite isn't installed"),
+        (Engine::Sqlite | Engine::Mssql, _) => {
+            unreachable!("SQLite and SQL Server aren't installed")
+        }
     };
     if i.manager != Some(Manager::Brew) {
         return unsupported(

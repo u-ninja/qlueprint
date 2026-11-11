@@ -11,7 +11,7 @@
 mod docker;
 mod native;
 mod ports;
-mod process;
+pub(crate) mod process;
 mod sample;
 mod store;
 mod types;
@@ -32,7 +32,7 @@ pub use types::*;
 
 use crate::audit::{Audit, Details, EventKind};
 use crate::db::{
-    self, CommandError, ConnectRequest, Connections, ErrorCode, Pool, Server, ServerLogin,
+    self, CommandError, ConnectRequest, Connections, ErrorCode, Pool, Server, ServerLogin, invalid,
 };
 use crate::saved::{self, Saved, SavedConnection};
 use docker::{ContainerSpec, Docker, Inspect};
@@ -78,10 +78,6 @@ pub(crate) struct Deps<'a> {
     pub saved: &'a Saved,
     pub connections: &'a Connections,
     pub audit: &'a Audit,
-}
-
-fn invalid(message: impl Into<String>) -> CommandError {
-    CommandError::new(ErrorCode::InvalidInput, message)
 }
 
 fn now_ms() -> i64 {
@@ -190,6 +186,7 @@ fn engine_slug(engine: Engine) -> &'static str {
         Engine::Postgres => "postgres",
         Engine::Mysql => "mysql",
         Engine::Mariadb => "mariadb",
+        Engine::Mssql => "mssql",
         Engine::Sqlite => "sqlite",
     }
 }
@@ -448,7 +445,7 @@ fn server_request(
             port,
             user: user.into(),
             database: database.into(),
-            show_all_databases: false,
+            ..Default::default()
         },
         password: password.into(),
     };
@@ -483,6 +480,7 @@ async fn ping(pool: &Pool) -> Result<(), CommandError> {
         Pool::Postgres(p) => sqlx::query("SELECT 1").execute(p).await.map(drop),
         Pool::Mysql(p) => sqlx::query("SELECT 1").execute(p).await.map(drop),
         Pool::Sqlite(p) => sqlx::query("SELECT 1").execute(p).await.map(drop),
+        Pool::Mssql(p) => return crate::mssql::catalog(p, "SELECT 1", &[]).await.map(drop),
     };
     result.map_err(db::connect_failed)
 }
@@ -948,7 +946,9 @@ async fn native_setup(
                         .execute(p)
                         .await?;
                     }
-                    Pool::Sqlite(_) => unreachable!("native servers are Postgres or MySQL-family"),
+                    Pool::Sqlite(_) | Pool::Mssql(_) => {
+                        unreachable!("native servers are Postgres or MySQL-family")
+                    }
                 }
                 Ok::<_, sqlx::Error>(())
             }
@@ -1465,7 +1465,7 @@ async fn resolve(
             // Its saved connection has the password in the credential store
             if let Some(saved_id) = &instance.saved_connection_id
                 && login.is_none()
-                && let Ok(request) = deps.saved.request(saved_id)
+                && let Ok(request) = deps.saved.request(saved_id).await
             {
                 return Ok((Some(request), label, instance.engine));
             }

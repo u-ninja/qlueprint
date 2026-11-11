@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-table-details"
+description = "Enables the table_details command without any pre-configured scope."
+commands.allow = ["table_details"]
+
+[[permission]]
+identifier = "deny-table-details"
+description = "Denies the table_details command without any pre-configured scope."
+commands.deny = ["table_details"]

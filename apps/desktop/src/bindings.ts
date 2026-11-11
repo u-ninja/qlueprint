@@ -17,24 +17,78 @@ export const commands = {
 	 *  (Postgres only) is another database on the same server; its pool opens on first use.
 	 *  MySQL lists its databases as schemas: only the saved one unless "Show all databases" is on.
 	 */
-	listSchemas: (id: string, database: string | null) => __TAURI_INVOKE<Schema[]>("list_schemas", { id, database }),
+	listSchemas: (id: string, database: string | null) => __TAURI_INVOKE<Schema_Serialize[]>("list_schemas", { id, database }),
 	/**
-	 *  Runs one or more `;`-separated statements and returns the last statement's result.
-	 *  `database` is the toolbar's database. MySQL makes it the default database for the statements,
-	 *  as if they started with `USE`; Postgres runs them on that database's pool (another database
-	 *  needs "Show all databases"); SQLite ignores it.
+	 *  Every column of every table in `database` (Postgres: that database's pool; MySQL: that
+	 *  database, else the saved one, else all user databases; SQLite: the file), in one round trip.
+	 *  Metadata only, never row data, so it isn't audited.
+	 */
+	listColumns: (id: string, database: string | null) => __TAURI_INVOKE<ColumnInfo[]>("list_columns", { id, database }),
+	/**
+	 *  Everything the inspector shows about `schema.table` in `database` (Postgres and SQL Server:
+	 *  that database's pool; MySQL: the schema is the database; SQLite: "main"). Metadata only, so it
+	 *  isn't audited.
+	 */
+	tableDetails: (id: string, database: string | null, schema: string, table: string) => __TAURI_INVOKE<TableDetails_Serialize>("table_details", { id, database, schema, table }),
+	/**
+	 *  Up to `limit` rows of `schema.table` to pick a foreign key value from (see `lookup_sql`).
+	 *  `database` works as in `run_query`. It reads row data, so it's audited like a query run.
+	 */
+	lookupRows: (id: string, request: LookupRequest_Deserialize) => __TAURI_INVOKE<([string, string | null])[]>("lookup_rows", { id, request }),
+	/**
+	 *  Runs one or more `;`-separated statements and returns the last statement's result (SQL Server:
+	 *  the last result set, see `mssql::run`). `database` is the toolbar's database. MySQL makes it
+	 *  the default database for the statements, as if they started with `USE`; Postgres and SQL Server
+	 *  run them on that database's pool (another database needs "Show all databases"); SQLite ignores it.
 	 * 
 	 *  Every run that gets past the empty check is audited, failed ones included: the SQL, where it
 	 *  ran, the outcome, the row count and the time taken. Never the result rows.
 	 */
-	runQuery: (id: string, sql: string, database: string | null) => __TAURI_INVOKE<QueryOutput>("run_query", { id, sql, database }),
+	runQuery: (id: string, sql: string, database: string | null, allRows: boolean) => __TAURI_INVOKE<QueryOutput>("run_query", { id, sql, database, allRows }),
+	/**
+	 *  Saves the grid's edits: `UPDATE`s that each change one row by its primary key, all in one
+	 *  transaction. A statement that matches no row (or more than one) rolls everything back, so a
+	 *  row someone else deleted or re-keyed can't leave half the edits saved.
+	 * 
+	 *  `database` works as in `run_query`. Each statement is audited like a query run, a rolled-back
+	 *  one with why.
+	 */
+	applyEdits: (id: string, database: string | null, statements: string[]) => __TAURI_INVOKE<null>("apply_edits", { id, database, statements }),
+	/**
+	 *  Explains one statement. Plain Explain never runs it; `analyze` runs it for real timings and
+	 *  row counts, so it's refused for anything but a single read (and on SQLite, which has no
+	 *  EXPLAIN ANALYZE). The SQL sent, EXPLAIN (SQL Server: SET SHOWPLAN_XML) included, is audited as
+	 *  a query run.
+	 */
+	explainQuery: (id: string, sql: string, database: string | null, analyze: boolean) => __TAURI_INVOKE<QueryPlan_Serialize>("explain_query", { id, sql, database, analyze }),
+	/**
+	 *  "Sign in with Microsoft" in the connect dialog: the browser flow, keeping the refresh token in
+	 *  memory for the connect that follows, which asks the server for its tenant when `tenant_id` is
+	 *  empty. Returns the account that signed in.
+	 */
+	entraSignIn: (tenantId: string, clientId: string, loginHint: string) => __TAURI_INVOKE<string>("entra_sign_in", { tenantId, clientId, loginHint }),
+	/**  Stops a browser sign-in that's waiting (the user closed the tab). */
+	entraCancelSignIn: () => __TAURI_INVOKE<void>("entra_cancel_sign_in"),
 	listSaved: () => __TAURI_INVOKE<SavedConnection_Serialize[]>("list_saved"),
-	/**  Connects, and saves the connection only once that worked. */
+	/**  Connects, and saves the connection under `label` (trimmed, not blank) only once that worked. */
 	connectAndSave: (request: ConnectRequest_Deserialize, label: string) => __TAURI_INVOKE<SavedConnection_Serialize>("connect_and_save", { request, label }),
 	/**  Opens a saved connection; a no-op if it's already open (e.g. after a UI reload). */
 	connectSaved: (id: string) => __TAURI_INVOKE<null>("connect_saved", { id }),
 	/**  Forgets a saved connection and its password, closing it if open. */
 	forgetSaved: (id: string) => __TAURI_INVOKE<null>("forget_saved", { id }),
+	/**  Renames a saved connection. Returns it as saved. */
+	renameSaved: (id: string, label: string) => __TAURI_INVOKE<SavedConnection_Serialize>("rename_saved", { id, label }),
+	/**
+	 *  Changes a saved connection's settings and name, keeping its id. An empty password keeps the
+	 *  saved one. Like `connect_and_save`, nothing changes unless the new settings connect; the
+	 *  connection is then (re)opened with them.
+	 */
+	updateSaved: (id: string, request: ConnectRequest_Deserialize, label: string) => __TAURI_INVOKE<SavedConnection_Serialize>("update_saved", { id, request, label }),
+	/**
+	 *  Tries settings without saving them or storing the password. With `saved_id` and an empty
+	 *  password, the saved connection's password is used, as `update_saved` would.
+	 */
+	testConnection: (request: ConnectRequest_Deserialize, savedId: string | null) => __TAURI_INVOKE<null>("test_connection", { request, savedId }),
 	listAuditEvents: (filter: AuditFilter_Deserialize) => __TAURI_INVOKE<AuditPage_Serialize>("list_audit_events", { filter }),
 	verifyAuditLog: () => __TAURI_INVOKE<Verification_Serialize>("verify_audit_log"),
 	/**
@@ -162,6 +216,14 @@ export type AuditPage_Serialize = {
 	failedWrites: number,
 };
 
+/**  One column of a table or view, for the editor's and the filter box's autocomplete. */
+export type ColumnInfo = {
+	schema: string,
+	table: string,
+	name: string,
+	typeName: string,
+};
+
 /**  Display family of a column, decided here where the driver's type info is. */
 export type ColumnKind = "number" | "bool" | "temporal" | "uuid" | "json" | "binary" | "text";
 
@@ -180,13 +242,17 @@ export type ConnectRequest_Deserialize = {
 	kind: "postgres",
 } & ServerLogin_Deserialize | {
 	kind: "mysql",
-} & ServerLogin_Deserialize | { kind: "sqlite"; path: string };
+} & ServerLogin_Deserialize | {
+	kind: "mssql",
+} & MssqlLogin_Deserialize | { kind: "sqlite"; path: string };
 
 export type ConnectRequest_Serialize = {
 	kind: "postgres",
 } & ServerLogin_Serialize | {
 	kind: "mysql",
-} & ServerLogin_Serialize | { kind: "sqlite"; path: string };
+} & ServerLogin_Serialize | {
+	kind: "mssql",
+} & MssqlLogin_Serialize | { kind: "sqlite"; path: string };
 
 /**  What the explorer and the toolbar's database picker show for an open connection. */
 export type ConnectionDatabases = {
@@ -205,6 +271,40 @@ export type ConnectionDatabases = {
 	 *  (a pool per database), SQLite never.
 	 */
 	switchable: boolean,
+};
+
+export type DetailColumn = DetailColumn_Serialize | DetailColumn_Deserialize;
+
+export type DetailColumn_Deserialize = {
+	name: string,
+	typeName: string,
+	nullable: boolean,
+	default?: string | null,
+	/**  "PK", "FK" or "UQ": the strongest key the column is part of */
+	key?: string | null,
+	/**  For a foreign key, the table it points at, its schema ("main" on SQLite) and the column */
+	references?: string | null,
+	referencesSchema?: string | null,
+	/**  None when SQLite's key names no column and the target's primary key isn't a single column */
+	referencesColumn?: string | null,
+	/**  The allowed values of an enum column (MySQL `enum(...)`, a Postgres enum type), in order */
+	enumValues?: string[] | null,
+};
+
+export type DetailColumn_Serialize = {
+	name: string,
+	typeName: string,
+	nullable: boolean,
+	default: string | null,
+	/**  "PK", "FK" or "UQ": the strongest key the column is part of */
+	key: string | null,
+	/**  For a foreign key, the table it points at, its schema ("main" on SQLite) and the column */
+	references: string | null,
+	referencesSchema: string | null,
+	/**  None when SQLite's key names no column and the target's primary key isn't a single column */
+	referencesColumn: string | null,
+	/**  The allowed values of an enum column (MySQL `enum(...)`, a Postgres enum type), in order */
+	enumValues: string[] | null,
 };
 
 /**
@@ -365,7 +465,9 @@ export type DockerStatus_Serialize = {
 
 export type Engine = "postgres" | "mysql" | 
 /**  Connects through the MySQL driver; only local databases record it separately. */
-"mariadb" | "sqlite";
+"mariadb" | 
+/**  SQL Server and Azure SQL; never a local database. */
+"mssql" | "sqlite";
 
 export type ErrorCode = "invalid_input" | "not_connected" | "connect_failed" | "query_failed" | 
 /**  Writing the saved-connections file failed. */
@@ -412,6 +514,22 @@ export type EventKind = "connection_saved" | "connection_opened" | "connection_f
 "native_install_run";
 
 export type ExportFormat = "csv" | "json";
+
+export type IncomingRef = {
+	schema: string,
+	table: string,
+	column: string,
+	/**  The column of this table it points at */
+	referencesColumn: string,
+};
+
+export type IndexInfo = {
+	name: string,
+	/**  Its columns, or its definition where that's all the database gives */
+	columns: string,
+	unique: boolean,
+	primary: boolean,
+};
 
 export type InstanceStatus = "creating" | "running" | 
 /**  Running, waiting for its health check to pass. */
@@ -636,6 +754,138 @@ export type LocalRequest_Serialize = {
 /**  Where an existing database is, for "connect existing" and connection tests. */
 export type LocalTarget = { kind: "container"; id: string } | { kind: "native"; engine: Engine; port: number } | { kind: "instance"; id: string };
 
+/**  What `lookup_rows` reads: `key_column` of `schema.table`, and `label_column` to show beside it */
+export type LookupRequest = LookupRequest_Serialize | LookupRequest_Deserialize;
+
+/**  What `lookup_rows` reads: `key_column` of `schema.table`, and `label_column` to show beside it */
+export type LookupRequest_Deserialize = {
+	database?: string | null,
+	schema: string,
+	table: string,
+	keyColumn: string,
+	labelColumn?: string | null,
+	search: string,
+	limit: number,
+};
+
+/**  What `lookup_rows` reads: `key_column` of `schema.table`, and `label_column` to show beside it */
+export type LookupRequest_Serialize = {
+	database: string | null,
+	schema: string,
+	table: string,
+	keyColumn: string,
+	labelColumn: string | null,
+	search: string,
+	limit: number,
+};
+
+/**  How a SQL Server connection signs in. */
+export type MssqlAuth = 
+/**  A SQL Server login: user and password. */
+"sql_login" | 
+/**  Microsoft Entra ID in the system browser (authorization code + PKCE), MFA included. */
+"entra_interactive" | 
+/**  The token `az account get-access-token` prints. */
+"azure_cli" | 
+/**  The Azure host's managed identity (instance metadata service). */
+"managed_identity" | 
+/**  Microsoft Entra user and password (ROPC). Deprecated by Microsoft; fails when MFA is enforced. */
+"entra_password";
+
+export type MssqlLogin = MssqlLogin_Serialize | MssqlLogin_Deserialize;
+
+export type MssqlLogin_Deserialize = {
+	/**  The password for a SQL login or Entra password; empty otherwise. */
+	password: string,
+} & MssqlServer_Deserialize;
+
+export type MssqlLogin_Serialize = {
+	/**  The password for a SQL login or Entra password; empty otherwise. */
+	password: string,
+} & MssqlServer_Serialize;
+
+/**
+ *  Where a SQL Server is and how to sign in. The password, or Entra's refresh token, lives in the
+ *  OS credential store like every other engine's password.
+ */
+export type MssqlServer = MssqlServer_Serialize | MssqlServer_Deserialize;
+
+/**
+ *  Where a SQL Server is and how to sign in. The password, or Entra's refresh token, lives in the
+ *  OS credential store like every other engine's password.
+ */
+export type MssqlServer_Deserialize = {
+	host: string,
+	port: number,
+	/**
+	 *  A named instance (`host\SQLEXPRESS`), found through the SQL Server Browser when the port is
+	 *  1433 (otherwise the port is the instance's). Empty: none.
+	 */
+	instance?: string,
+	/**
+	 *  The SQL login or Entra account; for interactive sign-in, the account that signed in.
+	 *  Empty for Azure CLI and managed identity, which sign in as themselves.
+	 */
+	user: string,
+	/**  Empty means the login's default database. */
+	database: string,
+	auth: MssqlAuth,
+	/**  Encrypt everything, not just the login. */
+	encrypt: boolean,
+	/**  Accept any certificate, without checking who issued it or the host name in it. */
+	trustServerCertificate: boolean,
+	/**
+	 *  Entra tenant. Empty: the one the server names for Entra MFA (`entra::Authority`),
+	 *  `organizations` (any work or school account) for an Entra password.
+	 */
+	tenantId?: string,
+	/**
+	 *  Entra app (client) ID instead of QueryCraft's own; for managed identity, a user-assigned
+	 *  identity's client ID. Empty: the default.
+	 */
+	clientId?: string,
+	/**  See `db::Server::show_all_databases`. */
+	showAllDatabases?: boolean,
+};
+
+/**
+ *  Where a SQL Server is and how to sign in. The password, or Entra's refresh token, lives in the
+ *  OS credential store like every other engine's password.
+ */
+export type MssqlServer_Serialize = {
+	host: string,
+	port: number,
+	/**
+	 *  A named instance (`host\SQLEXPRESS`), found through the SQL Server Browser when the port is
+	 *  1433 (otherwise the port is the instance's). Empty: none.
+	 */
+	instance: string,
+	/**
+	 *  The SQL login or Entra account; for interactive sign-in, the account that signed in.
+	 *  Empty for Azure CLI and managed identity, which sign in as themselves.
+	 */
+	user: string,
+	/**  Empty means the login's default database. */
+	database: string,
+	auth: MssqlAuth,
+	/**  Encrypt everything, not just the login. */
+	encrypt: boolean,
+	/**  Accept any certificate, without checking who issued it or the host name in it. */
+	trustServerCertificate: boolean,
+	/**
+	 *  Entra tenant. Empty: the one the server names for Entra MFA (`entra::Authority`),
+	 *  `organizations` (any work or school account) for an Entra password.
+	 */
+	tenantId: string,
+	/**
+	 *  Entra app (client) ID instead of QueryCraft's own; for managed identity, a user-assigned
+	 *  identity's client ID. Empty: the default.
+	 */
+	clientId: string,
+	/**  See `db::Server::show_all_databases`. */
+	showAllDatabases?: boolean,
+};
+
 /**  The exact commands a native install runs, as shown in the consent dialog (passwords masked). */
 export type NativePlan = NativePlan_Serialize | NativePlan_Deserialize;
 
@@ -683,6 +933,54 @@ export type NativePlan_Serialize = {
 
 export type Os = "windows" | "macos" | "linux";
 
+export type PlanNode = PlanNode_Serialize | PlanNode_Deserialize;
+
+export type PlanNode_Deserialize = {
+	depth: number,
+	/**  What the step does: "Seq Scan", "Hash Join", "Full table scan", "SEARCH"… */
+	kind: string,
+	/**  The table (or MySQL alias) it reads, when it reads one. */
+	relation?: string | null,
+	/**  Index, join condition, filter, sort key…, as the database wrote them. */
+	detail: string,
+	/**  Per loop, as the database estimates them. */
+	estRows?: number | null,
+	/**  Per loop, as counted when analyzed. */
+	actualRows?: number | null,
+	/**
+	 *  In the engine's own units: this step and everything under it, except MySQL's JSON
+	 *  format, which costs each table on its own.
+	 */
+	estCost?: number | null,
+	/**  This step and everything under it, over all its loops. */
+	actualMs?: number | null,
+	loops?: number | null,
+	warnings: string[],
+};
+
+export type PlanNode_Serialize = {
+	depth: number,
+	/**  What the step does: "Seq Scan", "Hash Join", "Full table scan", "SEARCH"… */
+	kind: string,
+	/**  The table (or MySQL alias) it reads, when it reads one. */
+	relation: string | null,
+	/**  Index, join condition, filter, sort key…, as the database wrote them. */
+	detail: string,
+	/**  Per loop, as the database estimates them. */
+	estRows: number | null,
+	/**  Per loop, as counted when analyzed. */
+	actualRows: number | null,
+	/**
+	 *  In the engine's own units: this step and everything under it, except MySQL's JSON
+	 *  format, which costs each table on its own.
+	 */
+	estCost: number | null,
+	/**  This step and everything under it, over all its loops. */
+	actualMs: number | null,
+	loops: number | null,
+	warnings: string[],
+};
+
 /**  How a local database is provided. */
 export type Provider = 
 /**  A container QueryCraft creates and labels. */
@@ -699,11 +997,47 @@ export type QueryOutput = {
 	 *  timestamps exact; a JS number would round anything past 2^53.
 	 */
 	rows: ((string | null)[])[],
-	/**  More than `MAX_ROWS` rows came back; `rows` holds the first `MAX_ROWS`. */
+	/**  More rows came back than were kept (`MAX_ROWS`, or `ALL_ROWS` when all were asked for). */
 	truncated: boolean,
 	/**  For a SELECT, the total row count; otherwise rows inserted/updated/deleted. */
 	rowsAffected: number,
 	elapsedMs: number,
+};
+
+export type QueryPlan = QueryPlan_Serialize | QueryPlan_Deserialize;
+
+export type QueryPlan_Deserialize = {
+	/**  Pre-order: each node is followed by its children, one `depth` deeper. */
+	nodes: PlanNode_Deserialize[],
+	/**
+	 *  What the database returned: JSON (SQL Server: showplan XML), or text for the formats in
+	 *  `engine_text`.
+	 */
+	raw: string,
+	/**  The statement ran (EXPLAIN ANALYZE), so the `actual_*` figures are filled in. */
+	analyzed: boolean,
+	/**
+	 *  Set when the engine only gave text (MySQL's EXPLAIN ANALYZE tree, the old tabular
+	 *  EXPLAIN): `nodes` are then parsed from it best-effort, and the text is the full story.
+	 */
+	engineText?: string | null,
+};
+
+export type QueryPlan_Serialize = {
+	/**  Pre-order: each node is followed by its children, one `depth` deeper. */
+	nodes: PlanNode_Serialize[],
+	/**
+	 *  What the database returned: JSON (SQL Server: showplan XML), or text for the formats in
+	 *  `engine_text`.
+	 */
+	raw: string,
+	/**  The statement ran (EXPLAIN ANALYZE), so the `actual_*` figures are filled in. */
+	analyzed: boolean,
+	/**
+	 *  Set when the engine only gave text (MySQL's EXPLAIN ANALYZE tree, the old tabular
+	 *  EXPLAIN): `nodes` are then parsed from it best-effort, and the text is the full story.
+	 */
+	engineText: string | null,
 };
 
 export type ResultColumn = {
@@ -736,14 +1070,18 @@ export type SavedConfig_Deserialize = {
 	kind: "postgres",
 } & Server_Deserialize | {
 	kind: "mysql",
-} & Server_Deserialize | { kind: "sqlite"; path: string };
+} & Server_Deserialize | {
+	kind: "mssql",
+} & MssqlServer_Deserialize | { kind: "sqlite"; path: string };
 
 /**  A `ConnectRequest` minus the password. */
 export type SavedConfig_Serialize = {
 	kind: "postgres",
 } & Server_Serialize | {
 	kind: "mysql",
-} & Server_Serialize | { kind: "sqlite"; path: string };
+} & Server_Serialize | {
+	kind: "mssql",
+} & MssqlServer_Serialize | { kind: "sqlite"; path: string };
 
 export type SavedConnection = SavedConnection_Serialize | SavedConnection_Deserialize;
 
@@ -759,9 +1097,16 @@ export type SavedConnection_Serialize = {
 	config: SavedConfig_Serialize,
 };
 
-export type Schema = {
+export type Schema = Schema_Serialize | Schema_Deserialize;
+
+export type Schema_Deserialize = {
 	name: string,
-	tables: Table[],
+	tables: Table_Deserialize[],
+};
+
+export type Schema_Serialize = {
+	name: string,
+	tables: Table_Serialize[],
 };
 
 /**  Where a network database server is and who to sign in as. */
@@ -793,6 +1138,10 @@ export type Server_Deserialize = {
 	 *  a defaulted field into `_Serialize`/`_Deserialize` copies; here both have the same shape.)
 	 */
 	showAllDatabases?: boolean,
+	/**  Missing means prefer, what connections saved before the option did. */
+	sslMode?: SslMode,
+	/**  A CA certificate (PEM file) for verify-ca and verify-full. Empty: the bundled public CAs. */
+	sslCa?: string,
 };
 
 /**  Where a network database server is and who to sign in as. */
@@ -811,7 +1160,23 @@ export type Server_Serialize = {
 	 *  a defaulted field into `_Serialize`/`_Deserialize` copies; here both have the same shape.)
 	 */
 	showAllDatabases?: boolean,
+	/**  Missing means prefer, what connections saved before the option did. */
+	sslMode?: SslMode,
+	/**  A CA certificate (PEM file) for verify-ca and verify-full. Empty: the bundled public CAs. */
+	sslCa?: string,
 };
+
+/**
+ *  Postgres' TLS modes. MySQL reads them as its own: allow and prefer are PREFERRED, verify-full
+ *  is VERIFY_IDENTITY.
+ */
+export type SslMode = "disable" | "allow" | 
+/**  TLS when the server offers it, without checking its certificate: the drivers' default. */
+"prefer" | "require" | 
+/**  Require, and check the certificate was issued by a trusted CA. */
+"verify-ca" | 
+/**  Verify-ca, and check the certificate names the host. */
+"verify-full";
 
 export type Stage = "checking_runtime" | "pulling_image" | "creating_storage" | "creating_container" | "installing" | "starting" | "waiting_for_health" | "creating_database" | "initializing_sample_data" | "validating" | "registering_connection" | "ready";
 
@@ -819,9 +1184,50 @@ export type StageState = "running" | "done" | "skipped" | "failed" |
 /**  A line of output from the running stage (password-masked). */
 "output";
 
-export type Table = {
+export type Table = Table_Serialize | Table_Deserialize;
+
+export type TableDetails = TableDetails_Serialize | TableDetails_Deserialize;
+
+export type TableDetails_Deserialize = {
+	columns: DetailColumn_Deserialize[],
+	indexes: IndexInfo[],
+	view: boolean,
+	/**  The planner's estimate (Postgres reltuples, MySQL TABLE_ROWS), not a count */
+	estimatedRows?: number | null,
+	/**  Table plus its indexes, in bytes */
+	sizeBytes?: number | null,
+	/**  Only when the database gives the exact text: MySQL's SHOW CREATE, SQLite's stored SQL, a Postgres view */
+	ddl?: string | null,
+	/**  Single-column foreign keys in other tables that point at this one */
+	referencedBy: IncomingRef[],
+};
+
+export type TableDetails_Serialize = {
+	columns: DetailColumn_Serialize[],
+	indexes: IndexInfo[],
+	view: boolean,
+	/**  The planner's estimate (Postgres reltuples, MySQL TABLE_ROWS), not a count */
+	estimatedRows: number | null,
+	/**  Table plus its indexes, in bytes */
+	sizeBytes: number | null,
+	/**  Only when the database gives the exact text: MySQL's SHOW CREATE, SQLite's stored SQL, a Postgres view */
+	ddl: string | null,
+	/**  Single-column foreign keys in other tables that point at this one */
+	referencedBy: IncomingRef[],
+};
+
+export type Table_Deserialize = {
 	name: string,
 	view: boolean,
+	/**  Table plus its indexes, in bytes; None for views and on SQLite (needs the optional dbstat) */
+	sizeBytes?: number | null,
+};
+
+export type Table_Serialize = {
+	name: string,
+	view: boolean,
+	/**  Table plus its indexes, in bytes; None for views and on SQLite (needs the optional dbstat) */
+	sizeBytes: number | null,
 };
 
 export type Template = Template_Serialize | Template_Deserialize;

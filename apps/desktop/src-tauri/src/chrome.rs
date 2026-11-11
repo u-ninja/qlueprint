@@ -46,7 +46,13 @@ pub fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let app_menu = SubmenuBuilder::new(app, "QueryCraft")
         .about(None)
         .separator()
-        .item(&item(app, "settings", "Settings…", Some("CmdOrCtrl+,"), false)?)
+        .item(&item(
+            app,
+            "settings",
+            "Settings…",
+            Some("CmdOrCtrl+,"),
+            false,
+        )?)
         .separator()
         .services()
         .separator()
@@ -58,12 +64,39 @@ pub fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .build()?;
 
     let file = SubmenuBuilder::new(app, "File")
+        .item(&item(
+            app,
+            "new-query",
+            "New Query",
+            Some("CmdOrCtrl+T"),
+            true,
+        )?)
         .item(&item(app, "new-connection", "New Connection…", None, true)?)
-        .item(&item(app, "open-file", "Open SQL File…", Some("CmdOrCtrl+O"), false)?)
+        .item(&item(
+            app,
+            "open-file",
+            "Open SQL File…",
+            Some("CmdOrCtrl+O"),
+            false,
+        )?)
         .separator()
-        .item(&item(app, "save", "Save", Some("CmdOrCtrl+S"), false)?)
+        .item(&item(app, "save", "Save", Some("CmdOrCtrl+S"), true)?)
         .separator()
-        .close_window()
+        // ⌘W closes the tab, as in a browser or editor; the window moves to ⇧⌘W
+        .item(&item(
+            app,
+            "close-tab",
+            "Close Tab",
+            Some("CmdOrCtrl+W"),
+            true,
+        )?)
+        .item(&item(
+            app,
+            "close-window",
+            "Close Window",
+            Some("CmdOrCtrl+Shift+W"),
+            true,
+        )?)
         .build()?;
 
     let edit = SubmenuBuilder::new(app, "Edit")
@@ -82,8 +115,20 @@ pub fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .item(&item(app, "theme-system", "Match System", None, true)?)
         .build()?;
 
+    let motion = SubmenuBuilder::new(app, "Motion")
+        .item(&item(app, "motion-spring", "Spring Physics", None, true)?)
+        .item(&item(app, "motion-subtle", "Subtle", None, true)?)
+        .item(&item(app, "motion-off", "Reduced", None, true)?)
+        .build()?;
+
     let view = SubmenuBuilder::new(app, "View")
-        .item(&item(app, "command-palette", "Command Palette…", Some("CmdOrCtrl+Shift+P"), false)?)
+        .item(&item(
+            app,
+            "command-palette",
+            "Command Palette…",
+            Some("CmdOrCtrl+Shift+P"),
+            false,
+        )?)
         .separator()
         .item(&item(app, "view-workspace", "Workspace", None, true)?)
         .item(&item(app, "view-connections", "Connections", None, true)?)
@@ -91,10 +136,23 @@ pub fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .item(&item(app, "view-history", "History", None, true)?)
         .item(&item(app, "view-audit", "Audit Log", None, true)?)
         .separator()
-        .item(&item(app, "toggle-sidebar", "Toggle Sidebar", Some("CmdOrCtrl+B"), true)?)
-        .item(&item(app, "toggle-inspector", "Toggle Inspector", None, true)?)
+        .item(&item(
+            app,
+            "toggle-sidebar",
+            "Toggle Sidebar",
+            Some("CmdOrCtrl+B"),
+            true,
+        )?)
+        .item(&item(
+            app,
+            "toggle-inspector",
+            "Toggle Inspector",
+            None,
+            true,
+        )?)
         .separator()
         .item(&theme)
+        .item(&motion)
         .separator()
         .fullscreen()
         .build()?;
@@ -103,8 +161,15 @@ pub fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .item(&item(app, "run", "Run", Some("CmdOrCtrl+Enter"), true)?)
         .item(&item(app, "stop", "Stop", None, false)?)
         .separator()
-        .item(&item(app, "explain", "Explain", None, false)?)
-        .item(&item(app, "format", "Format", None, false)?)
+        .item(&item(app, "explain", "Explain", Some("CmdOrCtrl+E"), true)?)
+        .item(&item(
+            app,
+            "explain-analyze",
+            "Explain Analyze",
+            Some("CmdOrCtrl+Shift+E"),
+            true,
+        )?)
+        .item(&item(app, "format", "Format", Some("Alt+Shift+F"), true)?)
         .build()?;
 
     let window = SubmenuBuilder::new(app, "Window")

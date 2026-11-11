@@ -1,17 +1,18 @@
-import { lazy, Suspense } from 'react';
+import { Fragment, lazy, Suspense } from 'react';
 import { useDefaultLayout } from 'react-resizable-panels';
-import { Database, FileUp, Server } from 'lucide-react';
+import { Database, FileCode2, FileUp, Server } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { QueryToolbar } from '@/components/workspace/QueryToolbar';
-import { ResultsPanel } from '@/components/workspace/ResultsPanel';
+import { ResultsPanel, TableResults } from '@/components/workspace/ResultsPanel';
 import { useConnections } from '@/stores/connections';
 import { useQuery } from '@/stores/query';
 import { useLocal } from '@/stores/local';
-import { runShortcut } from '@/lib/utils';
+import { cn, newQueryShortcut, runShortcut, shortcutLabel } from '@/lib/utils';
 import { ConnectDialog } from './ConnectDialog';
 import { PendingAction } from './PendingAction';
+import { SheetTabs } from './SheetTabs';
 
 // Monaco is most of the app's JavaScript; the welcome screen doesn't need it
 const SqlEditor = lazy(() => import('@/components/workspace/SqlEditor'));
@@ -98,24 +99,66 @@ function EditorAndResults() {
     );
 }
 
+const shortcuts: [string, string][] = [
+    ['New query', newQueryShortcut],
+    ['Run the query', runShortcut],
+    ['Find in results', shortcutLabel('Ctrl+F')],
+    ['Close the tab', shortcutLabel('Ctrl+W')],
+];
+
+/** No tab open, like an editor with every file closed: what to do next, and the keys for it */
+function NothingOpen() {
+    const newQuery = useQuery((s) => s.newQuery);
+    return (
+        <section aria-label="No open tabs" className="grid flex-1 place-items-center p-6">
+            <div className="flex w-full max-w-xs flex-col items-center gap-5 text-center">
+                <Button variant="outline" onClick={newQuery}>
+                    <FileCode2 aria-hidden /> New query
+                </Button>
+                <dl className="grid w-full grid-cols-[1fr_auto] gap-x-6 gap-y-2.5 text-left text-fg3">
+                    {shortcuts.map(([what, keys]) => (
+                        <Fragment key={what}>
+                            <dt>{what}</dt>
+                            <dd>
+                                <Kbd className="px-1.5 font-mono text-fg2">{keys}</Kbd>
+                            </dd>
+                        </Fragment>
+                    ))}
+                    <dt>Open a table’s rows</dt>
+                    <dd className="text-fg2">double-click it</dd>
+                </dl>
+            </div>
+        </section>
+    );
+}
+
 export function Workspace() {
-    // The welcome is the empty editor's state: it gives way once a connection is saved or a query drafted
     const noConnections = useConnections((s) => s.saved.length === 0);
-    const noDraft = useQuery((s) => s.sql === '');
-    const showWelcome = noConnections && noDraft;
+    const noTabs = useQuery((s) => s.queries.length === 0 && s.tables.length === 0);
+    const query = useQuery((s) => s.queries.some((q) => q.id === s.activeTab));
+    const table = useQuery((s) => s.tables.find((t) => t.id === s.activeTab));
+    const hasQueries = useQuery((s) => s.queries.length > 0);
+
+    // Nothing open and nothing connected: the welcome says how to start
+    if (noConnections && noTabs)
+        return (
+            <main className="flex h-full min-w-0 flex-col overflow-hidden bg-editor">
+                <Welcome />
+            </main>
+        );
 
     return (
         <main className="flex h-full min-w-0 flex-col overflow-hidden bg-editor">
-            <QueryToolbar />
-            {showWelcome ? (
-                <>
-                    <Welcome />
-                    {/* Collapsed until there are results to show */}
-                    <div className="flex h-8 flex-none items-center border-t border-border-soft bg-surface px-3.5 text-fg3">Results</div>
-                </>
-            ) : (
-                <EditorAndResults />
+            {!noTabs && <SheetTabs />}
+            {/* Hidden, not unmounted, behind a table tab: the editor keeps its cursor, scroll and undo history */}
+            {hasQueries && (
+                <div className={cn('flex min-h-0 flex-1 flex-col', !query && 'hidden')}>
+                    <QueryToolbar />
+                    <EditorAndResults />
+                </div>
             )}
+            {table && <TableResults tab={table} />}
+            {!query && !table && <NothingOpen />}
         </main>
     );
 }

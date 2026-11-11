@@ -3,7 +3,8 @@
     "version": "1.0.0",
     "private": true,
     "scripts": {
-        "format": "prettier --write ."
+        "format": "prettier --write .",
+        "tauri": "pnpm --dir apps/desktop tauri"
     },
     "dependencies": {
         "react": "^18.0.0",

@@ -1,8 +1,10 @@
-import { useMemo, useRef } from 'react';
-import { Database, Monitor, Moon, Sun, type LucideIcon } from 'lucide-react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
+import { Database, FilePen, Monitor, Moon, Sun, type LucideIcon } from 'lucide-react';
 import { useUi, type Theme } from '@/stores/ui';
 import { auth } from '@/lib/auth';
-import { cn, isMac, isTauri } from '@/lib/utils';
+import { cn, count, isMac, isTauri, saveShortcut } from '@/lib/utils';
+import { useSpring } from '@/lib/spring';
+import { totalEdits, useQuery } from '@/stores/query';
 import { AccountButton } from './AccountButton';
 import { AppMenu } from './AppMenu';
 import { ConnectDialog } from './ConnectDialog';
@@ -19,8 +21,44 @@ const themes: { value: Theme; label: string; icon: LucideIcon }[] = [
 // macOS: the native menu sits in the screen's menu bar and the traffic lights overlay the left edge.
 const ownControls = isTauri && !isMac;
 
+/** Unsaved table edits, everywhere: the count, and a click that shows or hides the Changes panel */
+function ChangesButton() {
+    // A primitive: a selector returning a new object each time would re-render on every store change
+    const total = useQuery(totalEdits);
+    const open = useUi((s) => s.changesOpen);
+    const setChangesOpen = useUi((s) => s.setChangesOpen);
+    const label = total ? count(total, 'unsaved change') : 'No unsaved changes';
+
+    return (
+        <button
+            type="button"
+            onClick={() => setChangesOpen(!open)}
+            aria-label={`Changes: ${label}`}
+            aria-pressed={open}
+            title={total ? `${label} · ${saveShortcut} in a table also opens them` : label}
+            className={cn(
+                'flex h-7 items-center gap-1.5 rounded-md px-2 text-xs transition-[color,background-color,scale] outline-none focus-visible:ring-2 focus-visible:ring-ring/50 active:scale-97',
+                // Pending edits: a light circles the edge and a reflection crosses the face (index.css)
+                total ? 'changes-live text-foreground' : 'text-fg4 hover:bg-hover hover:text-fg2',
+                open && 'ring-1 ring-warning',
+            )}
+        >
+            {total > 0 && <span className="changes-sheen" aria-hidden />}
+            <FilePen className="size-3.5" aria-hidden />
+            Changes
+            {total > 0 && <span className="font-mono text-[11px] tabular-nums">{total.toLocaleString()}</span>}
+        </button>
+    );
+}
+
 export function TopBar() {
     const { theme, setTheme } = useUi();
+    const thumb = useRef<HTMLSpanElement>(null);
+    const slideThumb = useSpring((x) => thumb.current && (thumb.current.style.transform = `translateX(${x}px)`));
+    // Each option is 24px wide
+    useLayoutEffect(() => {
+        slideThumb(themes.findIndex((t) => t.value === theme) * 24);
+    }, [theme, slideThumb]);
     const session = auth.useSession();
     const connectTrigger = useRef<HTMLButtonElement>(null);
     const actions = useMemo(() => createActions(() => connectTrigger.current?.click()), []);
@@ -54,18 +92,21 @@ export function TopBar() {
             )}
 
             <div className={cn('ml-auto flex flex-none items-center gap-2', ownControls && 'pr-1')}>
-                <div role="radiogroup" aria-label="Theme" className="flex rounded-md bg-muted p-0.5">
+                <ChangesButton />
+                {/* Toggle buttons, not radios: radios would need arrow-key roving focus */}
+                <div role="group" aria-label="Theme" className="relative flex rounded-md bg-muted p-0.5">
+                    <span ref={thumb} aria-hidden className="pointer-events-none absolute top-0.5 left-0.5 size-6 rounded bg-primary-soft" />
                     {themes.map(({ value, label, icon: Icon }) => (
                         <button
                             key={value}
-                            role="radio"
-                            aria-checked={theme === value}
+                            type="button"
+                            aria-pressed={theme === value}
                             aria-label={label}
                             title={label}
                             onClick={() => setTheme(value)}
                             className={cn(
-                                'grid size-6 place-items-center rounded text-fg3 hover:text-foreground',
-                                theme === value && 'bg-primary-soft text-primary-text hover:text-primary-text',
+                                'relative grid size-6 place-items-center rounded text-fg3 transition-colors hover:text-foreground',
+                                theme === value && 'text-primary-text hover:text-primary-text',
                             )}
                         >
                             <Icon className="size-3.5" aria-hidden />

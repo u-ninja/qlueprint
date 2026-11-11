@@ -256,7 +256,7 @@ fn version_of(engine: Engine, env: &HashMap<String, String>, tag: Option<&str>) 
         Engine::Postgres => "PG_VERSION",
         Engine::Mysql => "MYSQL_VERSION",
         Engine::Mariadb => "MARIADB_VERSION",
-        Engine::Sqlite => return None,
+        Engine::Sqlite | Engine::Mssql => return None,
     };
     let from_env = env.get(key).map(|v| {
         let v = v.split_once(':').map_or(v.as_str(), |(_, rest)| rest);
@@ -424,7 +424,7 @@ pub(crate) fn login_from_env(engine: Engine, env: &HashMap<String, String>) -> E
                 password: var("ROOT_PASSWORD").or_else(|| empty_root.then(String::new)),
             }
         }
-        Engine::Sqlite => EnvLogin {
+        Engine::Sqlite | Engine::Mssql => EnvLogin {
             user: String::new(),
             database: String::new(),
             password: None,
@@ -586,7 +586,9 @@ pub(crate) fn create_args(spec: &ContainerSpec) -> (Vec<String>, Vec<(String, St
             3306,
             "mariadb-admin ping -h 127.0.0.1 --silent".to_owned(),
         ),
-        Engine::Sqlite => unreachable!("SQLite has no container"),
+        Engine::Sqlite | Engine::Mssql => {
+            unreachable!("only server engines QueryCraft creates have a container")
+        }
     };
     let env: Vec<(String, String)> = match spec.engine {
         Engine::Postgres => vec![
@@ -606,7 +608,7 @@ pub(crate) fn create_args(spec: &ContainerSpec) -> (Vec<String>, Vec<(String, St
             ("MARIADB_PASSWORD", spec.password),
             ("MARIADB_DATABASE", spec.database),
         ],
-        Engine::Sqlite => unreachable!(),
+        Engine::Sqlite | Engine::Mssql => unreachable!(),
     }
     .into_iter()
     .map(|(k, v)| (k.to_owned(), v.to_owned()))

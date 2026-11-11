@@ -58,7 +58,14 @@ function Item({ item, actions, state, onSelect }: ItemProps) {
  * Alt+letter opens a menu, arrows move between menus and items.
  */
 export function AppMenu({ actions }: { actions: Actions }) {
-    const state = useUi(useShallow(({ sidebarOpen, inspectorOpen, theme }) => ({ sidebarOpen, inspectorOpen, theme })));
+    const state = useUi(
+        useShallow(({ sidebarOpen, inspectorOpen, changesOpen, theme, motion }) => ({
+            sidebarOpen,
+            inspectorOpen: inspectorOpen && !changesOpen,
+            theme,
+            motion,
+        })),
+    );
     useMenuShortcuts(actions);
     const [open, setOpen] = useState('');
     const rootRef = useRef<HTMLDivElement>(null);

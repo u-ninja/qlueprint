@@ -2,19 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, Circle, LoaderCircle, Minus, X } from 'lucide-react';
 import { commands, events, type LocalCreated, type LocalRequest, type Stage, type StageState } from '@/bindings';
 import { Button } from '@/components/ui/button';
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { errorMessage } from '@/stores/connections';
 import { openConnection, useLocal } from '@/stores/local';
-import { useQuery } from '@/stores/query';
+import { currentQuery, NO_QUERY, useQuery } from '@/stores/query';
 import { engineName } from '@/lib/engines';
 import { cn } from '@/lib/utils';
 import { stageLabel, stagesFor } from './stages';
@@ -50,19 +40,17 @@ function Ready({ created, onSample }: { created: LocalCreated; onSample: (next: 
     const [copied, setCopied] = useState(false);
     const [retrying, setRetrying] = useState(false);
     const [retryError, setRetryError] = useState('');
-    const [confirmReplace, setConfirmReplace] = useState(false);
     const { instance, connection, sampleError, starterSql } = created;
 
-    async function open(withStarter: boolean) {
-        if (withStarter && starterSql) useQuery.getState().setSql(starterSql);
+    async function open() {
+        if (starterSql) {
+            const query = useQuery.getState();
+            // A draft the user wrote stays put: the starter script gets a tab of its own
+            if (currentQuery(query) === NO_QUERY || currentQuery(query).sql.trim() !== '') query.newQuery();
+            useQuery.getState().setSql(starterSql);
+        }
         await openConnection(connection);
         setCreateOpen(false);
-    }
-
-    function openClicked() {
-        // Ask before replacing a draft the user wrote
-        if (starterSql && useQuery.getState().sql.trim() !== '') setConfirmReplace(true);
-        else void open(true);
     }
 
     async function retrySample() {
@@ -101,7 +89,7 @@ function Ready({ created, onSample }: { created: LocalCreated; onSample: (next: 
                     <Button variant="outline" onClick={() => void navigator.clipboard.writeText(details(created)).then(() => setCopied(true))}>
                         {copied ? 'Copied' : 'Copy connection details'}
                     </Button>
-                    <Button className="ml-auto" onClick={openClicked}>
+                    <Button className="ml-auto" onClick={() => void open()}>
                         Open in workspace
                     </Button>
                 </>
@@ -117,20 +105,6 @@ function Ready({ created, onSample }: { created: LocalCreated; onSample: (next: 
                     ['Sample data', sample],
                 ]}
             />
-            <AlertDialog open={confirmReplace} onOpenChange={setConfirmReplace}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Replace your draft?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            The editor has a query in it. The example queries can replace it, or you can keep your draft.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => void open(false)}>Keep my draft</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => void open(true)}>Replace draft</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
         </StepFrame>
     );
 }

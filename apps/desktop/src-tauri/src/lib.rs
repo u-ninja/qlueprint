@@ -13,7 +13,11 @@ const BINDINGS_PATH: &str = "../src/bindings.ts";
 mod audit;
 mod chrome;
 mod db;
+mod entra;
+mod inspect;
 mod local;
+mod mssql;
+mod plan;
 mod query;
 mod saved;
 
@@ -26,11 +30,21 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             db::connection_databases,
             db::disconnect,
             db::list_schemas,
+            db::list_columns,
+            inspect::table_details,
+            inspect::lookup_rows,
             query::run_query,
+            query::apply_edits,
+            plan::explain_query,
+            entra::entra_sign_in,
+            entra::entra_cancel_sign_in,
             saved::list_saved,
             saved::connect_and_save,
             saved::connect_saved,
             saved::forget_saved,
+            saved::rename_saved,
+            saved::update_saved,
+            saved::test_connection,
             audit::list_audit_events,
             audit::verify_audit_log,
             audit::export_audit_log,

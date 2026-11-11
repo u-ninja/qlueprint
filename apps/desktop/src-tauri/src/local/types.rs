@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 pub use crate::audit::Engine;
-use crate::db::{CommandError, ErrorCode};
+use crate::db::{CommandError, invalid};
 
 /// How a local database is provided.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
@@ -70,7 +70,7 @@ pub(crate) fn image_repository(engine: Engine) -> Option<&'static str> {
         Engine::Postgres => Some("postgres"),
         Engine::Mysql => Some("mysql"),
         Engine::Mariadb => Some("mariadb"),
-        Engine::Sqlite => None,
+        Engine::Sqlite | Engine::Mssql => None,
     }
 }
 
@@ -129,6 +129,7 @@ pub(crate) fn engine_name(engine: Engine) -> &'static str {
         Engine::Postgres => "PostgreSQL",
         Engine::Mysql => "MySQL",
         Engine::Mariadb => "MariaDB",
+        Engine::Mssql => "SQL Server",
         Engine::Sqlite => "SQLite",
     }
 }
@@ -349,10 +350,6 @@ pub struct SampleOutcome {
 }
 
 // --- Validation ------------------------------------------------------------------------------
-
-fn invalid(message: impl Into<String>) -> CommandError {
-    CommandError::new(ErrorCode::InvalidInput, message)
-}
 
 /// Database and user names: a letter or `_`, then letters, digits and `_`. They go into SQL and
 /// container env vars, so nothing that needs quoting.

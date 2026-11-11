@@ -96,7 +96,7 @@ async fn creates_a_sqlite_database_with_sample_data_then_deletes_it() {
     // Retrying the sample data is idempotent
     let id = created.instance.id.clone();
     init_sample(&deps, &id).await.unwrap();
-    let open = db::open(env.saved.request(created.connection.id()).unwrap())
+    let open = db::open(env.saved.request(created.connection.id()).await.unwrap())
         .await
         .unwrap();
     assert_eq!(
@@ -112,7 +112,7 @@ async fn creates_a_sqlite_database_with_sample_data_then_deletes_it() {
     delete_data(&deps, &id, "shop_demo").await.unwrap();
     assert!(!path.exists());
     assert!(env.local.store.snapshot().is_empty());
-    assert!(env.saved.request(created.connection.id()).is_err());
+    assert!(env.saved.request(created.connection.id()).await.is_err());
 
     let audit = crate::audit::tests::file_text(env.audit, &env.dir).await;
     for event in [
@@ -204,7 +204,7 @@ async fn docker_round_trip(engine: Engine, base_port: u16) {
     );
 
     // Connect as the app user and count the sample rows
-    let open = db::open(env.saved.request(created.connection.id()).unwrap())
+    let open = db::open(env.saved.request(created.connection.id()).await.unwrap())
         .await
         .unwrap();
     assert_eq!(
@@ -263,7 +263,7 @@ async fn docker_round_trip(engine: Engine, base_port: u16) {
             .unwrap()
             .is_none()
     );
-    assert!(env.saved.request(created.connection.id()).is_err());
+    assert!(env.saved.request(created.connection.id()).await.is_err());
     let _ = std::fs::remove_dir_all(env.dir);
 }
 

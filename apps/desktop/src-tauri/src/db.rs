@@ -10,27 +10,34 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use sqlx::mysql::{MySqlConnectOptions, MySqlPool};
+use sqlx::mysql::{MySqlConnectOptions, MySqlPool, MySqlSslMode};
 use sqlx::pool::PoolOptions;
-use sqlx::postgres::{PgConnectOptions, PgPool};
+use sqlx::postgres::{PgConnectOptions, PgPool, PgSslMode};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
 use tauri::State;
 
 use crate::audit::{Audit, EventKind};
+use crate::mssql::{self, MssqlLogin, MssqlPool};
 use crate::saved::Saved;
 
 // Fail fast on an unreachable host instead of sqlx's 30s default.
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+pub(crate) const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 // A desktop client needs few connections: explorer + a couple of query tabs.
-const MAX_CONNECTIONS: u32 = 4;
+pub(crate) const MAX_CONNECTIONS: u32 = 4;
 // Pools for a Postgres connection's other databases ("Show all databases").
 const OTHER_DATABASE_CONNECTIONS: u32 = 2;
 
 // pg_catalog, not information_schema: the latter runs a privilege check per row and is much
 // slower on big catalogs. LEFT JOIN keeps empty schemas; partitions are hidden (their parent is
-// listed); pg_* and information_schema are system schemas.
+// listed); pg_* and information_schema are system schemas. Size is table + indexes + TOAST; a
+// partitioned table has no storage of its own, so it sums its partition tree; views have none.
 const PG_SCHEMAS: &str = r"
-    SELECT n.nspname::text, c.relname::text, c.relkind IN ('v', 'm')
+    SELECT n.nspname::text, c.relname::text, c.relkind IN ('v', 'm'),
+           CASE c.relkind
+             WHEN 'p' THEN (SELECT sum(pg_total_relation_size(relid))::int8 FROM pg_partition_tree(c.oid))
+             WHEN 'r' THEN pg_total_relation_size(c.oid)
+             WHEN 'm' THEN pg_total_relation_size(c.oid)
+           END
     FROM pg_catalog.pg_namespace n
     LEFT JOIN pg_catalog.pg_class c
       ON c.relnamespace = n.oid
@@ -48,11 +55,12 @@ macro_rules! mysql_user_databases {
 
 // MySQL has no schema level under a database, so each database is listed as a schema.
 // Ordering on the binary name keeps each database's rows together even when two names differ
-// only in case.
+// only in case. Size is data + indexes as the server last measured them; NULL for views.
 macro_rules! mysql_schemas {
     ($filter:expr) => {
         concat!(
-            "SELECT s.SCHEMA_NAME, t.TABLE_NAME, t.TABLE_TYPE = 'VIEW'
+            "SELECT s.SCHEMA_NAME, t.TABLE_NAME, t.TABLE_TYPE = 'VIEW',
+                CAST(t.DATA_LENGTH + t.INDEX_LENGTH AS SIGNED)
             FROM information_schema.SCHEMATA s
             LEFT JOIN information_schema.TABLES t ON t.TABLE_SCHEMA = s.SCHEMA_NAME
             WHERE s.",
@@ -80,8 +88,131 @@ const SQLITE_TABLES: &str = r"
     WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite\_%' ESCAPE '\'
     ORDER BY name";
 
+// Columns for autocomplete, in table order. Same schema filters as the explorer's lists.
+const PG_COLUMNS: &str = r"
+    SELECT n.nspname::text, c.relname::text, a.attname::text, format_type(a.atttypid, a.atttypmod)
+    FROM pg_catalog.pg_attribute a
+    JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+    JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+    WHERE a.attnum > 0 AND NOT a.attisdropped
+      AND c.relkind IN ('r', 'p', 'v', 'm', 'f') AND NOT c.relispartition
+      AND n.nspname <> 'information_schema' AND n.nspname NOT LIKE 'pg\_%'
+    ORDER BY 1, 2, a.attnum";
+
+macro_rules! mysql_columns {
+    ($filter:expr) => {
+        concat!(
+            "SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, COLUMN_TYPE FROM information_schema.COLUMNS WHERE ",
+            $filter,
+            " ORDER BY CAST(TABLE_SCHEMA AS BINARY), TABLE_NAME, ORDINAL_POSITION"
+        )
+    };
+}
+const MYSQL_ALL_COLUMNS: &str = mysql_columns!(
+    "TABLE_SCHEMA NOT IN ('mysql', 'sys', 'information_schema', 'performance_schema')"
+);
+const MYSQL_COLUMNS: &str = mysql_columns!("TABLE_SCHEMA = ?");
+
+const SQLITE_COLUMNS: &str = r"
+    SELECT 'main', m.name, p.name, p.type FROM sqlite_schema m
+    JOIN pragma_table_info(m.name) p
+    WHERE m.type IN ('table', 'view') AND m.name NOT LIKE 'sqlite\_%' ESCAPE '\'
+    ORDER BY m.name, p.cid";
+
+// SQL Server: the db_* role schemas (ids from 16384), sys, INFORMATION_SCHEMA and guest are the
+// system's. Size is every partition of the table and its indexes, summed once per object rather
+// than per row; views have none. (sys.dm_db_partition_stats would need VIEW DATABASE STATE.)
+const MSSQL_SCHEMAS: &str = r"
+    SELECT s.name, o.name, CASE WHEN o.type = 'V' THEN 1 ELSE 0 END,
+           CASE WHEN o.type = 'U' THEN z.size_bytes END
+    FROM sys.schemas s
+    LEFT JOIN sys.objects o ON o.schema_id = s.schema_id AND o.type IN ('U', 'V') AND o.is_ms_shipped = 0
+    LEFT JOIN (SELECT p.object_id, SUM(a.total_pages) * 8192 AS size_bytes FROM sys.partitions p
+               JOIN sys.allocation_units a ON a.container_id = p.partition_id
+               GROUP BY p.object_id) z ON z.object_id = o.object_id
+    WHERE s.schema_id < 16384 AND s.name NOT IN ('sys', 'INFORMATION_SCHEMA', 'guest')
+    ORDER BY s.name, o.name";
+
+// Offline databases and ones this login can't open are left out, like the system ones
+const MSSQL_DATABASES: &str = r"
+    SELECT name FROM sys.databases
+    WHERE name NOT IN ('master', 'tempdb', 'model', 'msdb') AND state = 0 AND HAS_DBACCESS(name) = 1
+    ORDER BY name";
+
+/// A column's declared type as SQL Server writes it: `nvarchar(50)`, `decimal(10,2)`,
+/// `datetime2(3)`. Alias types (`sysname`, user-defined) keep their own name.
+macro_rules! mssql_type {
+    () => {
+        "TYPE_NAME(c.user_type_id) + CASE
+           WHEN c.user_type_id <> c.system_type_id THEN ''
+           WHEN TYPE_NAME(c.system_type_id) IN ('varchar', 'char', 'varbinary', 'binary')
+             THEN '(' + CASE WHEN c.max_length = -1 THEN 'max' ELSE CAST(c.max_length AS varchar(5)) END + ')'
+           WHEN TYPE_NAME(c.system_type_id) IN ('nvarchar', 'nchar')
+             THEN '(' + CASE WHEN c.max_length = -1 THEN 'max' ELSE CAST(c.max_length / 2 AS varchar(5)) END + ')'
+           WHEN TYPE_NAME(c.system_type_id) IN ('decimal', 'numeric')
+             THEN '(' + CAST(c.precision AS varchar(3)) + ',' + CAST(c.scale AS varchar(3)) + ')'
+           WHEN TYPE_NAME(c.system_type_id) IN ('datetime2', 'time', 'datetimeoffset')
+             THEN '(' + CAST(c.scale AS varchar(3)) + ')'
+           ELSE '' END"
+    };
+}
+pub(crate) use mssql_type;
+
+const MSSQL_COLUMNS: &str = concat!(
+    "SELECT s.name, o.name, c.name, ",
+    mssql_type!(),
+    " FROM sys.columns c
+    JOIN sys.objects o ON o.object_id = c.object_id AND o.type IN ('U', 'V') AND o.is_ms_shipped = 0
+    JOIN sys.schemas s ON s.schema_id = o.schema_id
+    ORDER BY s.name, o.name, c.column_id"
+);
+
+/// Postgres' TLS modes. MySQL reads them as its own: allow and prefer are PREFERRED, verify-full
+/// is VERIFY_IDENTITY.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "kebab-case")]
+pub enum SslMode {
+    Disable,
+    Allow,
+    /// TLS when the server offers it, without checking its certificate: the drivers' default.
+    #[default]
+    Prefer,
+    Require,
+    /// Require, and check the certificate was issued by a trusted CA.
+    VerifyCa,
+    /// Verify-ca, and check the certificate names the host.
+    VerifyFull,
+}
+
+impl SslMode {
+    fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+
+    fn postgres(self) -> PgSslMode {
+        match self {
+            Self::Disable => PgSslMode::Disable,
+            Self::Allow => PgSslMode::Allow,
+            Self::Prefer => PgSslMode::Prefer,
+            Self::Require => PgSslMode::Require,
+            Self::VerifyCa => PgSslMode::VerifyCa,
+            Self::VerifyFull => PgSslMode::VerifyFull,
+        }
+    }
+
+    fn mysql(self) -> MySqlSslMode {
+        match self {
+            Self::Disable => MySqlSslMode::Disabled,
+            Self::Allow | Self::Prefer => MySqlSslMode::Preferred,
+            Self::Require => MySqlSslMode::Required,
+            Self::VerifyCa => MySqlSslMode::VerifyCa,
+            Self::VerifyFull => MySqlSslMode::VerifyIdentity,
+        }
+    }
+}
+
 /// Where a network database server is and who to sign in as.
-#[derive(Clone, Serialize, Deserialize, Type)]
+#[derive(Clone, Default, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Server {
     pub host: String,
@@ -95,6 +226,12 @@ pub struct Server {
     /// a defaulted field into `_Serialize`/`_Deserialize` copies; here both have the same shape.)
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub show_all_databases: bool,
+    /// Missing means prefer, what connections saved before the option did.
+    #[serde(default, skip_serializing_if = "SslMode::is_default")]
+    pub ssl_mode: SslMode,
+    /// A CA certificate (PEM file) for verify-ca and verify-full. Empty: the bundled public CAs.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub ssl_ca: String,
 }
 
 #[derive(Deserialize, Type)]
@@ -109,6 +246,7 @@ pub struct ServerLogin {
 pub enum ConnectRequest {
     Postgres(ServerLogin),
     Mysql(ServerLogin),
+    Mssql(MssqlLogin),
     Sqlite { path: String },
 }
 
@@ -117,6 +255,7 @@ pub enum ConnectRequest {
 pub(crate) enum Pool {
     Postgres(PgPool),
     Mysql(MySqlPool),
+    Mssql(MssqlPool),
     Sqlite(SqlitePool),
 }
 
@@ -125,6 +264,7 @@ impl Pool {
         match self {
             Pool::Postgres(p) => p.close().await,
             Pool::Mysql(p) => p.close().await,
+            Pool::Mssql(p) => p.close().await,
             Pool::Sqlite(p) => p.close().await,
         }
     }
@@ -134,14 +274,15 @@ impl Pool {
 #[derive(Clone)]
 pub(crate) struct Open {
     pub(crate) pool: Pool,
-    /// The database the pool is connected to: Postgres' actual one (even when the saved
-    /// database was empty), MySQL's saved one (may be empty), `main` for SQLite.
+    /// The database the pool is connected to: Postgres' and SQL Server's actual one (even when
+    /// the saved database was empty), MySQL's saved one (may be empty), `main` for SQLite.
     database: String,
     show_all: bool,
     /// Postgres with `show_all` only: the login, to open other databases on the same server.
     pg_options: Option<PgConnectOptions>,
-    /// Postgres pools for those other databases, opened on first use. Shared by every clone.
-    others: Arc<Mutex<HashMap<String, PgPool>>>,
+    /// Postgres and SQL Server pools for those other databases, opened on first use. Shared by
+    /// every clone.
+    others: Arc<Mutex<HashMap<String, Pool>>>,
 }
 
 impl Open {
@@ -170,39 +311,21 @@ impl Open {
         (!self.show_all && !self.database.is_empty()).then_some(self.database.as_str())
     }
 
-    fn others(&self) -> std::sync::MutexGuard<'_, HashMap<String, PgPool>> {
+    fn others(&self) -> std::sync::MutexGuard<'_, HashMap<String, Pool>> {
         self.others.lock().expect("database pools lock poisoned")
     }
 
-    /// The Postgres pool for `database`: the main one for its own database (or none given),
-    /// otherwise one per database, opened with the same login the first time it's asked for.
-    pub(crate) async fn pg_pool(&self, database: Option<&str>) -> Result<PgPool, CommandError> {
-        let Pool::Postgres(main) = &self.pool else {
-            return Err(CommandError::new(
-                ErrorCode::InvalidInput,
-                "Not a PostgreSQL connection.",
-            ));
-        };
-        let database = match database {
-            Some(name) if !name.is_empty() && name != self.database => name,
-            _ => return Ok(main.clone()),
-        };
+    /// The pool `others` holds for `database`, else the one `open` opens. Two requests can race
+    /// to open the same database; the first one stored wins and the other closes.
+    async fn other(
+        &self,
+        database: &str,
+        open: impl Future<Output = Result<Pool, CommandError>>,
+    ) -> Result<Pool, CommandError> {
         if let Some(pool) = self.others().get(database) {
             return Ok(pool.clone());
         }
-        let Some(options) = &self.pg_options else {
-            return Err(CommandError::new(
-                ErrorCode::InvalidInput,
-                "This connection only shows its own database. Turn on “Show all databases” to use others.",
-            ));
-        };
-        // Browsing and the odd query: fewer connections than a main pool, per database
-        let pool = pool_options()
-            .max_connections(OTHER_DATABASE_CONNECTIONS)
-            .connect_with(options.clone().database(database))
-            .await
-            .map_err(connect_failed)?;
-        // Two requests can race to open the same database; the first one stored wins
+        let pool = open.await?;
         let existing = match self.others().entry(database.to_owned()) {
             Entry::Occupied(slot) => slot.get().clone(),
             Entry::Vacant(slot) => return Ok(slot.insert(pool).clone()),
@@ -211,9 +334,45 @@ impl Open {
         Ok(existing)
     }
 
+    /// The pool for `database`: the main one for its own database (or none given, or MySQL and
+    /// SQLite, which don't need another pool). Postgres and SQL Server get one per other database,
+    /// opened with the same login the first time it's asked for: a SQL Server pool is bound to its
+    /// database because Azure SQL can't `USE` another one.
+    pub(crate) async fn pool_for(&self, database: Option<&str>) -> Result<Pool, CommandError> {
+        let database = match (&self.pool, database) {
+            (Pool::Postgres(_) | Pool::Mssql(_), Some(name))
+                if !name.is_empty() && name != self.database =>
+            {
+                name
+            }
+            _ => return Ok(self.pool.clone()),
+        };
+        let off = || {
+            invalid(
+                "This connection only shows its own database. Turn on “Show all databases” to use others.",
+            )
+        };
+        let open = async {
+            match (&self.pool, &self.pg_options) {
+                // Browsing and the odd query: fewer connections than a main pool, per database
+                (Pool::Postgres(_), Some(options)) => pool_options()
+                    .max_connections(OTHER_DATABASE_CONNECTIONS)
+                    .connect_with(options.clone().database(database))
+                    .await
+                    .map(Pool::Postgres)
+                    .map_err(connect_failed),
+                (Pool::Mssql(main), _) if self.show_all => {
+                    Ok(Pool::Mssql(main.sibling(database).await?))
+                }
+                _ => Err(off()),
+            }
+        };
+        self.other(database, open).await
+    }
+
     /// Closes the main pool and every other database's pool.
     pub(crate) async fn close(self) {
-        let others: Vec<PgPool> = self.others().drain().map(|(_, pool)| pool).collect();
+        let others: Vec<Pool> = self.others().drain().map(|(_, pool)| pool).collect();
         for pool in others {
             pool.close().await;
         }
@@ -268,9 +427,36 @@ pub struct Schema {
 }
 
 #[derive(Serialize, Type)]
+#[serde(rename_all = "camelCase")]
 pub struct Table {
     name: String,
     view: bool,
+    /// Table plus its indexes, in bytes; None for views and on SQLite (needs the optional dbstat)
+    #[specta(type = Option<specta_typescript::Number>)]
+    size_bytes: Option<i64>,
+}
+
+type SchemaRow = (String, Option<String>, Option<bool>, Option<i64>);
+
+/// One column of a table or view, for the editor's and the filter box's autocomplete.
+#[derive(Serialize, Type, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ColumnInfo {
+    schema: String,
+    table: String,
+    name: String,
+    type_name: String,
+}
+
+impl From<(String, String, String, String)> for ColumnInfo {
+    fn from((schema, table, name, type_name): (String, String, String, String)) -> Self {
+        Self {
+            schema,
+            table,
+            name,
+            type_name,
+        }
+    }
 }
 
 /// Typed error for the UI: a stable `code` to branch on and a message safe to show.
@@ -360,12 +546,13 @@ pub(crate) fn query_failed(e: sqlx::Error) -> CommandError {
     CommandError::new(ErrorCode::QueryFailed, e.to_string())
 }
 
+pub(crate) fn invalid(message: impl Into<String>) -> CommandError {
+    CommandError::new(ErrorCode::InvalidInput, message)
+}
+
 pub(crate) fn require(value: &str, field: &str) -> Result<(), CommandError> {
     if value.trim().is_empty() {
-        return Err(CommandError::new(
-            ErrorCode::InvalidInput,
-            format!("{field} is required."),
-        ));
+        return Err(invalid(format!("{field} is required.")));
     }
     Ok(())
 }
@@ -374,6 +561,34 @@ fn pool_options<DB: sqlx::Database>() -> PoolOptions<DB> {
     PoolOptions::new()
         .max_connections(MAX_CONNECTIONS)
         .acquire_timeout(CONNECT_TIMEOUT)
+}
+
+/// One direct connection attempt before the pool opens. The pool retries a failing connect until
+/// its wait runs out and then reports only "pool timed out", hiding why (refused, TLS, DNS, auth);
+/// a single attempt surfaces the real error, and a hang becomes a plain "couldn't reach" message.
+async fn probe<C: sqlx::Connection>(
+    options: &C::Options,
+    server: &Server,
+) -> Result<(), CommandError> {
+    match tokio::time::timeout(CONNECT_TIMEOUT, C::connect_with(options)).await {
+        Ok(Ok(connection)) => {
+            let _ = connection.close().await;
+            Ok(())
+        }
+        Ok(Err(e)) => Err(connect_failed(e)),
+        Err(_) => Err(unreachable(&format!("{}:{}", server.host, server.port))),
+    }
+}
+
+/// A connect to `address` (host:port) that hung for the whole `CONNECT_TIMEOUT`.
+pub(crate) fn unreachable(address: &str) -> CommandError {
+    CommandError::new(
+        ErrorCode::ConnectFailed,
+        format!(
+            "Couldn’t reach {address} within {} seconds. Check the host and port, and whether a VPN, firewall or the server’s IP allow-list is blocking this machine.",
+            CONNECT_TIMEOUT.as_secs()
+        ),
+    )
 }
 
 fn require_server(server: &Server) -> Result<(), CommandError> {
@@ -392,10 +607,15 @@ pub(crate) async fn open(request: ConnectRequest) -> Result<Open, CommandError> 
                 .port(server.port)
                 .username(&server.user)
                 .password(&password)
-                .application_name("QueryCraft");
+                .application_name("QueryCraft")
+                .ssl_mode(server.ssl_mode.postgres());
+            if !server.ssl_ca.is_empty() {
+                options = options.ssl_root_cert(&server.ssl_ca);
+            }
             if !server.database.is_empty() {
                 options = options.database(&server.database);
             }
+            probe::<sqlx::PgConnection>(&options, &server).await?;
             let pool = pool_options()
                 .connect_with(options.clone())
                 .await
@@ -423,16 +643,30 @@ pub(crate) async fn open(request: ConnectRequest) -> Result<Open, CommandError> 
                 .host(&server.host)
                 .port(server.port)
                 .username(&server.user)
-                .password(&password);
+                .password(&password)
+                .ssl_mode(server.ssl_mode.mysql());
+            if !server.ssl_ca.is_empty() {
+                options = options.ssl_ca(&server.ssl_ca);
+            }
             if !server.database.is_empty() {
                 options = options.database(&server.database);
             }
+            probe::<sqlx::MySqlConnection>(&options, &server).await?;
             let pool = pool_options()
                 .connect_with(options)
                 .await
                 .map_err(connect_failed)?;
             let show_all = server.show_all_databases;
             Open::new(Pool::Mysql(pool), server.database, show_all, None)
+        }
+        ConnectRequest::Mssql(MssqlLogin { server, password }) => {
+            require(&server.host, "Host")?;
+            if server.auth.needs_user() {
+                require(&server.user, "User")?;
+            }
+            // The first connection is opened directly, so its error is the real one
+            let (pool, database) = MssqlPool::open(&server, password).await?;
+            Open::new(Pool::Mssql(pool), database, server.show_all_databases, None)
         }
         ConnectRequest::Sqlite { path } => {
             require(&path, "File")?;
@@ -453,6 +687,13 @@ async fn database_names(pool: &Pool) -> Result<Vec<String>, CommandError> {
     let names = match pool {
         Pool::Postgres(p) => sqlx::query_scalar(PG_DATABASES).fetch_all(p).await,
         Pool::Mysql(p) => sqlx::query_scalar(MYSQL_DATABASES).fetch_all(p).await,
+        Pool::Mssql(p) => {
+            let rows = mssql::catalog_rows(p, MSSQL_DATABASES, &[]).await?;
+            return Ok(rows
+                .into_iter()
+                .map(|mut r| mssql::text(&mut r[0]))
+                .collect());
+        }
         Pool::Sqlite(_) => Ok(Vec::new()),
     };
     names.map_err(query_failed)
@@ -507,7 +748,7 @@ pub async fn connection_databases(
             (listed.first().cloned().unwrap_or_default(), true)
         }
         Pool::Mysql(_) => (open.database.clone(), true),
-        Pool::Postgres(_) => (open.database.clone(), open.show_all),
+        Pool::Postgres(_) | Pool::Mssql(_) => (open.database.clone(), open.show_all),
         Pool::Sqlite(_) => (open.database.clone(), false),
     };
     Ok(ConnectionDatabases {
@@ -547,10 +788,9 @@ pub async fn list_schemas(
     connections: State<'_, Connections>,
 ) -> Result<Vec<Schema>, CommandError> {
     let open = connections.get(&id)?;
-    match &open.pool {
-        Pool::Postgres(_) => {
-            let pool = open.pg_pool(database.as_deref()).await?;
-            let rows: Vec<(String, Option<String>, Option<bool>)> = sqlx::query_as(PG_SCHEMAS)
+    match open.pool_for(database.as_deref()).await? {
+        Pool::Postgres(pool) => {
+            let rows: Vec<SchemaRow> = sqlx::query_as(PG_SCHEMAS)
                 .fetch_all(&pool)
                 .await
                 .map_err(query_failed)?;
@@ -561,18 +801,31 @@ pub async fn list_schemas(
                 Some(database) => sqlx::query_as(MYSQL_SCHEMA).bind(database),
                 None => sqlx::query_as(MYSQL_SCHEMAS),
             };
-            let rows: Vec<(String, Option<String>, Option<bool>)> =
-                query.fetch_all(pool).await.map_err(query_failed)?;
+            let rows: Vec<SchemaRow> = query.fetch_all(&pool).await.map_err(query_failed)?;
             Ok(group_by_schema(rows))
+        }
+        Pool::Mssql(pool) => {
+            let rows = mssql::catalog_rows(&pool, MSSQL_SCHEMAS, &[]).await?;
+            let rows = rows.into_iter().map(|mut r| {
+                let size = mssql::int(&mut r[3]);
+                let view = mssql::flag(&mut r[2]);
+                let table = r[1].take();
+                (mssql::text(&mut r[0]), table, view, size)
+            });
+            Ok(group_by_schema(rows.collect()))
         }
         Pool::Sqlite(pool) => {
             let tables: Vec<(String, bool)> = sqlx::query_as(SQLITE_TABLES)
-                .fetch_all(pool)
+                .fetch_all(&pool)
                 .await
                 .map_err(query_failed)?;
             let tables = tables
                 .into_iter()
-                .map(|(name, view)| Table { name, view })
+                .map(|(name, view)| Table {
+                    name,
+                    view,
+                    size_bytes: None,
+                })
                 .collect();
             Ok(vec![Schema {
                 name: "main".into(),
@@ -582,12 +835,59 @@ pub async fn list_schemas(
     }
 }
 
+/// Every column of every table in `database` (Postgres: that database's pool; MySQL: that
+/// database, else the saved one, else all user databases; SQLite: the file), in one round trip.
+/// Metadata only, never row data, so it isn't audited.
+#[tauri::command]
+#[specta::specta]
+pub async fn list_columns(
+    id: String,
+    database: Option<String>,
+    connections: State<'_, Connections>,
+) -> Result<Vec<ColumnInfo>, CommandError> {
+    let open = connections.get(&id)?;
+    let rows: Vec<(String, String, String, String)> =
+        match open.pool_for(database.as_deref()).await? {
+            Pool::Postgres(pool) => sqlx::query_as(PG_COLUMNS).fetch_all(&pool).await,
+            Pool::Mysql(pool) => match database
+                .as_deref()
+                .filter(|d| !d.is_empty())
+                .or(open.scope())
+            {
+                Some(database) => {
+                    sqlx::query_as(MYSQL_COLUMNS)
+                        .bind(database)
+                        .fetch_all(&pool)
+                        .await
+                }
+                None => sqlx::query_as(MYSQL_ALL_COLUMNS).fetch_all(&pool).await,
+            },
+            Pool::Mssql(pool) => {
+                let rows = mssql::catalog_rows(&pool, MSSQL_COLUMNS, &[]).await?;
+                return Ok(rows
+                    .into_iter()
+                    .map(|mut r| {
+                        ColumnInfo::from((
+                            mssql::text(&mut r[0]),
+                            mssql::text(&mut r[1]),
+                            mssql::text(&mut r[2]),
+                            mssql::text(&mut r[3]),
+                        ))
+                    })
+                    .collect());
+            }
+            Pool::Sqlite(pool) => sqlx::query_as(SQLITE_COLUMNS).fetch_all(&pool).await,
+        }
+        .map_err(query_failed)?;
+    Ok(rows.into_iter().map(ColumnInfo::from).collect())
+}
+
 /// Folds rows already sorted by schema into nested schemas.
 /// O(n) time, no extra space beyond the output; each String is moved, never cloned.
 /// A row with no table is an empty schema (from the LEFT JOIN).
-fn group_by_schema(rows: Vec<(String, Option<String>, Option<bool>)>) -> Vec<Schema> {
+fn group_by_schema(rows: Vec<SchemaRow>) -> Vec<Schema> {
     let mut schemas: Vec<Schema> = Vec::new();
-    for (schema, table, view) in rows {
+    for (schema, table, view, size_bytes) in rows {
         if schemas.last().is_none_or(|s| s.name != schema) {
             schemas.push(Schema {
                 name: schema,
@@ -599,6 +899,7 @@ fn group_by_schema(rows: Vec<(String, Option<String>, Option<bool>)>) -> Vec<Sch
             last.tables.push(Table {
                 name,
                 view: view.unwrap_or(false),
+                size_bytes,
             });
         }
     }
@@ -611,20 +912,23 @@ mod tests {
 
     #[test]
     fn groups_sorted_rows_and_keeps_empty_schemas() {
-        let row = |s: &str, t: Option<&str>, v| (s.to_string(), t.map(String::from), v);
+        let row = |s: &str, t: Option<&str>, v, b| (s.to_string(), t.map(String::from), v, b);
         let schemas = group_by_schema(vec![
-            row("empty", None, None),
-            row("public", Some("orders"), Some(false)),
-            row("public", Some("totals"), Some(true)),
+            row("empty", None, None, None),
+            row("public", Some("orders"), Some(false), Some(8192)),
+            row("public", Some("totals"), Some(true), None),
         ]);
         assert_eq!(schemas.len(), 2);
         assert!(schemas[0].tables.is_empty());
         let names: Vec<_> = schemas[1]
             .tables
             .iter()
-            .map(|t| (t.name.as_str(), t.view))
+            .map(|t| (t.name.as_str(), t.view, t.size_bytes))
             .collect();
-        assert_eq!(names, [("orders", false), ("totals", true)]);
+        assert_eq!(
+            names,
+            [("orders", false, Some(8192)), ("totals", true, None)]
+        );
     }
 
     #[tokio::test]
@@ -661,6 +965,32 @@ mod tests {
         assert_eq!(
             rows,
             [("a".into(), false), ("b".into(), false), ("v".into(), true)]
+        );
+    }
+
+    #[tokio::test]
+    async fn lists_sqlite_columns_in_table_order() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        sqlx::query("CREATE TABLE t (id INTEGER, name TEXT); CREATE VIEW v AS SELECT name FROM t")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let rows: Vec<(String, String, String, String)> = sqlx::query_as(SQLITE_COLUMNS)
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+        let columns: Vec<ColumnInfo> = rows.into_iter().map(ColumnInfo::from).collect();
+        let names: Vec<_> = columns
+            .iter()
+            .map(|c| (c.table.as_str(), c.name.as_str(), c.type_name.as_str()))
+            .collect();
+        assert_eq!(
+            names,
+            [
+                ("t", "id", "INTEGER"),
+                ("t", "name", "TEXT"),
+                ("v", "name", "TEXT")
+            ]
         );
     }
 }

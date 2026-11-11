@@ -1,8 +1,10 @@
 import { useEffect } from 'react';
+import { formatEditor } from '@/lib/format-editor';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useQuery } from '@/stores/query';
 import { useUi, type Theme } from '@/stores/ui';
+import type { Motion } from '@/lib/spring';
 import { isMac, isTauri } from '@/lib/utils';
 import { views } from './Rail';
 
@@ -25,7 +27,7 @@ export type MenuEntry = MenuItem | Submenu | 'separator';
 export type Menu = { label: string; entries: MenuEntry[] };
 
 /** The store fields the ticks show */
-export type MenuState = Pick<ReturnType<typeof useUi.getState>, 'sidebarOpen' | 'inspectorOpen' | 'theme'>;
+export type MenuState = Pick<ReturnType<typeof useUi.getState>, 'sidebarOpen' | 'inspectorOpen' | 'theme' | 'motion'>;
 
 /** Item id → what it does. Items with no action are features that aren't built yet. */
 export type Actions = Partial<Record<string, () => void>>;
@@ -36,14 +38,22 @@ const themes: { value: Theme; label: string }[] = [
     { value: 'system', label: 'Match system' },
 ];
 
+const motions: { value: Motion; label: string }[] = [
+    { value: 'spring', label: 'Spring physics' },
+    { value: 'subtle', label: 'Subtle' },
+    { value: 'off', label: 'Reduced' },
+];
+
 export const menus: Menu[] = [
     {
         label: 'File',
         entries: [
+            { id: 'new-query', label: 'New query', keys: 'Ctrl+T' },
             { id: 'new-connection', label: 'New connection…' },
             { id: 'open-file', label: 'Open SQL file…', keys: 'Ctrl+O' },
             'separator',
             { id: 'save', label: 'Save', keys: 'Ctrl+S' },
+            { id: 'close-tab', label: 'Close tab', keys: 'Ctrl+W' },
             'separator',
             { id: 'settings', label: 'Settings…', keys: 'Ctrl+,' },
             'separator',
@@ -78,6 +88,11 @@ export const menus: Menu[] = [
                 items: themes.map(({ value, label }) => ({ id: `theme-${value}`, label })),
                 selected: (s) => `theme-${s.theme}`,
             },
+            {
+                label: 'Motion',
+                items: motions.map(({ value, label }) => ({ id: `motion-${value}`, label })),
+                selected: (s) => `motion-${s.motion}`,
+            },
         ],
     },
     {
@@ -86,8 +101,9 @@ export const menus: Menu[] = [
             { id: 'run', label: 'Run', keys: 'Ctrl+Enter' },
             { id: 'stop', label: 'Stop' },
             'separator',
-            { id: 'explain', label: 'Explain' },
-            { id: 'format', label: 'Format' },
+            { id: 'explain', label: 'Explain', keys: 'Ctrl+E' },
+            { id: 'explain-analyze', label: 'Explain analyze', keys: 'Ctrl+Shift+E' },
+            { id: 'format', label: 'Format', keys: 'Shift+Alt+F' },
         ],
     },
     {
@@ -131,7 +147,23 @@ export function createActions(openConnect: () => void): Actions {
         'toggle-sidebar': () => ui().toggleSidebar(),
         'toggle-inspector': () => ui().toggleInspector(),
         ...Object.fromEntries(themes.map(({ value }) => [`theme-${value}`, () => ui().setTheme(value)])),
+        ...Object.fromEntries(motions.map(({ value }) => [`motion-${value}`, () => ui().setMotion(value)])),
+        'new-query': () => useQuery.getState().newQuery(),
+        // A table tab's Save shows the Changes panel first; its Save buttons write the edits
+        save: () => {
+            const { activeTab, tables, save } = useQuery.getState();
+            if (tables.some((t) => t.id === activeTab)) ui().setChangesOpen(true);
+            else save();
+        },
+        'close-tab': () => {
+            const { activeTab, requestClose } = useQuery.getState();
+            requestClose([activeTab]);
+        },
+        ...(isTauri && { 'close-window': () => void getCurrentWindow().close() }),
         run: () => void useQuery.getState().run(),
+        explain: () => void useQuery.getState().explain(),
+        'explain-analyze': () => void useQuery.getState().explain(true),
+        format: () => void formatEditor(),
     };
 }
 
@@ -141,7 +173,19 @@ export function useNativeMenu(actions: Actions) {
         if (!isMac || !isTauri) return;
         // Same name as MENU_EVENT in src-tauri/src/chrome.rs
         const unlisten = listen<string>('menu', (event) => actions[event.payload]?.());
-        return () => void unlisten.then((stop) => stop());
+        // The native menu's Run is ⌘ Enter; Ctrl+Enter runs too, outside the editor as well (the
+        // editor binds it itself and marks the event handled, so it doesn't run twice)
+        function onKeyDown(event: KeyboardEvent) {
+            if (event.ctrlKey && !event.metaKey && event.key === 'Enter' && !event.defaultPrevented) {
+                event.preventDefault();
+                actions.run?.();
+            }
+        }
+        window.addEventListener('keydown', onKeyDown);
+        return () => {
+            window.removeEventListener('keydown', onKeyDown);
+            void unlisten.then((stop) => stop());
+        };
     }, [actions]);
 }
 

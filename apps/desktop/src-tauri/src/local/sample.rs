@@ -43,6 +43,7 @@ pub(crate) fn starter_sql(pool: &Pool) -> &'static str {
         Pool::Postgres(_) => QUERIES_POSTGRES,
         Pool::Mysql(_) => QUERIES_MYSQL,
         Pool::Sqlite(_) => QUERIES_SQLITE,
+        Pool::Mssql(_) => unreachable!("local databases are never SQL Server"),
     }
 }
 
@@ -64,6 +65,7 @@ async fn foreign_tables(pool: &Pool) -> Result<Vec<String>, CommandError> {
         }
         Pool::Mysql(p) => sqlx::query_as(MYSQL_EXISTING).fetch_all(p).await,
         Pool::Sqlite(p) => sqlx::query_as(SQLITE_EXISTING).fetch_all(p).await,
+        Pool::Mssql(_) => unreachable!("local databases are never SQL Server"),
     }
     .map_err(failed)?;
     Ok(existing
@@ -109,6 +111,7 @@ pub(crate) async fn load(pool: &Pool) -> Result<(), CommandError> {
                 .map_err(failed)?;
             tx.commit().await.map_err(failed)
         }
+        Pool::Mssql(_) => unreachable!("local databases are never SQL Server"),
     }
 }
 
@@ -128,6 +131,7 @@ pub(crate) async fn row_counts(pool: &Pool) -> Result<Vec<i64>, CommandError> {
             Pool::Postgres(p) => sqlx::query_scalar(sql).fetch_one(p).await,
             Pool::Mysql(p) => sqlx::query_scalar(sql).fetch_one(p).await,
             Pool::Sqlite(p) => sqlx::query_scalar(sql).fetch_one(p).await,
+            Pool::Mssql(_) => unreachable!("local databases are never SQL Server"),
         }
         .map_err(failed)?;
         counts.push(count);

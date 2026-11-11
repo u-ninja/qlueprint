@@ -1,0 +1,7 @@
+# Debug builds on macOS run through a script that signs them with a stable local identity, so the
+# Keychain doesn't ask for the login password after every rebuild (see scripts/dev-run.sh)
+[target.aarch64-apple-darwin]
+runner = "scripts/dev-run.sh"
+
+[target.x86_64-apple-darwin]
+runner = "scripts/dev-run.sh"
