@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Source for every app icon: `pnpm tauri icon src-tauri/icons/logo.svg`. Body follows the macOS 824px grid. -->
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#23262e"/>
+      <stop offset="1" stop-color="#16181d"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#body)"/>
+  <rect x="101" y="101" width="822" height="822" rx="184" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="2"/>
+  <!-- A Q drawn in result-grid cells (5×5, 92px cells, 107px pitch); the selected cell slips out as the tail -->
+  <g fill="#d6dae2">
+    <rect x="359" y="252" width="92" height="92" rx="18"/>
+    <rect x="466" y="252" width="92" height="92" rx="18"/>
+    <rect x="573" y="252" width="92" height="92" rx="18"/>
+    <rect x="252" y="359" width="92" height="92" rx="18"/>
+    <rect x="680" y="359" width="92" height="92" rx="18"/>
+    <rect x="252" y="466" width="92" height="92" rx="18"/>
+    <rect x="680" y="466" width="92" height="92" rx="18"/>
+    <rect x="252" y="573" width="92" height="92" rx="18"/>
+    <rect x="573" y="573" width="92" height="92" rx="18"/>
+    <rect x="359" y="680" width="92" height="92" rx="18"/>
+    <rect x="466" y="680" width="92" height="92" rx="18"/>
+  </g>
+  <rect x="680" y="680" width="92" height="92" rx="18" fill="#3f7fea"/>
+</svg>

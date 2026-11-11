@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
-import { Database, FilePen, Monitor, Moon, Sun, type LucideIcon } from 'lucide-react';
+import { FilePen, Monitor, Moon, Sun, type LucideIcon } from 'lucide-react';
 import { useUi, type Theme } from '@/stores/ui';
 import { auth } from '@/lib/auth';
 import { cn, count, isMac, isTauri, saveShortcut } from '@/lib/utils';
@@ -15,6 +15,21 @@ const themes: { value: Theme; label: string; icon: LucideIcon }[] = [
     { value: 'light', label: 'Light theme', icon: Sun },
     { value: 'dark', label: 'Dark theme', icon: Moon },
     { value: 'system', label: 'Match system theme', icon: Monitor },
+];
+
+// [column, row] of the logo's neutral cells on its 5×5 grid
+const qCells = [
+    [1, 0],
+    [2, 0],
+    [3, 0],
+    [0, 1],
+    [4, 1],
+    [0, 2],
+    [4, 2],
+    [0, 3],
+    [3, 3],
+    [1, 4],
+    [2, 4],
 ];
 
 // Windows and Linux: the window has no OS title bar, so this draws the menu and window buttons.
@@ -76,9 +91,13 @@ export function TopBar() {
             {/* Room for the traffic lights, placed by src-tauri/src/chrome.rs */}
             {isTauri && isMac && <div className="w-[58px] flex-none" aria-hidden />}
             <div className="flex flex-none items-center gap-2 font-semibold">
-                <span className="grid size-6 place-items-center rounded-md bg-primary text-primary-foreground">
-                    <Database className="size-3.5" aria-hidden />
-                </span>
+                {/* The app icon's mark (src-tauri/icons/logo.svg): a Q in grid cells, the selected one is the tail */}
+                <svg viewBox="0 0 4.86 4.86" className="size-[18px] text-fg2" aria-hidden>
+                    {qCells.map(([x, y]) => (
+                        <rect key={`${x}${y}`} x={x} y={y} width="0.86" height="0.86" rx="0.17" fill="currentColor" />
+                    ))}
+                    <rect x="4" y="4" width="0.86" height="0.86" rx="0.17" className="fill-primary" />
+                </svg>
                 QueryCraft
             </div>
             {!isMac && <AppMenu actions={actions} />}
