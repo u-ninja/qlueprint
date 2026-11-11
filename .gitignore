@@ -1,5 +1,8 @@
 node_modules
 pnpm-*
+# The desktop app's lockfile and build settings: CI installs from them
+!apps/desktop/pnpm-lock.yaml
+!apps/desktop/pnpm-workspace.yaml
 .env
 .playwright-mcp
 

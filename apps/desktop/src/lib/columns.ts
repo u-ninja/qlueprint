@@ -71,6 +71,32 @@ export function homeSchema(kind: Connection['kind'], database: string) {
     return kind === 'mssql' ? 'dbo' : 'main';
 }
 
+// A name, bare or quoted the way any of the engines quote it
+const ident = String.raw`(?:"[^"]+"|\x60[^\x60]+\x60|\[[^\]]+\]|[\p{L}_][\p{L}\p{N}_$]*)`;
+// Bare columns only: a renamed or computed column could stage an edit onto the wrong column
+const column = String.raw`(?:${ident}\s*\.\s*)?(?:${ident}|\*)`;
+const singleTable = new RegExp(
+    String.raw`^select\s+(?:top\s*\(?\s*\d+\s*\)?\s+)?${column}(?:\s*,\s*${column})*\s+from\s+(${ident})(?:\s*\.\s*(${ident}))?` +
+        String.raw`(?:\s+(?:as\s+)?(?!(?:where|order|limit|offset|fetch|for)\b)${ident})?(?:\s+(?:where|order\s+by|limit|offset|fetch|for)\b[\s\S]*)?$`,
+    'iu',
+);
+
+/**
+ * The one table a plain `SELECT cols FROM table [WHERE …]` reads, so its rows can be edited like a table tab's;
+ * undefined for anything else (joins, grouping, unions, subqueries, expressions, several statements).
+ * The table tab's identity: MySQL's schema is its database, as in the explorer
+ */
+export function sourceTable(sql: string, kind: Connection['kind'], database: string) {
+    const text = sql.trim().replace(/;\s*$/, '');
+    const m = singleTable.exec(text);
+    if (!m || /\b(?:join|union|intersect|except|group\s+by|having)\b|\(\s*select\b/i.test(text)) return undefined;
+    // Postgres folds unquoted names to lower case
+    const unquote = (name: string) => (/^["`[]/.test(name) ? name.slice(1, -1) : kind === 'postgres' ? name.toLowerCase() : name);
+    const table = unquote(m[2] ?? m[1]);
+    const schema = m[2] ? unquote(m[1]) : homeSchema(kind, database);
+    return { database: kind === 'mysql' ? schema : database, schema, table };
+}
+
 /**
  * Columns grouped schema → table → columns, with a case-insensitive index for lookups. Built once per
  * fetched list (the cache hands out the same array until a refresh), not on every keystroke.

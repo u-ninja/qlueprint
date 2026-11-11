@@ -6,6 +6,7 @@ import { errorMessage, useConnections, type Connection } from './connections';
 import { filterSql, type ColumnFilter } from '@/lib/column-filter';
 import { quoteName, sqlValue } from '@/lib/sql-quote';
 import { tableKey } from '@/lib/table-details';
+import { sourceTable } from '@/lib/columns';
 import { markAccepted } from '@/lib/sql-lint';
 import { useUi } from './ui';
 
@@ -121,8 +122,8 @@ type QueryState = {
     renameQuery: (id: string, title: string) => void;
     /** A copy of a query tab, unsaved, right after it */
     duplicateQuery: (id: string) => void;
-    /** Opens (or focuses and reloads) a tab with the table's first rows; `filters` replace the tab's filter and WHERE */
-    openTable: (connectionId: string, database: string, schema: string, table: string, filters?: ColumnFilter[]) => Promise<void>;
+    /** Opens (or focuses and reloads) a tab with the table's first rows; `filters` replace the tab's filter and WHERE. `show` false opens it behind the current tab */
+    openTable: (connectionId: string, database: string, schema: string, table: string, filters?: ColumnFilter[], show?: boolean) => Promise<void>;
     /** Changes a table tab's filter or order and reloads it */
     queryTable: (id: string, change: Partial<Pick<TableTab, 'where' | 'sort' | 'filters' | 'all'>>) => Promise<void>;
     /** Stages cells' new values (null for NULL) on a table tab as one undo step; back to the loaded value unstages a cell */
@@ -317,6 +318,24 @@ window.addEventListener('pagehide', flush);
 type Saved = { queries: Pick<QueryTab, 'id' | 'title' | 'saved' | 'connectionId' | 'database'>[]; currentQuery: string };
 
 /** A query tab has unsaved changes, or a table tab unsaved edits */
+/** A table tab before its first load */
+export const newTableTab = (t: Pick<TableTab, 'connectionId' | 'database' | 'schema' | 'table'>): TableTab => ({
+    ...t,
+    id: tableKey(t),
+    where: '',
+    filters: [],
+    sort: null,
+    all: false,
+    runningSince: null,
+    outcome: null,
+    edits: {},
+    undo: [],
+    redo: [],
+    editsError: null,
+    saving: false,
+    focus: null,
+});
+
 export const isDirty = (t: QueryTab | TableTab) => ('edits' in t ? editCount(t) > 0 : t.sql !== t.saved);
 
 export const useQuery = create<QueryState>()(
@@ -454,32 +473,14 @@ export const useQuery = create<QueryState>()(
                     set((s) => ({ queries: [...s.queries, tab], currentQuery: tab.id, activeTab: tab.id }));
                 },
 
-                openTable: async (connectionId, database, schema, table, filters) => {
+                openTable: async (connectionId, database, schema, table, filters, show = true) => {
                     const id = tableKey({ connectionId, database, schema, table });
                     if (!get().tables.some((t) => t.id === id)) {
-                        const tab: TableTab = {
-                            id,
-                            connectionId,
-                            database,
-                            schema,
-                            table,
-                            where: '',
-                            filters: [],
-                            sort: null,
-                            all: false,
-                            runningSince: null,
-                            outcome: null,
-                            edits: {},
-                            undo: [],
-                            redo: [],
-                            editsError: null,
-                            saving: false,
-                            focus: null,
-                        };
+                        const tab = newTableTab({ connectionId, database, schema, table });
                         set((s) => ({ tables: [...s.tables, tab] }));
                     }
                     if (filters && !holdEdits(id)) updateTable(id, { filters, where: '' });
-                    set({ activeTab: id });
+                    if (show) set({ activeTab: id });
                     await loadTable(id);
                 },
 
@@ -550,6 +551,13 @@ export const useQuery = create<QueryState>()(
                     }
                     log(true, `Saved ${n === 1 ? '1 change' : `${n.toLocaleString()} changes`} to ${tab.schema}.${tab.table}`);
                     updateTable(id, { saving: false, edits: {}, undo: [], redo: [] });
+                    // Query results read from this table show the saved values too (their edits were staged here)
+                    for (const q of get().queries) {
+                        const run = q.lastRun;
+                        const from = run && run.connectionId === tab.connectionId && sourceTable(run.sql, kind, run.database);
+                        if (run && from && tableKey({ connectionId: run.connectionId, ...from }) === id && q.runningSince === null)
+                            void execute(run.connectionId, run.sql, run.database).then((last) => updateQuery(q.id, { last }));
+                    }
                     await loadTable(id);
                     return true;
                 },

@@ -93,6 +93,8 @@ pub fn run() {
     builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_oauth::init())
+        // Brings back the window's size, position, and maximized or full-screen state from the last run
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         // Serve the built app over http://localhost: Neon Auth rejects the tauri:// origin
         .plugin(tauri_plugin_localhost::Builder::new(LOCALHOST_PORT).build())
         .setup(move |app| {
@@ -130,7 +132,10 @@ pub fn run() {
 
             chrome::title_bar(WebviewWindowBuilder::new(app, "main", url))
                 .title("querycraft")
-                .inner_size(800.0, 600.0)
+                // First launch only: after that the window-state plugin restores the last size
+                .inner_size(1280.0, 800.0)
+                .min_inner_size(960.0, 600.0)
+                .center()
                 .build()?;
 
             Ok(())

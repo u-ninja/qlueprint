@@ -6,11 +6,23 @@ import { Kbd } from '@/components/ui/kbd';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { schemasOf } from '@/components/shell/Explorer';
 import { useConnections, type Connection } from '@/stores/connections';
-import { activeConnection, activeDatabase, currentQuery, rowKey, rerunnable, summary, useQuery, type Outcome, type TableTab } from '@/stores/query';
+import {
+    activeConnection,
+    activeDatabase,
+    currentQuery,
+    newTableTab,
+    rowKey,
+    rerunnable,
+    summary,
+    useQuery,
+    type Outcome,
+    type TableTab,
+} from '@/stores/query';
 import { useUi, type Inspected, type ResultsTab } from '@/stores/ui';
 import { useCopy } from '@/lib/use-copy';
 import { filterRows, type ColumnFilter } from '@/lib/column-filter';
-import { useTableDetails, type Related } from '@/lib/table-details';
+import { sourceTable } from '@/lib/columns';
+import { tableKey, useTableDetails, type Related } from '@/lib/table-details';
 import { ResultsGrid, type Editor } from './ResultsGrid';
 import { useFields } from './CellEditor';
 import { LoadAllButton, shapeChips, StatusBar, TableStatusBar, type Shape } from './StatusBar';
@@ -110,22 +122,33 @@ function ResultsView({ shape, setShape }: { shape: Shape; setShape: (change: Par
     const last = useQuery((s) => currentQuery(s).last);
     const connectionId = useQuery((s) => currentQuery(s).connectionId);
     const engine = useConnections((s) => activeConnection(s.connections, connectionId)?.kind);
+    const lastRun = useQuery((s) => currentQuery(s).lastRun);
+    const from = useMemo(() => lastRun && engine && sourceTable(lastRun.sql, engine, lastRun.database), [lastRun, engine]);
 
     if (!last) return runningSince === null ? <Empty text="Run a query to see results here" keys={runShortcut} does="runs" /> : <Running />;
+    const view = {
+        outcome: last,
+        engine,
+        sort: shape.sort,
+        onSort: (sort: Shape['sort']) => setShape({ sort }),
+        filters: shape.filters,
+        onFiltersChange: (filters: ColumnFilter[]) => setShape({ filters }),
+    };
     return (
         // The previous result stays visible but dims until the new one returns; the tab strip says so.
         // The dim waits 300 ms so a quick re-run swaps the result without the grid flashing, and lifts at once
         <div className={cn('h-full transition-opacity duration-200', runningSince !== null && 'opacity-50 delay-300')}>
-            <OutcomeView
-                outcome={last}
-                engine={engine}
-                sort={shape.sort}
-                onSort={(sort) => setShape({ sort })}
-                filters={shape.filters}
-                onFiltersChange={(filters) => setShape({ filters })}
-            />
+            {from && lastRun ? <TableQueryOutcome from={{ connectionId: lastRun.connectionId, ...from }} {...view} /> : <OutcomeView {...view} />}
         </div>
     );
+}
+
+/** A query result read from one table: editable like that table's tab, with its edits staged there */
+function TableQueryOutcome({ from, ...view }: { from: Inspected } & ComponentProps<typeof OutcomeView>) {
+    const open = useQuery((s) => s.tables.find((t) => t.id === tableKey(from)));
+    // The grid's rows are the query's; focus belongs to the table tab's own grid
+    const { editor } = useTableEditing({ ...(open ?? newTableTab(from)), outcome: view.outcome, focus: null });
+    return <OutcomeView {...view} editor={editor} />;
 }
 
 /** Right side of the tab strip: what's running, or what the shown result is */
@@ -354,7 +377,7 @@ const tab = 'flex-none px-0.5 text-[13px]';
  * how each column is edited, and whether it can be: the grid and the Changes panel both read them
  */
 export function useTableEditing(t: TableTab) {
-    const { stageEdits, undoEdits, focusCell } = useQuery.getState();
+    const { stageEdits, undoEdits, focusCell, openTable } = useQuery.getState();
     const engine = useConnections((s) => s.connections.find((c) => c.id === t.connectionId)?.kind);
     const details = useTableDetails(t);
     const columns = t.outcome?.ok ? t.outcome.output.columns : undefined;
@@ -390,14 +413,15 @@ export function useTableEditing(t: TableTab) {
         edits: t.edits,
         field: (col) => fields[col],
         // The one place NOT NULL is kept: Delete, Set to NULL and pasting an empty cell all stage through here
-        stage: (cells) =>
-            stageEdits(
-                t.id,
-                cells.flatMap(({ row, col, to }) => {
-                    const values = pkOf(row);
-                    return values && (to !== null || fields[col].nullable) ? [{ pk: values, column: columns[col].name, from: row[col], to }] : [];
-                }),
-            ),
+        stage: (cells) => {
+            const staged = cells.flatMap(({ row, col, to }) => {
+                const values = pkOf(row);
+                return values && (to !== null || fields[col].nullable) ? [{ pk: values, column: columns[col].name, from: row[col], to }] : [];
+            });
+            // Edits in a query's result go to its table's tab, opened behind the query on the first one
+            if (useQuery.getState().tables.some((x) => x.id === t.id)) stageEdits(t.id, staged);
+            else void openTable(t.connectionId, t.database, t.schema, t.table, undefined, false).then(() => stageEdits(t.id, staged));
+        },
         undo: (redo) => undoEdits(t.id, redo),
         focus: t.focus,
         focused: () => focusCell(t.id, null),

@@ -5,7 +5,6 @@ import { auth } from '@/lib/auth';
 import { cn, count, isMac, isTauri, saveShortcut } from '@/lib/utils';
 import { useSpring } from '@/lib/spring';
 import { totalEdits, useQuery } from '@/stores/query';
-import { AccountButton } from './AccountButton';
 import { AppMenu } from './AppMenu';
 import { ConnectDialog } from './ConnectDialog';
 import { createActions, useNativeMenu } from './menu';
@@ -132,7 +131,7 @@ export function TopBar() {
                         </button>
                     ))}
                 </div>
-                <AccountButton />
+                {/* shortcut: accounts are hidden until sign-in ships; put back <AccountButton /> to show it */}
             </div>
             {ownControls && <WindowControls />}
             {/* shortcut: File › New connection opens the dialog through this hidden trigger; give

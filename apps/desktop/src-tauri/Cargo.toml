@@ -44,6 +44,7 @@ quick-xml = "0.42"
 base64 = "0.22"
 url = "2"
 getrandom = "0.3"
+tauri-plugin-window-state = "2"
 
 # tiberius 0.13.0 plus the TDS federated-authentication (ADAL/MSAL) workflow, so an Entra sign-in
 # can ask the server which tenant it trusts. See vendor/tiberius/QUERYCRAFT_PATCH.md
