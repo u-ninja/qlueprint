@@ -1,90 +1,91 @@
+<div align="center">
+
+<img src="apps/desktop/src-tauri/icons/128x128@2x.png" width="96" alt="QueryCraft">
+
 # QueryCraft
 
-A local-first database workspace for the desktop: connect to databases, write and run SQL, browse data, inspect schemas, and spin up local database servers in one click. No account required.
+**A local-first database workspace for the desktop.**
+Connect to PostgreSQL, MySQL, MariaDB, SQL Server and SQLite, write and run SQL, browse and edit data, and spin up local database servers in a click. No account, no cloud, no telemetry.
 
-![QueryCraft workspace concept](docs/assets/concept-local-servers.png)
+[Download](https://github.com/u-ninja/querycraft/releases/latest) · [Features](#features) · [Install](#install) · [Build from source](#build-from-source) · [License](#license)
 
-<sub>Design concept. QueryCraft is in early development; the app does not look like this yet.</sub>
+</div>
 
-<details>
-<summary>More concepts</summary>
+![QueryCraft workspace](docs/assets/concept-local-servers.png)
 
-| SQL workspace                                       | Local workspace home                                            |
-| --------------------------------------------------- | --------------------------------------------------------------- |
-| ![SQL workspace](docs/assets/workspace-concept.png) | ![Local workspace home](docs/assets/concept-workspace-home.png) |
+<sub>Design concept. The shipping app follows the same design language; real screenshots are coming.</sub>
 
-</details>
+## Features
 
-## About
+**Connections**
 
-QueryCraft is a desktop database IDE for developers and DBAs. It aims to be as capable as established database tools while staying approachable for people who don't work with databases every day.
+- PostgreSQL, MySQL, MariaDB, SQL Server and SQLite.
+- Azure SQL and Microsoft Fabric warehouses with Microsoft Entra sign-in (MFA, Azure CLI, managed identity), including guest accounts in another tenant.
+- Passwords and sign-ins live in your system’s credential store (Keychain, Credential Manager, Secret Service), never in plain files.
+- **Workspaces**: keep each client’s connections and query tabs apart, and switch between them from the top bar.
 
-- **Local-first.** Install it and use it. Everything except team collaboration works without signing in, without a cloud service, and offline.
-- **One app for the whole workflow.** Connections, schema explorer, SQL editor, results grid, query history, and snippets live in one workspace.
-- **Local database servers.** Create a SQLite database, or a PostgreSQL or MySQL server, from inside the app, with its connection set up for you.
-- **Optional collaboration.** Sign in only if you want shared workspaces and live SQL documents. Sharing a query never shares your database credentials.
-- **Light and dark themes.** Both are first-class, along with keyboard navigation and accessible contrast.
+**Explorer**
 
-The full product, design system, and architecture specification is in [docs/product-spec.md](docs/product-spec.md).
+- Databases, schemas, tables, views, stored procedures and functions, grouped and filterable.
+- Table sizes at a glance, and an inspector with columns, keys, indexes, foreign keys and DDL.
+- Open a procedure or function’s definition in a new query tab.
 
-## Status
+**SQL editor**
 
-Early development. Nothing here is ready for real use yet.
+- Monaco editor with schema-aware autocomplete, diagnostics and formatting.
+- Several query tabs, each with its own connection and database.
+- Explain and Explain Analyze with a readable plan.
 
-| Area                                               | State                           |
-| -------------------------------------------------- | ------------------------------- |
-| Desktop shell (Tauri 2 + React)                    | Scaffolded                      |
-| Local backend (Rust, inside the Tauri app)         | Not started                     |
-| Cloud API (Fastify + Drizzle + PostgreSQL)         | Scaffolded, with a users module |
-| Cloud sign-in (Neon Auth: Google + email/password) | Working prototype               |
-| Database connections, SQL editor, results grid     | Not started                     |
-| Local server provisioning                          | Not started                     |
-| Collaboration                                      | Not started                     |
+**Results and data**
 
-Windows is the first release target; the code is kept cross-platform and is currently developed on macOS.
+- A fast, virtualized grid: sort, filter and find, with sorting done by the database when a result is cut off.
+- Edit cells in table tabs and in single-table query results. Changes are staged, undoable and saved in one transaction.
+- Follow foreign keys to related rows; copy rows as CSV, JSON or INSERT statements.
 
-## Tech stack
+**Local servers**
 
-| Layer                 | Technology                                                                                                                            |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Desktop UI            | [Tauri 2](https://tauri.app), React 19, TypeScript, Vite                                                                              |
-| Local backend         | Rust inside the Tauri app: database drivers, OS keychain, local server management. No separate local server or open port.             |
-| Cloud API             | Node.js, [Fastify 5](https://fastify.dev), [Drizzle ORM](https://orm.drizzle.team). Only used for optional sign-in and collaboration. |
-| Cloud database & auth | PostgreSQL on [Neon](https://neon.com), Neon Auth                                                                                     |
-| Package manager       | pnpm                                                                                                                                  |
+- Create a PostgreSQL, MySQL or MariaDB server in Docker, or a SQLite file, with its connection set up for you. Start, stop and inspect logs from the app.
 
-Planned additions such as Monaco Editor, Tailwind CSS, and shadcn/ui are listed in the [spec](docs/product-spec.md#21-desktop-application).
+**Trust**
 
-## Repository layout
+- A tamper-evident audit log of everything the app ran against your databases, kept on your machine.
+- Light and dark themes, full keyboard navigation and accessible contrast.
 
-```text
-querycraft/
-├── apps/
-│   ├── api/          # Cloud API (Fastify, Drizzle migrations in drizzle/): sign-in, collaboration
-│   └── desktop/      # Tauri 2 app: React UI in src/, Rust local backend in src-tauri/
-└── docs/
-    └── product-spec.md
-```
+Not built yet: saved query library, query history view, team collaboration. See the [product spec](docs/product-spec.md) for what’s planned.
 
-## Getting started
+## Install
 
-### Prerequisites
+Download the installer for your system from the [latest release](https://github.com/u-ninja/querycraft/releases/latest).
 
-- [Node.js](https://nodejs.org) (current LTS or newer)
-- [pnpm](https://pnpm.io)
-- [Rust](https://www.rust-lang.org/tools/install) and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your OS
-- A PostgreSQL database with Neon Auth enabled (only needed for the cloud API and sign-in)
+| System                | File                                           |
+| --------------------- | ---------------------------------------------- |
+| macOS (Apple Silicon) | `querycraft_<version>_aarch64.dmg`             |
+| Windows (64-bit)      | `querycraft_<version>_x64-setup.exe` or `.msi` |
+| Linux (64-bit)        | `.AppImage`, `.deb` or `.rpm`                  |
 
-### Cloud API (optional)
+**First launch.** The builds aren’t notarized by Apple or signed for Windows yet, so the system asks once:
 
-Only needed for sign-in. The desktop app is meant to work without it.
+- **macOS 15 or later:** open the app, close the warning, then go to **System Settings → Privacy & Security** and click **Open Anyway**. Or run `xattr -dr com.apple.quarantine /Applications/querycraft.app`.
+- **macOS 14 and earlier:** right-click the app and choose **Open**.
+- **Windows:** on the SmartScreen prompt, click **More info → Run anyway**.
+
+## Build from source
+
+You need [Node.js](https://nodejs.org) (current LTS or newer), [pnpm](https://pnpm.io), [Rust](https://www.rust-lang.org/tools/install) and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your system.
 
 ```sh
-cd apps/api
+cd apps/desktop
 pnpm install
+pnpm tauri dev      # run it
+pnpm tauri build    # make installers in src-tauri/target/release/bundle
 ```
 
-Create `apps/api/.env`:
+Local database servers need [Docker](https://www.docker.com) running.
+
+<details>
+<summary>Optional: the cloud API (sign-in, not used by the app yet)</summary>
+
+The desktop app works without it. To run it, create `apps/api/.env`:
 
 ```sh
 DATABASE_URL=postgres://...         # PostgreSQL connection string
@@ -93,39 +94,51 @@ PORT=8080                           # optional, defaults to 8080
 CORS_ORIGIN=http://localhost:1420   # optional, comma-separated origins
 ```
 
-Then run the migrations and start the server:
+Then:
 
 ```sh
+cd apps/api
+pnpm install
 pnpm db:migrate
 pnpm dev
 ```
 
-### Desktop app
-
-```sh
-cd apps/desktop
-pnpm install
-```
-
-Create `apps/desktop/.env`:
+And point the desktop app at it in `apps/desktop/.env`:
 
 ```sh
 VITE_NEON_AUTH_URL=https://...      # same Neon Auth base URL as the API
-VITE_API_URL=http://localhost:8080  # where the API is running
+VITE_API_URL=http://localhost:8080
 ```
 
-Then start the app:
+</details>
 
-```sh
-pnpm tauri dev
+## Tech stack
+
+| Layer         | Technology                                                                                                         |
+| ------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Desktop UI    | [Tauri 2](https://tauri.app), React 19, TypeScript, Vite, Tailwind CSS, Monaco Editor                              |
+| Local backend | Rust inside the app: database drivers (sqlx, tiberius), OS credential store, Docker. No local server, no open port |
+| Cloud API     | Node.js, [Fastify](https://fastify.dev), [Drizzle ORM](https://orm.drizzle.team), PostgreSQL on Neon               |
+
+```text
+querycraft/
+├── apps/
+│   ├── desktop/   # The app: React UI in src/, Rust backend in src-tauri/
+│   └── api/       # Optional cloud API for sign-in and, later, collaboration
+└── docs/          # Product spec and design
 ```
 
 ## Documentation
 
-- [Product, UX, design system & local provisioning spec](docs/product-spec.md)
-- [Interactive design prototype](docs/design/README.md)
-- [Tech stack](docs/tech-stack.md)
+- [Product, UX and design system spec](docs/product-spec.md)
+- [Design prototype](docs/design/README.md)
 
 ## License
 
-Not yet licensed. All rights reserved until a license is added.
+QueryCraft is **source-available** under the [PolyForm Shield License 1.0.0](LICENSE.md).
+
+You may use, study, modify and share it for free, at home or at work. You may **not** use it, or code taken from it, to build or offer a product that competes with QueryCraft. For any other arrangement, [open an issue](https://github.com/u-ninja/querycraft/issues) to ask.
+
+It is not an OSI open-source license. Third-party code keeps its own license: the vendored SQL Server driver in `apps/desktop/src-tauri/vendor/tiberius` is MIT or Apache-2.0, and dependencies keep theirs.
+
+Copyright 2026 u-ninja.
