@@ -112,7 +112,7 @@ function ExplainActions() {
     return (
         <>
             <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={(e) => void explain(e.shiftKey && readOnly)}
                 disabled={disabled}
@@ -123,7 +123,7 @@ function ExplainActions() {
             </Button>
             {/* Disabled buttons ignore hover, so the reason sits on a wrapper */}
             <span title={analyzeTitle} className="inline-flex">
-                <Button variant="ghost" size="sm" onClick={() => void explain(true)} disabled={disabled || !readOnly} aria-label="Explain analyze">
+                <Button variant="outline" size="sm" onClick={() => void explain(true)} disabled={disabled || !readOnly} aria-label="Explain analyze">
                     <Gauge aria-hidden /> <span className="hidden @3xl:inline">Analyze</span>
                 </Button>
             </span>
@@ -186,7 +186,7 @@ export function QueryToolbar() {
     return (
         // A container: on a narrow window the secondary actions drop their labels and the pickers
         // shrink, so the toolbar never pushes the editor wider than its panel
-        <div className="@container flex h-11 flex-none items-center gap-1 border-b border-border-soft px-2.5">
+        <div className="@container flex h-11 flex-none items-center gap-1.5 border-b border-border-soft px-2.5">
             {/* The padding widens the area that pulls the button, without moving the layout */}
             <div className="-m-1.5 p-1.5" onPointerMove={magnet.pull} onPointerLeave={magnet.release}>
                 <Button ref={magnet.button} size="sm" onClick={() => void run()} disabled={running || !hasSql || !connected} title={runShortcut}>
@@ -194,12 +194,12 @@ export function QueryToolbar() {
                 </Button>
             </div>
             {/* shortcut: Stop isn't built yet; replace with the real action when it lands */}
-            <PendingAction variant="ghost" size="sm" aria-label="Stop">
+            <PendingAction variant="outline" size="sm" aria-label="Stop">
                 <Square aria-hidden /> <span className="hidden @3xl:inline">Stop</span>
             </PendingAction>
             <ExplainActions />
             <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={() => void formatEditor()}
                 disabled={!hasSql}

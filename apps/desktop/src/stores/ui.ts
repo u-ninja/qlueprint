@@ -30,6 +30,14 @@ type UiState = {
     changesOpen: boolean;
     /** The results panel's tab; Explain shows the plan. Not remembered */
     resultsTab: ResultsTab;
+    /** The columns a foreign key picker shows for each row of a table (`tableKey`), in order;
+     * missing: the picker's own choice */
+    lookupLabels: Record<string, string[]>;
+    /** null goes back to the picker's own choice */
+    setLookupLabels: (table: string, columns: string[] | null) => void;
+    /** The command palette (⌘K, ⌘⇧P). Not remembered */
+    paletteOpen: boolean;
+    setPaletteOpen: (open: boolean) => void;
     setTheme: (theme: Theme) => void;
     setMotion: (motion: Motion) => void;
     setView: (view: View) => void;
@@ -66,6 +74,14 @@ export const useUi = create<UiState>()(
             inspected: null,
             changesOpen: false,
             resultsTab: 'results',
+            lookupLabels: {},
+            setLookupLabels: (table, columns) =>
+                set((s) => {
+                    const { [table]: _, ...rest } = s.lookupLabels;
+                    return { lookupLabels: columns ? { ...rest, [table]: columns } : rest };
+                }),
+            paletteOpen: false,
+            setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
             setTheme: (theme) => set({ theme }),
             setMotion: (motion) => set({ motion }),
             setView: (view) => set({ view, sidebarOpen: true }),
@@ -96,7 +112,7 @@ export const useUi = create<UiState>()(
         }),
         {
             name: 'qc-ui',
-            partialize: ({ theme, motion, view, sidebarOpen, inspectorOpen, workspaces, workspace, placement }) => ({
+            partialize: ({ theme, motion, view, sidebarOpen, inspectorOpen, workspaces, workspace, placement, lookupLabels }) => ({
                 theme,
                 motion,
                 view,
@@ -105,6 +121,7 @@ export const useUi = create<UiState>()(
                 workspaces,
                 workspace,
                 placement,
+                lookupLabels,
             }),
         },
     ),

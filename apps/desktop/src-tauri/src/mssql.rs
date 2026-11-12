@@ -543,13 +543,39 @@ pub(crate) fn batches(sql: &str) -> Vec<&str> {
 
 /// Runs a script (several statements, or `GO`-separated batches) on one connection of `pool`.
 /// The output is the last result set; when nothing returned one, the last statement's row count.
+/// `first_rows` (one read statement): the server stops after `keep + 1` rows (`SET ROWCOUNT`), instead
+/// of every remaining row crossing the network only to be counted; `capped` then says the total is unknown.
 pub(crate) async fn run(
     pool: &MssqlPool,
     sql: &str,
     keep: usize,
+    first_rows: bool,
 ) -> Result<QueryOutput, CommandError> {
-    pool.using(true, async |client| run_batches(client, sql, keep).await)
-        .await
+    pool.using(true, async |client| {
+        // Where SET ROWCOUNT isn't supported, every row is read as before
+        let limited = first_rows
+            && match client
+                .simple_query(format!("SET ROWCOUNT {}", keep + 1))
+                .await
+            {
+                // The server's answer is read to know it took
+                Ok(stream) => stream.into_results().await.is_ok(),
+                Err(_) => false,
+            };
+        let result = run_batches(client, sql, keep).await;
+        if limited {
+            // The session goes back to the pool: later statements must see every row again
+            client
+                .simple_query("SET ROWCOUNT 0")
+                .await?
+                .into_results()
+                .await?;
+        }
+        let mut output = result?;
+        output.capped = limited && output.truncated;
+        Ok(output)
+    })
+    .await
 }
 
 async fn run_batches(
@@ -563,10 +589,17 @@ async fn run_batches(
         while let Some(item) = stream.try_next().await? {
             match item {
                 QueryItem::Metadata(meta) => {
-                    output = Some(QueryOutput {
-                        columns: meta.columns().iter().map(column).collect(),
-                        ..Default::default()
-                    });
+                    let columns = meta.columns().iter().map(column).collect();
+                    // A new result set: the previous one moves to `earlier`
+                    match output.as_mut() {
+                        Some(output) => output.next_result(columns),
+                        None => {
+                            output = Some(QueryOutput {
+                                columns,
+                                ..Default::default()
+                            })
+                        }
+                    }
                 }
                 QueryItem::Row(row) => {
                     let Some(output) = output.as_mut() else {

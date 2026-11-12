@@ -3,14 +3,29 @@
 
 type Statement = { text: string; start: number };
 
+/** Words after which a SELECT continues the same statement */
+const JOINS_SELECT = new Set(['UNION', 'ALL', 'EXCEPT', 'INTERSECT', 'DISTINCT']);
+
 /**
  * The statements of a script and where each starts, split on `;` (and SQL Server's GO lines) outside
  * strings, quoted names, comments and Postgres $$ blocks. Empty ones (only whitespace or comments) are left out.
+ * SQL Server needs no `;` between statements, so a read statement also ends where a new SELECT starts
+ * outside brackets (not after UNION…, nor a WITH's main query after its last `)`)
  */
 export function splitStatements(sql: string): Statement[] {
     const out: Statement[] = [];
     let start = 0;
     let i = 0;
+    // Within the current statement: bracket depth, its first word, the last word and the last character
+    let depth = 0;
+    let first = '';
+    let word = '';
+    let lastChar = '';
+    const begin = (at: number) => {
+        start = at;
+        depth = 0;
+        first = word = lastChar = '';
+    };
     const push = (end: number) => {
         const text = sql.slice(start, end);
         // Report where the statement's own text begins, after leading blank lines
@@ -39,13 +54,34 @@ export function splitStatements(sql: string): Statement[] {
             } else i++;
         } else if (c === ';') {
             push(i);
-            start = ++i;
+            begin(++i);
         } else if ((i === 0 || sql[i - 1] === '\n') && /^[ \t]*go[ \t]*(\r?\n|$)/i.test(sql.slice(i, i + 80))) {
             // SQL Server's batch separator: a line that is just GO
             push(i);
             const end = sql.indexOf('\n', i);
-            start = i = end < 0 ? sql.length : end + 1;
-        } else i++;
+            begin((i = end < 0 ? sql.length : end + 1));
+        } else if (/[A-Za-z_]/.test(c) && !/[\w$@#]/.test(sql[i - 1] ?? '')) {
+            const w = /^[A-Za-z_][\w$@#]*/.exec(sql.slice(i, i + 64))![0].toUpperCase();
+            if (
+                w === 'SELECT' &&
+                depth === 0 &&
+                (first === 'SELECT' || first === 'WITH') &&
+                !JOINS_SELECT.has(word) &&
+                !(first === 'WITH' && lastChar === ')')
+            ) {
+                push(i);
+                begin(i);
+            }
+            first ||= w;
+            word = w;
+            lastChar = w[w.length - 1];
+            i += w.length;
+        } else {
+            if (c === '(') depth++;
+            else if (c === ')') depth = Math.max(0, depth - 1);
+            if (!/\s/.test(c)) lastChar = c;
+            i++;
+        }
     }
     push(sql.length);
     return out;

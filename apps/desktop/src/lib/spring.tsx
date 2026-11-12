@@ -204,10 +204,16 @@ export function useSpring2(apply: (a: number, b: number) => void, options?: Opti
  * A sliding underline for a tab list: springs `indicator` under its parent list's active tab
  * ([data-state=active]). Re-measures when tabs switch, come, go or resize.
  */
-export function useTabIndicator(indicator: RefObject<HTMLElement | null>) {
+export function useTabIndicator(indicator: RefObject<HTMLElement | null>, fill = false) {
+    // A bar is 1px wide and scaled; a filled shape (a segmented control's knob) keeps its real width,
+    // so its corners and shading don't stretch, and only slides
     const [setX, setW] = useSpring2((x, w) => {
         const el = indicator.current;
-        if (el) el.style.transform = `translateX(${x}px) scaleX(${Math.max(0, w)})`;
+        if (!el) return;
+        if (fill) {
+            el.style.transform = `translateX(${x}px)`;
+            el.style.width = `${Math.max(0, w)}px`;
+        } else el.style.transform = `translateX(${x}px) scaleX(${Math.max(0, w)})`;
     });
     useLayoutEffect(() => {
         const el = indicator.current;

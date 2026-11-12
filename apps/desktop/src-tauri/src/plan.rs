@@ -81,6 +81,7 @@ pub async fn explain_query(
             sql,
             database.clone(),
             MAX_ROWS,
+            false,
             &connections,
             &saved,
             &audit,

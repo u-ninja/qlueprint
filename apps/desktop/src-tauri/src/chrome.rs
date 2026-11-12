@@ -185,7 +185,7 @@ pub fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             "command-palette",
             "Command Palette…",
             Some("CmdOrCtrl+Shift+P"),
-            false,
+            true,
         )?)
         .separator()
         .item(&item(app, "view-workspace", "Workspace", None, true)?)

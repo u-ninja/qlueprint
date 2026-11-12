@@ -48,8 +48,11 @@ export const commands = {
 	 * 
 	 *  Every run that gets past the empty check is audited, failed ones included: the SQL, where it
 	 *  ran, the outcome, the row count and the time taken. Never the result rows.
+	 * 
+	 *  `first_rows`: the SQL is one read statement, so reading may stop at the row cap and cancel the
+	 *  rest instead of fetching every row to count it (SQL Server; the others still read them all).
 	 */
-	runQuery: (id: string, sql: string, database: string | null, allRows: boolean) => __TAURI_INVOKE<QueryOutput>("run_query", { id, sql, database, allRows }),
+	runQuery: (id: string, sql: string, database: string | null, allRows: boolean, firstRows: boolean) => __TAURI_INVOKE<QueryOutput>("run_query", { id, sql, database, allRows, firstRows }),
 	/**
 	 *  Saves the grid's edits: `UPDATE`s that each change one row by its primary key, all in one
 	 *  transaction. A statement that matches no row (or more than one) rolls everything back, so a
@@ -759,27 +762,29 @@ export type LocalRequest_Serialize = {
 /**  Where an existing database is, for "connect existing" and connection tests. */
 export type LocalTarget = { kind: "container"; id: string } | { kind: "native"; engine: Engine; port: number } | { kind: "instance"; id: string };
 
-/**  What `lookup_rows` reads: `key_column` of `schema.table`, and `label_column` to show beside it */
+/**  What `lookup_rows` reads: `key_column` of `schema.table`, and `label_columns` to show beside it */
 export type LookupRequest = LookupRequest_Serialize | LookupRequest_Deserialize;
 
-/**  What `lookup_rows` reads: `key_column` of `schema.table`, and `label_column` to show beside it */
+/**  What `lookup_rows` reads: `key_column` of `schema.table`, and `label_columns` to show beside it */
 export type LookupRequest_Deserialize = {
 	database?: string | null,
 	schema: string,
 	table: string,
 	keyColumn: string,
-	labelColumn?: string | null,
+	/**  Shown beside each key, joined with " · "; empty for none */
+	labelColumns: string[],
 	search: string,
 	limit: number,
 };
 
-/**  What `lookup_rows` reads: `key_column` of `schema.table`, and `label_column` to show beside it */
+/**  What `lookup_rows` reads: `key_column` of `schema.table`, and `label_columns` to show beside it */
 export type LookupRequest_Serialize = {
 	database: string | null,
 	schema: string,
 	table: string,
 	keyColumn: string,
-	labelColumn: string | null,
+	/**  Shown beside each key, joined with " · "; empty for none */
+	labelColumns: string[],
 	search: string,
 	limit: number,
 };
@@ -1007,6 +1012,16 @@ export type QueryOutput = {
 	/**  For a SELECT, the total row count; otherwise rows inserted/updated/deleted. */
 	rowsAffected: number,
 	elapsedMs: number,
+	/**
+	 *  The result sets of the script's earlier statements that returned rows, in order (the last
+	 *  statement's is the fields above), up to `MAX_RESULT_SETS`: "Result 1, Result 2…"
+	 */
+	earlier: ResultSet[],
+	/**
+	 *  Reading stopped at the row cap and the rest was cancelled (`first_rows`): `rows_affected`
+	 *  is how many arrived, not the total
+	 */
+	capped: boolean,
 };
 
 export type QueryPlan = QueryPlan_Serialize | QueryPlan_Deserialize;
@@ -1051,6 +1066,15 @@ export type ResultColumn = {
 	typeName: string,
 	/**  How the UI should align and size the column. */
 	kind: ColumnKind,
+};
+
+/**  One earlier statement's rows, kept like the last one's */
+export type ResultSet = {
+	columns: ResultColumn[],
+	rows: ((string | null)[])[],
+	truncated: boolean,
+	rowsAffected: number,
+	capped: boolean,
 };
 
 export type Routine = Routine_Serialize | Routine_Deserialize;

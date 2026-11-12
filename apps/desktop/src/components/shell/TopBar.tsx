@@ -1,8 +1,9 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
-import { FilePen, Monitor, Moon, Sun, type LucideIcon } from 'lucide-react';
+import { FilePen, Monitor, Moon, Search, Sun, type LucideIcon } from 'lucide-react';
 import { useUi, type Theme } from '@/stores/ui';
 import { auth } from '@/lib/auth';
-import { cn, count, isMac, isTauri, saveShortcut } from '@/lib/utils';
+import { cn, count, isMac, isTauri, saveShortcut, shortcutLabel } from '@/lib/utils';
+import { Kbd } from '@/components/ui/kbd';
 import { useSpring } from '@/lib/spring';
 import { totalEdits, useQuery } from '@/stores/query';
 import { AppMenu } from './AppMenu';
@@ -10,6 +11,7 @@ import { ConnectDialog } from './ConnectDialog';
 import { createActions, useNativeMenu } from './menu';
 import { WindowControls } from './WindowControls';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
+import { CommandPalette } from './CommandPalette';
 import mark from '@/assets/qlueprint-mark.svg';
 
 const themes: { value: Theme; label: string; icon: LucideIcon }[] = [
@@ -91,7 +93,19 @@ export function TopBar() {
                 </span>
             )}
 
-            <div className={cn('ml-auto flex flex-none items-center gap-2', ownControls && 'pr-1')}>
+            {/* Opens the command palette; centred in the space between the two sides */}
+            <button
+                type="button"
+                onClick={() => useUi.getState().setPaletteOpen(true)}
+                className="mx-auto flex h-7 w-[clamp(180px,calc(100vw-760px),400px)] min-w-0 items-center gap-2 rounded-md border border-border-soft bg-background pr-1.5 pl-2.5 text-[12.5px] text-fg3 transition-colors outline-none hover:border-border hover:text-fg2 focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+                <Search className="size-3.5 flex-none" aria-hidden />
+                <span className="min-w-0 flex-1 truncate text-left">Search tables, queries, commands…</span>
+                <Kbd className="flex-none">{shortcutLabel('Ctrl+K')}</Kbd>
+            </button>
+            <CommandPalette actions={actions} />
+
+            <div className={cn('flex flex-none items-center gap-2', ownControls && 'pr-1')}>
                 <ChangesButton />
                 {/* Toggle buttons, not radios: radios would need arrow-key roving focus */}
                 <div role="group" aria-label="Theme" className="relative flex rounded-md bg-muted p-0.5">

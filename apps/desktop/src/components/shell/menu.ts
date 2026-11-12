@@ -144,6 +144,7 @@ export function createActions(openConnect: () => void): Actions {
         ...(isTauri && { exit: () => void getCurrentWindow().close() }),
         ...Object.fromEntries(Object.keys(editorCommands).map((id) => [id, () => void edit(id as keyof typeof editorCommands)])),
         ...Object.fromEntries(views.map(({ value }) => [`view-${value}`, () => ui().setView(value)])),
+        'command-palette': () => ui().setPaletteOpen(!ui().paletteOpen),
         'toggle-sidebar': () => ui().toggleSidebar(),
         'toggle-inspector': () => ui().toggleInspector(),
         ...Object.fromEntries(themes.map(({ value }) => [`theme-${value}`, () => ui().setTheme(value)])),

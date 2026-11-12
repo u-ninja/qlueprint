@@ -119,6 +119,11 @@ export function StatusBar({ label, connectionId, location, locationTitle, outcom
                                     <>
                                         {count(shown, 'row')} <span className="text-fg4">of {loaded.toLocaleString()} loaded</span>
                                     </>
+                                ) : output.capped ? (
+                                    // Reading stopped at the cap, so the total isn't known
+                                    <span title="The database stopped sending rows once the first ones arrived">
+                                        {loaded.toLocaleString()}+ <span className="text-fg4">rows</span>
+                                    </span>
                                 ) : output.truncated ? (
                                     // The driver counted every row while only the first ones were kept
                                     <>
@@ -189,7 +194,7 @@ export function TableStatusBar({
         const sql = `SELECT COUNT(*) FROM ${qualifiedName(kind, tab.schema, tab.table)}${whereClause(kind, tab.where, tab.filters)}`;
         setTotal({ for: at, total: { state: 'counting' } });
         try {
-            const { rows } = await commands.runQuery(tab.connectionId, sql, tab.database, false);
+            const { rows } = await commands.runQuery(tab.connectionId, sql, tab.database, false, false);
             setTotal({ for: at, total: { state: 'done', rows: Number(rows[0]?.[0] ?? 0) } });
         } catch (error) {
             setTotal({ for: at, total: { state: 'failed', error: errorMessage(error) } });

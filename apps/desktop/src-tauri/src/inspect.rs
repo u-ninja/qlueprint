@@ -641,7 +641,9 @@ enum Dialect {
 }
 
 /// Rows of `schema.table` for a foreign key picker: the key and an optional label, both as text.
-/// With `searching`, the search (bound first, never spliced) matches the label case-insensitively
+/// The label is the `labels` columns joined with " · " (none: no label), so a row can read as
+/// `confirmation number · customer`. With `searching`, the search (bound first, never spliced)
+/// matches the label case-insensitively
 /// anywhere, or the key exactly; with no label column it matches anywhere in the key. An exact key
 /// match sorts first. Without, the first rows by the key itself, so its index serves the LIMIT.
 /// The limit is the last parameter.
@@ -650,7 +652,7 @@ fn lookup_sql(
     schema: &str,
     table: &str,
     key: &str,
-    label: Option<&str>,
+    labels: &[String],
     searching: bool,
 ) -> String {
     let (text, search, limit) = match (dialect, searching) {
@@ -675,9 +677,33 @@ fn lookup_sql(
         (String::new(), format!(" LIMIT {limit}"))
     };
     let key = quote(key);
-    let label = label.map(quote);
+    let label = (!labels.is_empty()).then(|| labels.iter().map(|l| quote(l)).collect::<Vec<_>>());
     let key_text = format!("CAST({key} AS {text})");
-    let label_text = label.as_ref().map(|l| format!("CAST({l} AS {text})"));
+    let label_text = label.as_ref().map(|cols| {
+        let casts: Vec<String> = cols
+            .iter()
+            .map(|c| format!("CAST({c} AS {text})"))
+            .collect();
+        match (dialect, casts.as_slice()) {
+            (_, [one]) => one.clone(),
+            // concat_ws skips NULLs; SQL Server 2016 has no CONCAT_WS, SQLite before 3.44 neither
+            (Dialect::Postgres, _) => format!("concat_ws(' · ', {})", casts.join(", ")),
+            (Dialect::Mysql, _) => format!("CONCAT_WS(' · ', {})", casts.join(", ")),
+            (Dialect::Mssql, _) => format!(
+                "CONCAT({})",
+                casts
+                    .iter()
+                    .map(|c| format!("COALESCE({c}, N'')"))
+                    .collect::<Vec<_>>()
+                    .join(", N' · ', ")
+            ),
+            (Dialect::Sqlite, _) => casts
+                .iter()
+                .map(|c| format!("COALESCE({c}, '')"))
+                .collect::<Vec<_>>()
+                .join(" || ' · ' || "),
+        }
+    });
     let select = format!(
         "SELECT {top}{key_text}, {} FROM {}.{}",
         label_text.as_deref().unwrap_or("NULL"),
@@ -699,7 +725,7 @@ fn lookup_sql(
     } else {
         format!("{key_text} = {search} DESC")
     };
-    let order = label.map_or_else(|| key.clone(), |l| format!("{l}, {key}"));
+    let order = label.map_or_else(|| key.clone(), |cols| format!("{}, {key}", cols.join(", ")));
     format!(
         "{select} WHERE {contains} OR {key_text} = {search} \
          ORDER BY {exact_first}, {order}{limit}"
@@ -709,7 +735,7 @@ fn lookup_sql(
 /// A key as text and its label
 type Lookup = (Option<String>, Option<String>);
 
-/// What `lookup_rows` reads: `key_column` of `schema.table`, and `label_column` to show beside it
+/// What `lookup_rows` reads: `key_column` of `schema.table`, and `label_columns` to show beside it
 #[derive(Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LookupRequest {
@@ -717,7 +743,8 @@ pub struct LookupRequest {
     schema: String,
     table: String,
     key_column: String,
-    label_column: Option<String>,
+    /// Shown beside each key, joined with " · "; empty for none
+    label_columns: Vec<String>,
     search: String,
     limit: u32,
 }
@@ -738,7 +765,7 @@ pub async fn lookup_rows(
         schema,
         table,
         key_column,
-        label_column,
+        label_columns,
         search,
         limit,
     } = request;
@@ -747,7 +774,10 @@ pub async fn lookup_rows(
     let started = Instant::now();
     let database = non_empty(database);
     let open = connections.get(&id)?;
-    let label = label_column.as_deref().filter(|l| !l.is_empty());
+    let label: Vec<String> = label_columns
+        .into_iter()
+        .filter(|l| !l.is_empty())
+        .collect();
     let limit = i64::from(limit.clamp(1, 200));
     let searching = !search.is_empty();
     let (sql, result) = match open.pool_for(database.as_deref()).await? {
@@ -757,7 +787,7 @@ pub async fn lookup_rows(
                 &schema,
                 &table,
                 &key_column,
-                label,
+                &label,
                 searching,
             );
             let mut query = sqlx::query_as::<_, Lookup>(AssertSqlSafe(sql.as_str()));
@@ -774,7 +804,7 @@ pub async fn lookup_rows(
                 &schema,
                 &table,
                 &key_column,
-                label,
+                &label,
                 searching,
             );
             // `?` is positional: once for the match, the exact key and its sort
@@ -791,7 +821,7 @@ pub async fn lookup_rows(
                 &schema,
                 &table,
                 &key_column,
-                label,
+                &label,
                 searching,
             );
             let params: &[&dyn tiberius::ToSql] = if searching {
@@ -812,7 +842,7 @@ pub async fn lookup_rows(
                 &schema,
                 &table,
                 &key_column,
-                label,
+                &label,
                 searching,
             );
             let rows = sqlite_lookup(&pool, &sql, &search, limit).await;
@@ -998,8 +1028,10 @@ mod tests {
         .execute(&pool)
         .await
         .unwrap();
-        let sql =
-            |label, searching| lookup_sql(Dialect::Sqlite, "main", "users", "id", label, searching);
+        let name = ["name".to_owned()];
+        let sql = |labels: &[String], searching| {
+            lookup_sql(Dialect::Sqlite, "main", "users", "id", labels, searching)
+        };
         let run = |sql: String, search: &'static str, limit| {
             let pool = pool.clone();
             async move { sqlite_lookup(&pool, &sql, search, limit).await.unwrap() }
@@ -1008,7 +1040,7 @@ mod tests {
 
         // Label contains, case-insensitive, sorted by label
         assert_eq!(
-            run(sql(Some("name"), true), "a", 50).await,
+            run(sql(&name, true), "a", 50).await,
             [
                 some("1", Some("Ada")),
                 some("3", Some("Alan")),
@@ -1016,31 +1048,83 @@ mod tests {
             ]
         );
         // The key matches exactly (21's label is NULL) and comes first
-        assert_eq!(
-            run(sql(Some("name"), true), "21", 50).await,
-            [some("21", None)]
-        );
+        assert_eq!(run(sql(&name, true), "21", 50).await, [some("21", None)]);
         // Empty search: the first rows by key, up to the limit
         assert_eq!(
-            run(sql(Some("name"), false), "", 2).await,
+            run(sql(&name, false), "", 2).await,
             [some("1", Some("Ada")), some("2", Some("Grace"))]
         );
         // No label: the key matches anywhere, ordered as numbers
         assert_eq!(
-            run(sql(None, true), "1", 50).await,
+            run(sql(&[], true), "1", 50).await,
             [some("1", None), some("12", None), some("21", None)]
         );
         // Quotes in names stay identifiers
-        assert!(lookup_sql(Dialect::Mysql, "s", "t`x", "id", None, true).contains("`t``x`"));
+        assert!(lookup_sql(Dialect::Mysql, "s", "t`x", "id", &[], true).contains("`t``x`"));
         // SQL Server: TOP, bracket quoting, no boolean to sort by
         assert_eq!(
-            lookup_sql(Dialect::Mssql, "dbo", "Order]s", "id", Some("name"), false),
+            lookup_sql(Dialect::Mssql, "dbo", "Order]s", "id", &name, false),
             "SELECT TOP (@P1) CAST([id] AS nvarchar(max)), CAST([name] AS nvarchar(max)) FROM [dbo].[Order]]s] ORDER BY [id]"
         );
         assert!(
-            lookup_sql(Dialect::Mssql, "dbo", "t", "id", None, true).ends_with(
+            lookup_sql(Dialect::Mssql, "dbo", "t", "id", &[], true).ends_with(
                 "WHERE CHARINDEX(lower(@P1), lower(CAST([id] AS nvarchar(max)))) > 0 OR CAST([id] AS nvarchar(max)) = @P1 \
                  ORDER BY CASE WHEN CAST([id] AS nvarchar(max)) = @P1 THEN 0 ELSE 1 END, [id]"
+            )
+        );
+    }
+
+    // Several label columns read as one, joined with " · "; a NULL one is left empty, and the
+    // search matches any of them
+    #[tokio::test]
+    async fn joins_several_label_columns() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        sqlx::raw_sql(
+            "CREATE TABLE appointments (id INTEGER PRIMARY KEY, confirmation INTEGER, customer TEXT);
+             INSERT INTO appointments VALUES (1, 2561077167, 'Pacific Traders'), (2, 2561077168, NULL);",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        let labels = ["confirmation".to_owned(), "customer".to_owned()];
+        let sql = |searching| {
+            lookup_sql(
+                Dialect::Sqlite,
+                "main",
+                "appointments",
+                "id",
+                &labels,
+                searching,
+            )
+        };
+        let label = |rows: Vec<Lookup>| -> Vec<String> {
+            rows.into_iter().filter_map(|(_, l)| l).collect()
+        };
+        assert_eq!(
+            label(sqlite_lookup(&pool, &sql(false), "", 10).await.unwrap()),
+            ["2561077167 · Pacific Traders", "2561077168 · "]
+        );
+        // By either column
+        assert_eq!(
+            label(
+                sqlite_lookup(&pool, &sql(true), "pacific", 10)
+                    .await
+                    .unwrap()
+            ),
+            ["2561077167 · Pacific Traders"]
+        );
+        assert_eq!(
+            label(
+                sqlite_lookup(&pool, &sql(true), "077168", 10)
+                    .await
+                    .unwrap()
+            ),
+            ["2561077168 · "]
+        );
+        // SQL Server 2016 has no CONCAT_WS: CONCAT with each column made non-NULL
+        assert!(
+            lookup_sql(Dialect::Mssql, "dbo", "t", "id", &labels, false).contains(
+                "CONCAT(COALESCE(CAST([confirmation] AS nvarchar(max)), N''), N' · ', COALESCE(CAST([customer] AS nvarchar(max)), N''))"
             )
         );
     }

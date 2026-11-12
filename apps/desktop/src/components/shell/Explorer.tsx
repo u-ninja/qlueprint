@@ -136,7 +136,7 @@ function Branch(props: {
     const open = userOpen || !!forceOpen;
     const head = (
         <>
-            <ChevronRight className={cn('size-3.5 flex-none text-fg3', open && 'rotate-90')} aria-hidden />
+            <ChevronRight className={cn('size-3.5 flex-none text-fg3 transition-transform duration-300', open && 'rotate-90')} aria-hidden />
             <span className={glyph}>{lead}</span>
         </>
     );

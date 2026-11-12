@@ -1,13 +1,13 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { commands, type QueryOutput, type QueryPlan, type ResultColumn } from '@/bindings';
+import { commands, type QueryOutput, type QueryPlan, type ResultColumn, type ResultSet } from '@/bindings';
 import { count } from '@/lib/utils';
 import { errorMessage, useConnections, type Connection } from './connections';
 import { filterSql, type ColumnFilter } from '@/lib/column-filter';
 import { quoteName, sqlValue } from '@/lib/sql-quote';
 import { tableKey } from '@/lib/table-details';
 import { sourceTable } from '@/lib/columns';
-import { markAccepted } from '@/lib/sql-lint';
+import { markAccepted, splitStatements } from '@/lib/sql-lint';
 import { inShownWorkspace, useUi } from './ui';
 
 export type Message = { at: Date; ok: boolean; text: string };
@@ -119,7 +119,8 @@ type QueryState = {
     /** Explains the current query tab's selection or script, without running it unless `analyze`; shows the Plan tab */
     explain: (analyze?: boolean) => Promise<void>;
     /** Runs the current query tab's last statement again, keeping all its rows */
-    loadAllRows: () => Promise<void>;
+    /** Runs result set `at`'s statement again keeping every row (up to ALL_ROWS) */
+    loadAllRows: (at?: number) => Promise<void>;
     /** Runs the current query tab's cut-off result again, ordered by the database (null: unordered);
      * false (logged) when it can't, and the caller sorts the loaded rows instead */
     sortResult: (sort: Sort | null) => Promise<boolean>;
@@ -187,6 +188,8 @@ export function rerunnable(sql: string) {
     const text = sql.trim().replace(/;\s*$/, '');
     return (
         !text.includes(';') &&
+        // SQL Server runs `SELECT … SELECT …` without a `;` as two statements
+        splitStatements(text).length === 1 &&
         /^(select|with|show|values|table|explain|describe|desc|pragma)\b/i.test(text) &&
         !/\b(insert|update|delete|merge|into)\b/i.test(text)
     );
@@ -224,15 +227,123 @@ async function runExplain(
     set({ runningSince: null, outcome });
 }
 
-async function execute(connectionId: string, sql: string, database: string, allRows = false): Promise<Outcome> {
+/** `firstRows`: one read statement, so the database may stop at the row cap instead of sending every row to be counted */
+async function execute(
+    connectionId: string,
+    sql: string,
+    database: string,
+    allRows = false,
+    firstRows = !allRows && rerunnable(sql),
+): Promise<Outcome> {
     let outcome: Outcome;
     try {
-        outcome = { ok: true, output: await commands.runQuery(connectionId, sql, database, allRows) };
+        outcome = { ok: true, output: await commands.runQuery(connectionId, sql, database, allRows, firstRows) };
     } catch (error) {
         outcome = { ok: false, error: errorMessage(error) };
     }
     log(outcome.ok, outcome.ok ? summary(outcome.output) : outcome.error);
     return outcome;
+}
+
+/**
+ * Runs a script. Several read-only statements share no state (no variables, temp tables or USE),
+ * so each runs at once on its own pooled connection: the wait is the slowest, not the sum. Their
+ * results come back as one outcome, the last statement's with the others in `earlier`, as a
+ * script run returns them. Anything else runs as one script, in order, on one session
+ */
+async function executeScript(connectionId: string, sql: string, database: string): Promise<Outcome> {
+    const statements = splitStatements(sql).map((st) => st.text);
+    if (statements.length < 2 || statements.length > MAX_PARALLEL || !statements.every(rerunnable)) return execute(connectionId, sql, database);
+    const outcomes = await Promise.all(statements.map((st) => execute(connectionId, st, database, false, true)));
+    const failed = outcomes.find((o) => !o.ok);
+    if (failed) return failed;
+    const outputs = outcomes.flatMap((o) => (o.ok ? [o.output] : []));
+    const last = outputs[outputs.length - 1];
+    return {
+        ok: true,
+        output: {
+            ...last,
+            elapsedMs: Math.max(...outputs.map((o) => o.elapsedMs)),
+            earlier: outputs.slice(0, -1).map(toResultSet),
+        },
+    };
+}
+
+/** Statements run side by side at most (the SQL Server pool holds 4 connections, the rest wait their turn) */
+const MAX_PARALLEL = 8;
+
+type Run = NonNullable<QueryTab['lastRun']>;
+
+/** A run's result sets in order: the script's earlier ones, then the last statement's when it
+ * returned rows. One set for a single statement (or a failure) */
+export function resultSets(last: Outcome | null): Outcome[] {
+    // `earlier` is missing when the app's Rust side predates it (a dev build not yet rebuilt)
+    if (!last?.ok || !last.output.earlier?.length) return last ? [last] : [];
+    const { output } = last;
+    const earlier: Outcome[] = output.earlier.map((r) => ({ ok: true, output: { ...r, elapsedMs: output.elapsedMs, earlier: [] } }));
+    return output.columns.length ? [...earlier, last] : earlier;
+}
+
+/** The statement each result set came from, when the read statements line up one to one with the
+ * sets; otherwise none is guessed (empty) */
+export function resultStatements(run: Run, sets: number): string[] {
+    if (sets <= 1) return [run.sql];
+    const reads = splitStatements(run.sql)
+        .map((st) => st.text)
+        .filter(rerunnable);
+    return reads.length === sets ? reads : [];
+}
+
+const toResultSet = ({ columns, rows, truncated, rowsAffected, capped }: QueryOutput): ResultSet => ({
+    columns,
+    rows,
+    truncated,
+    rowsAffected,
+    capped,
+});
+
+/** `last` with result set `at` changed (Result 1 is the first of `earlier`, the last one the output itself) */
+function updateSet(last: Outcome, at: number, change: Partial<ResultSet>): Outcome {
+    if (!last.ok) return last;
+    const { earlier } = last.output;
+    if (at >= earlier.length) return { ok: true, output: { ...last.output, ...change } };
+    return { ok: true, output: { ...last.output, earlier: earlier.map((set, i) => (i === at ? { ...set, ...change } : set)) } };
+}
+
+/** COUNT(*) over a read statement; a trailing ORDER BY goes (a derived table can't keep one), unless paging needs it */
+function countSql(sql: string) {
+    const text = sql.trim().replace(/;\s*$/, '');
+    const order = /\border\s+by\s+[^()]*$/i.exec(text);
+    const body = order && !/\b(offset|fetch|limit)\b/i.test(order[0]) ? text.slice(0, order.index) : text;
+    return `SELECT COUNT(*) FROM (\n${body}\n) AS counted`;
+}
+
+/** Counts, in the background, the sets the database stopped sending after the first rows, so they
+ * read "1,000 of 113,992" instead of "1,000+". A count that fails leaves the set as it was */
+async function countCapped(tabId: string, run: Run, last: Outcome, update: (id: string, patch: Partial<QueryTab>) => void) {
+    const sets = resultSets(last);
+    const statements = resultStatements(run, sets.length);
+    const totals = await Promise.all(
+        sets.map(async (set, i) => {
+            if (!set.ok || !set.output.capped || !statements[i]) return null;
+            try {
+                const { rows } = await commands.runQuery(run.connectionId, countSql(statements[i]), run.database, false, false);
+                const total = Number(rows[0]?.[0]);
+                return Number.isFinite(total) ? total : null;
+            } catch {
+                return null;
+            }
+        }),
+    );
+    if (totals.every((t) => t === null)) return;
+    const tab = useQuery.getState().queries.find((q) => q.id === tabId);
+    // A newer run, a sort or Load all replaced it meanwhile
+    if (tab?.last !== last) return;
+    const counted = totals.reduce<Outcome>(
+        (out, total, i) => (total === null ? out : updateSet(out, i, { rowsAffected: total, capped: false })),
+        last,
+    );
+    update(tabId, { last: counted });
 }
 
 /** A row's key in `TableTab.edits`: its primary key values, in key order */
@@ -319,7 +430,8 @@ export function activeDatabase(connection: Connection, tab: Pick<QueryTab, 'conn
 }
 
 /** "2 rows · 12 ms", "3 rows affected · 4 ms", with a note when the row cap cut it short */
-export function summary({ columns, rowsAffected, rows, truncated, elapsedMs }: QueryOutput) {
+export function summary({ columns, rowsAffected, rows, truncated, capped, elapsedMs }: QueryOutput) {
+    if (capped) return `First ${count(rows.length, 'row')}, the rest not fetched · ${elapsedMs.toLocaleString()} ms`;
     const what = `${count(rowsAffected, 'row')}${columns.length ? '' : ' affected'}`;
     const shown = truncated ? `, first ${rows.length.toLocaleString()} shown` : '';
     return `${what}${shown} · ${elapsedMs.toLocaleString()} ms`;
@@ -496,7 +608,13 @@ export const useQuery = create<QueryState>()(
                 setHasSelection: (hasSelection) => set({ hasSelection }),
                 setReadSelection: (readSelection) => set({ readSelection }),
                 setConnectionId: (connectionId) => updateQuery(get().currentQuery, { connectionId, database: null }),
-                setDatabase: (database) => updateQuery(get().currentQuery, { database }),
+                // Pins the connection it's for too: a tab still following "the newest connection" would
+                // otherwise drop the pick, since a pick only counts for the tab's own connection
+                setDatabase: (database) => {
+                    const tab = currentQuery(get());
+                    const connection = activeConnection(useConnections.getState().connections, tab.connectionId);
+                    updateQuery(tab.id, { database, connectionId: connection?.id ?? tab.connectionId });
+                },
 
                 run: async () => {
                     const s = get();
@@ -510,9 +628,10 @@ export const useQuery = create<QueryState>()(
                     // By id: the user may switch tabs while it runs, the result still lands in this one
                     updateQuery(tab.id, { runningSince: Date.now() });
                     const run = { connectionId: connection.id, database: activeDatabase(connection, tab), sql: text };
-                    const outcome = await execute(run.connectionId, run.sql, run.database);
+                    const outcome = await executeScript(run.connectionId, run.sql, run.database);
                     if (outcome.ok) markAccepted(run.sql);
                     updateQuery(tab.id, { runningSince: null, last: outcome, lastRun: run, serverSort: null });
+                    void countCapped(tab.id, run, outcome, updateQuery);
                 },
 
                 sortResult: async (sort) => {
@@ -543,14 +662,30 @@ export const useQuery = create<QueryState>()(
                     );
                 },
 
-                loadAllRows: async () => {
+                loadAllRows: async (at = 0) => {
                     const tab = currentQuery(get());
-                    const run = tab.lastRun;
-                    if (!run || tab.runningSince !== null || !rerunnable(run.sql)) return;
+                    const { lastRun: run, last } = tab;
+                    if (!run || !last || tab.runningSince !== null) return;
+                    const sets = resultSets(last);
+                    const sql = resultStatements(run, sets.length)[at];
+                    const set = sets[at];
+                    if (!sql || !set || !rerunnable(sql)) return;
                     updateQuery(tab.id, { runningSince: Date.now() });
-                    const columns = tab.last?.ok ? tab.last.output.columns : [];
-                    const outcome = await execute(run.connectionId, sortedSql(run.sql, columns, tab.serverSort), run.database, true);
-                    updateQuery(tab.id, { runningSince: null, last: outcome });
+                    // A database sort only exists for a single result
+                    const columns = set.ok ? set.output.columns : [];
+                    const outcome = await execute(
+                        run.connectionId,
+                        sortedSql(sql, columns, sets.length > 1 ? null : tab.serverSort),
+                        run.database,
+                        true,
+                    );
+                    // One of several: only its set changes, and a failure (logged in Messages) leaves them all as they were
+                    let next = outcome;
+                    if (sets.length > 1) {
+                        if (!outcome.ok) next = last;
+                        else next = updateSet(last, at, toResultSet(outcome.output));
+                    }
+                    updateQuery(tab.id, { runningSince: null, last: next });
                 },
 
                 save: (id = get().currentQuery) => {

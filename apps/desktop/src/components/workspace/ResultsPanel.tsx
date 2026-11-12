@@ -15,6 +15,8 @@ import {
     rowKey,
     rerunnable,
     summary,
+    resultSets,
+    resultStatements,
     useQuery,
     type Outcome,
     type Plan,
@@ -117,10 +119,11 @@ type Run = QueryTab['lastRun'];
  * re-sort by the database keeps them. A cut-off result's sort runs it again, ordered by the database,
  * so the order covers every row; if the database refuses, the loaded rows are sorted (`sortResult`)
  */
-function useShape(run: Run) {
-    const [state, setState] = useState<{ for: Run } & Shape>({ for: null, sort: null, filters: [] });
-    const shape: Shape = state.for === run ? state : { sort: null, filters: [] };
-    const set = (change: Partial<Shape>) => setState((prev) => ({ ...(prev.for === run ? prev : shape), ...change, for: run }));
+function useShape(run: Run, at: number) {
+    const [state, setState] = useState<{ for: Run; at: number } & Shape>({ for: null, at: 0, sort: null, filters: [] });
+    const mine = (s: typeof state) => s.for === run && s.at === at;
+    const shape: Shape = mine(state) ? state : { sort: null, filters: [] };
+    const set = (change: Partial<Shape>) => setState((prev) => ({ ...(mine(prev) ? prev : shape), ...change, for: run, at }));
     const change = (change: Partial<Shape>) => {
         const { last, serverSort } = currentQuery(useQuery.getState());
         // The database sorts a cut-off result; clearing its sort runs it again to get the original order back.
@@ -135,17 +138,42 @@ function useShape(run: Run) {
     return [shape, change] as const;
 }
 
-function ResultsView({ shape, setShape }: { shape: Shape; setShape: (change: Partial<Shape>) => void }) {
-    const runningSince = useQuery((s) => currentQuery(s).runningSince);
+/** The shown result set (Result 1, 2…), for the run it was picked on: a new run starts on Result 1 */
+function useResultSet(run: Run) {
+    // Tagged with the run, not its outcome: a count or Load all updates the outcome and keeps the pick
+    const [picked, setPicked] = useState<{ for: Run; at: number }>({ for: null, at: 0 });
+    const at = picked.for === run ? picked.at : 0;
+    return [at, (at: number) => setPicked({ for: run, at })] as const;
+}
+
+type ResultSetProps = { at: number; setAt: (at: number) => void; shape: Shape; setShape: (change: Partial<Shape>) => void };
+
+/** The run's result sets, the shown one (`at`, kept in range) and the statement it came from: its own
+ * statement makes a single-table SELECT among several editable, and lets it load all its rows */
+function useShownSet(picked: number) {
     const last = useQuery((s) => currentQuery(s).last);
+    const lastRun = useQuery((s) => currentQuery(s).lastRun);
+    return useMemo(() => {
+        const sets = resultSets(last);
+        const at = Math.max(0, Math.min(picked, sets.length - 1));
+        const statement = lastRun ? resultStatements(lastRun, sets.length)[at] : undefined;
+        return { last, lastRun, sets, at, shown: sets[at] ?? last, statement };
+    }, [last, lastRun, picked]);
+}
+
+function ResultsView({ at: picked, setAt, shape, setShape }: ResultSetProps) {
+    const runningSince = useQuery((s) => currentQuery(s).runningSince);
     const connectionId = useQuery((s) => currentQuery(s).connectionId);
     const engine = useConnections((s) => activeConnection(s.connections, connectionId)?.kind);
-    const lastRun = useQuery((s) => currentQuery(s).lastRun);
-    const from = useMemo(() => lastRun && engine && sourceTable(lastRun.sql, engine, lastRun.database), [lastRun, engine]);
+    const { last, lastRun, sets, at, shown, statement } = useShownSet(picked);
+    const from = useMemo(
+        () => (statement && engine && lastRun ? sourceTable(statement, engine, lastRun.database) : undefined),
+        [statement, engine, lastRun],
+    );
 
-    if (!last) return runningSince === null ? <Empty text="Run a query to see results here" keys={runShortcut} does="runs" /> : <Running />;
+    if (!last || !shown) return runningSince === null ? <Empty text="Run a query to see results here" keys={runShortcut} does="runs" /> : <Running />;
     const view = {
-        outcome: last,
+        outcome: shown,
         engine,
         sort: shape.sort,
         onSort: (sort: Shape['sort']) => setShape({ sort }),
@@ -155,8 +183,42 @@ function ResultsView({ shape, setShape }: { shape: Shape; setShape: (change: Par
     return (
         // The previous result stays visible but dims until the new one returns; the tab strip says so.
         // The dim waits 300 ms so a quick re-run swaps the result without the grid flashing, and lifts at once
-        <div className={cn('h-full transition-opacity duration-200', runningSince !== null && 'opacity-50 delay-300')}>
-            {from && lastRun ? <TableQueryOutcome from={{ connectionId: lastRun.connectionId, ...from }} {...view} /> : <OutcomeView {...view} />}
+        <div className={cn('flex h-full flex-col transition-opacity duration-200', runningSince !== null && 'opacity-50 delay-300')}>
+            {sets.length > 1 && (
+                <div
+                    role="tablist"
+                    aria-label="Result sets"
+                    className="flex h-8 flex-none items-center gap-1 overflow-x-auto border-b border-border-soft px-2"
+                >
+                    {sets.map((set, i) => (
+                        <button
+                            key={i}
+                            type="button"
+                            role="tab"
+                            aria-selected={i === at}
+                            onClick={() => setAt(i)}
+                            className={cn(
+                                'flex h-6 flex-none items-center gap-1.5 rounded-[5px] px-2 text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                                i === at ? 'bg-primary-soft text-foreground' : 'text-fg3 hover:bg-hover hover:text-fg2',
+                            )}
+                        >
+                            Result {i + 1}
+                            {set.ok && (
+                                <span className="font-mono text-[10.5px] text-fg4 tabular-nums">
+                                    {set.output.capped ? `${set.output.rows.length.toLocaleString()}+` : set.output.rowsAffected.toLocaleString()}
+                                </span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+            )}
+            <div className="min-h-0 flex-1">
+                {from && lastRun ? (
+                    <TableQueryOutcome key={at} from={{ connectionId: lastRun.connectionId, ...from }} {...view} />
+                ) : (
+                    <OutcomeView key={at} {...view} />
+                )}
+            </div>
         </div>
     );
 }
@@ -165,8 +227,20 @@ function ResultsView({ shape, setShape }: { shape: Shape; setShape: (change: Par
 function TableQueryOutcome({ from, ...view }: { from: Inspected } & ComponentProps<typeof OutcomeView>) {
     const open = useQuery((s) => s.tables.find((t) => t.id === tableKey(from)));
     // The grid's rows are the query's; focus belongs to the table tab's own grid
-    const { editor } = useTableEditing({ ...(open ?? newTableTab(from)), outcome: view.outcome, focus: null });
-    return <OutcomeView {...view} editor={editor} />;
+    const { editor, readOnly } = useTableEditing({ ...(open ?? newTableTab(from)), outcome: view.outcome, focus: null });
+    return (
+        <div className="flex h-full flex-col">
+            {/* Like a table tab's footer: why these rows can't be edited (a view, no primary key, the key not selected) */}
+            {readOnly && (
+                <p role="status" className="flex-none truncate border-b border-border-soft px-3 py-1 text-xs text-fg3" title={readOnly}>
+                    {readOnly} · {from.schema}.{from.table}
+                </p>
+            )}
+            <div className="min-h-0 flex-1">
+                <OutcomeView {...view} editor={editor} />
+            </div>
+        </div>
+    );
 }
 
 /** Right side of the tab strip: what's running, or what the shown result is */
@@ -591,12 +665,12 @@ export function TableResults({ tab: t }: { tab: TableTab }) {
 }
 
 /** A query result's footer: the tab's connection and database, the rows, and the grid's sort and filters */
-function QueryStatusBar({ shape, setShape }: { shape: Shape; setShape: (change: Partial<Shape>) => void }) {
+function QueryStatusBar({ at, shape, setShape }: Omit<ResultSetProps, 'setAt'>) {
     // Field by field, not the whole tab: the tab object changes on every keystroke in the editor
     const connectionId = useQuery((s) => currentQuery(s).connectionId);
     const picked = useQuery((s) => currentQuery(s).database);
-    const last = useQuery((s) => currentQuery(s).last);
-    const lastRun = useQuery((s) => currentQuery(s).lastRun);
+    // The shown result set's counts and statement, not always the last statement's
+    const { shown: last, statement } = useShownSet(at);
     const running = useQuery((s) => currentQuery(s).runningSince !== null);
     const loadAllRows = useQuery((s) => s.loadAllRows);
     const connection = useConnections((s) => activeConnection(s.connections, connectionId));
@@ -624,8 +698,8 @@ function QueryStatusBar({ shape, setShape }: { shape: Shape; setShape: (change: 
             shown={shown}
             extra={
                 output?.truncated &&
-                (lastRun && rerunnable(lastRun.sql) ? (
-                    <LoadAllButton total={output.rowsAffected} onClick={() => void loadAllRows()} />
+                (statement && rerunnable(statement) ? (
+                    <LoadAllButton total={output.capped ? null : output.rowsAffected} onClick={() => void loadAllRows(at)} />
                 ) : (
                     // Running it again would repeat what it changed
                     <span
@@ -646,7 +720,8 @@ export function ResultsPanel() {
     const lastRun = useQuery((s) => currentQuery(s).lastRun);
     const resultsTab = useUi((s) => s.resultsTab);
     const setResultsTab = useUi((s) => s.setResultsTab);
-    const [shape, setShape] = useShape(lastRun);
+    const [at, setAt] = useResultSet(lastRun);
+    const [shape, setShape] = useShape(lastRun, at);
     return (
         <Tabs value={resultsTab} onValueChange={(v) => setResultsTab(v as ResultsTab)} className="h-full gap-0 bg-surface">
             <PanelHeader>
@@ -656,7 +731,7 @@ export function ResultsPanel() {
                 {running && <RunningBar />}
             </PanelHeader>
             <TabsContent value="results" className="min-h-0">
-                <ResultsView shape={shape} setShape={setShape} />
+                <ResultsView at={at} setAt={setAt} shape={shape} setShape={setShape} />
             </TabsContent>
             <TabsContent value="messages" className="min-h-0">
                 <MessagesView />
@@ -664,7 +739,7 @@ export function ResultsPanel() {
             <TabsContent value="plan" className="min-h-0">
                 <QueryPlanView />
             </TabsContent>
-            <QueryStatusBar shape={shape} setShape={setShape} />
+            <QueryStatusBar at={at} shape={shape} setShape={setShape} />
         </Tabs>
     );
 }

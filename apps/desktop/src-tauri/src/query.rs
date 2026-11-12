@@ -37,6 +37,45 @@ pub struct QueryOutput {
     #[specta(type = specta_typescript::Number)]
     pub(crate) rows_affected: u64,
     pub(crate) elapsed_ms: u32,
+    /// The result sets of the script's earlier statements that returned rows, in order (the last
+    /// statement's is the fields above), up to `MAX_RESULT_SETS`: "Result 1, Result 2…"
+    pub(crate) earlier: Vec<ResultSet>,
+    /// Reading stopped at the row cap and the rest was cancelled (`first_rows`): `rows_affected`
+    /// is how many arrived, not the total
+    pub(crate) capped: bool,
+}
+
+/// One earlier statement's rows, kept like the last one's
+#[derive(Debug, Default, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ResultSet {
+    pub(crate) columns: Vec<ResultColumn>,
+    pub(crate) rows: Vec<Vec<Option<String>>>,
+    pub(crate) truncated: bool,
+    #[specta(type = specta_typescript::Number)]
+    pub(crate) rows_affected: u64,
+    pub(crate) capped: bool,
+}
+
+/// Earlier result sets a run keeps at most: each holds up to the row cap, so memory stays bounded
+pub(crate) const MAX_RESULT_SETS: usize = 20;
+
+impl QueryOutput {
+    /// Starts the next statement's result: the finished one, if it had columns, joins `earlier`
+    pub(crate) fn next_result(&mut self, columns: Vec<ResultColumn>) {
+        let done = std::mem::take(self);
+        self.earlier = done.earlier;
+        if !done.columns.is_empty() && self.earlier.len() < MAX_RESULT_SETS {
+            self.earlier.push(ResultSet {
+                columns: done.columns,
+                rows: done.rows,
+                truncated: done.truncated,
+                rows_affected: done.rows_affected,
+                capped: done.capped,
+            });
+        }
+        self.columns = columns;
+    }
 }
 
 #[derive(Debug, Serialize, Type)]
@@ -110,13 +149,18 @@ fn is_binary(type_name: &str) -> bool {
 ///
 /// Every run that gets past the empty check is audited, failed ones included: the SQL, where it
 /// ran, the outcome, the row count and the time taken. Never the result rows.
+///
+/// `first_rows`: the SQL is one read statement, so reading may stop at the row cap and cancel the
+/// rest instead of fetching every row to count it (SQL Server; the others still read them all).
 #[tauri::command]
 #[specta::specta]
+#[allow(clippy::too_many_arguments)]
 pub async fn run_query(
     id: String,
     sql: String,
     database: Option<String>,
     all_rows: bool,
+    first_rows: bool,
     connections: State<'_, Connections>,
     saved: State<'_, Saved>,
     audit: State<'_, Audit>,
@@ -128,6 +172,7 @@ pub async fn run_query(
         sql,
         non_empty(database),
         keep,
+        first_rows,
         &connections,
         &saved,
         &audit,
@@ -137,18 +182,20 @@ pub async fn run_query(
 
 /// Runs `sql` on connection `id` and audits it as a query run, failed or not. `database` is
 /// already `non_empty`.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn run_audited(
     id: &str,
     sql: String,
     database: Option<String>,
     keep: usize,
+    first_rows: bool,
     connections: &Connections,
     saved: &Saved,
     audit: &Audit,
 ) -> Result<QueryOutput, CommandError> {
     let started = Instant::now();
     let details = audit_base(saved, id, database.as_deref());
-    let result = execute(id, sql.clone(), database, keep, connections).await;
+    let result = execute(id, sql.clone(), database, keep, first_rows, connections).await;
     let elapsed_ms = elapsed_ms(started);
     let outcome = result.as_ref().map(|output| output.rows_affected);
     let details = run_details(
@@ -207,6 +254,7 @@ async fn execute(
     sql: String,
     database: Option<String>,
     keep: usize,
+    first_rows: bool,
     connections: &Connections,
 ) -> Result<QueryOutput, CommandError> {
     // Running the user's own SQL against their own database is the feature, so there is
@@ -214,7 +262,7 @@ async fn execute(
     // name is quoted by `use_database`).
     let open = connections.get(id)?;
     let output = match open.pool_for(database.as_deref()).await? {
-        Pool::Mssql(pool) => return crate::mssql::run(&pool, &sql, keep).await,
+        Pool::Mssql(pool) => return crate::mssql::run(&pool, &sql, keep, first_rows).await,
         // raw_sql uses Postgres' simple query protocol, which sends every value as text.
         Pool::Postgres(pool) => {
             let results = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(&pool);
@@ -471,11 +519,8 @@ pub(crate) async fn collect<D, R: Row>(
         match item {
             Either::Right(row) => {
                 if row_count == 0 {
-                    // First row of a new statement: drop the previous statement's result.
-                    output = QueryOutput {
-                        columns: columns_of(&row, type_name),
-                        ..Default::default()
-                    };
+                    // First row of a new statement: the previous one's result moves to `earlier`
+                    output.next_result(columns_of(&row, type_name));
                 }
                 row_count += 1;
                 if output.rows.len() < keep {
@@ -492,7 +537,8 @@ pub(crate) async fn collect<D, R: Row>(
                 output.rows_affected = if row_count > 0 {
                     row_count
                 } else {
-                    output = QueryOutput::default();
+                    // A statement without rows: the previous result is kept in `earlier`
+                    output.next_result(Vec::new());
                     rows_affected(&done)
                 };
                 row_count = 0;
@@ -630,7 +676,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn keeps_only_the_last_statement() {
+    async fn keeps_the_last_statement_and_earlier_result_sets() {
         let pool = pool().await;
         let out = run(
             &pool,
@@ -638,8 +684,17 @@ mod tests {
         )
         .await
         .unwrap();
+        // The last statement is the UPDATE; the SELECT before it is kept as an earlier result
         assert!(out.columns.is_empty() && out.rows.is_empty());
         assert_eq!(out.rows_affected, 2);
+        assert_eq!(out.earlier.len(), 1);
+        assert_eq!(out.earlier[0].rows, [[Some("old".into())]]);
+
+        // Two SELECTs: two result sets, the first in `earlier`
+        let out = run(&pool, "SELECT 1 AS a; SELECT x FROM t").await.unwrap();
+        assert_eq!(out.earlier.len(), 1);
+        assert_eq!(out.earlier[0].columns[0].name, "a");
+        assert_eq!(out.rows, [[Some("3".into())], [Some("3".into())]]);
 
         let out = run(&pool, "UPDATE t SET x = 4; SELECT x FROM t")
             .await

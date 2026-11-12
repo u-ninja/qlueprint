@@ -1,14 +1,15 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { commands, type DetailColumn, type ResultColumn, type TableDetails } from '@/bindings';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
 import { errorMessage, type Connection } from '@/stores/connections';
-import type { Inspected } from '@/stores/ui';
+import { useUi, type Inspected } from '@/stores/ui';
 import { filterKindOf } from '@/lib/column-filter';
 import { dateParts, labelColumnOf, withDay, withTime } from '@/lib/cell-field';
-import { detailsOf } from '@/lib/table-details';
+import { detailsOf, tableKey } from '@/lib/table-details';
 import { cn } from '@/lib/utils';
 import { calendarClass, calendarClassNames, fromDay, toDay, withSeconds } from './ColumnFilterForm';
 
@@ -244,51 +245,68 @@ function DateEditor({ value, field, finish, className }: { value: string | null;
 
 const LIMIT = 50;
 
-/** A foreign key's choices: matching rows of the table it points at, key and label */
+/** A foreign key's choices: matching rows of the table it points at, key and label. The label is
+ * the columns the user chose for that table (remembered), else the app's pick (`labelColumnOf`) */
 function useLookup(field: CellField, value: string | null, search: string) {
     const ref = field.ref;
-    const [label, setLabel] = useState<{ column: string | undefined } | null>(null);
+    const table = ref ? tableKey(ref) : '';
+    const chosen = useUi((s) => s.lookupLabels[table]);
+    // The referenced table's columns, and the app's own pick among them
+    const [columns, setColumns] = useState<{ all: string[]; auto: string[] } | null>(null);
     const [rows, setRows] = useState<{ for: string; options: Option[] } | null>(null);
     const [current, setCurrent] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-    // Per editor: going back to an earlier search shows its rows without reading them again
+    const labels = columns ? (chosen ?? columns.auto) : null;
+    // Per editor and label: going back to an earlier search shows its rows without reading them again
     const cache = useRef(new Map<string, Option[]>());
+    const labelKey = labels?.join('\0') ?? '';
 
-    const read = (column: string | undefined, text: string) =>
+    const read = (text: string) =>
         commands.lookupRows(ref!.connectionId, {
             database: ref!.database || null,
             schema: ref!.schema,
             table: ref!.table,
             keyColumn: ref!.column,
-            labelColumn: column ?? null,
+            labelColumns: labels ?? [],
             search: text,
             limit: LIMIT,
         });
 
-    // Which column names a row, then the current value's label
     useEffect(() => {
         if (!ref) return;
         let live = true;
-        detailsOf(ref)
-            .then((d) => labelColumnOf(d.columns, ref.column))
-            .catch(() => undefined)
-            .then((column) => {
+        detailsOf(ref).then(
+            (d) => {
                 if (!live) return;
-                setLabel({ column });
-                if (column && value !== null)
-                    void read(column, value).then(
-                        (found) => live && setCurrent(found.find(([k]) => k === value)?.[1] ?? null),
-                        () => {},
-                    );
-            });
+                const auto = labelColumnOf(d.columns, ref.column);
+                setColumns({ all: d.columns.map((c) => c.name).filter((c) => c !== ref.column), auto: auto ? [auto] : [] });
+            },
+            () => live && setColumns({ all: [], auto: [] }),
+        );
         return () => {
             live = false;
         };
         // Once per editor
     }, []);
 
+    // The current value's label, again whenever the label columns change
     useEffect(() => {
-        if (!ref || !label) return;
+        if (!ref || !labels) return;
+        cache.current.clear();
+        setCurrent(null);
+        if (!labels.length || value === null) return;
+        let live = true;
+        void read(value).then(
+            (found) => live && setCurrent(found.find(([k]) => k === value)?.[1] ?? null),
+            () => {},
+        );
+        return () => {
+            live = false;
+        };
+    }, [labelKey]);
+
+    useEffect(() => {
+        if (!ref || !labels) return;
         const hit = cache.current.get(search);
         if (hit) {
             setRows({ for: search, options: hit });
@@ -297,7 +315,7 @@ function useLookup(field: CellField, value: string | null, search: string) {
         // Each lookup is audited: wait for a pause in typing
         const timer = setTimeout(
             () =>
-                read(label.column, search).then(
+                read(search).then(
                     (found) => {
                         const options = found.map(([key, name]) => ({ value: key, label: name }));
                         cache.current.set(search, options);
@@ -309,9 +327,82 @@ function useLookup(field: CellField, value: string | null, search: string) {
             search ? 250 : 0,
         );
         return () => clearTimeout(timer);
-    }, [label, search]);
+    }, [labelKey, search]);
 
-    return { rows: rows?.options, stale: rows?.for !== search, current, labelled: !!label?.column, error };
+    const choose = (next: string[] | null) => useUi.getState().setLookupLabels(table, next);
+    return {
+        rows: rows?.options,
+        stale: rows?.for !== search,
+        current,
+        labelled: !!labels?.length,
+        error,
+        /** The label columns now, every column that could be one, whether they're the app's pick */
+        labels: labels ?? [],
+        columns: columns?.all ?? [],
+        automatic: !chosen,
+        choose,
+    };
+}
+
+/** Which columns name each row of the referenced table: tick any, in the order they should read */
+function LabelPicker({ lookup }: { lookup: ReturnType<typeof useLookup> }) {
+    const [open, setOpen] = useState(false);
+    const { labels, columns, automatic, choose } = lookup;
+    if (!columns.length) return null;
+    const toggle = (c: string) => choose(labels.includes(c) ? labels.filter((l) => l !== c) : [...labels, c]);
+    return (
+        <div className="text-[11px]">
+            <button
+                type="button"
+                onClick={() => setOpen(!open)}
+                aria-expanded={open}
+                className="flex max-w-full items-center gap-1 rounded text-fg3 outline-none hover:text-fg2 focus-visible:ring-2 focus-visible:ring-ring/50"
+                title="Choose which columns name each row"
+            >
+                <span className="flex-none">Label:</span>
+                <span className="truncate font-mono text-fg2">{labels.length ? labels.join(' · ') : 'id only'}</span>
+                {automatic && <span className="flex-none text-fg4">(automatic)</span>}
+                <ChevronDown className={cn('size-3 flex-none transition-transform', open && 'rotate-180')} aria-hidden />
+            </button>
+            {open && (
+                <div role="group" aria-label="Label columns" className="mt-1 max-h-36 overflow-auto rounded-md border border-border-soft p-1">
+                    {columns.map((c) => {
+                        const at = labels.indexOf(c);
+                        return (
+                            <button
+                                key={c}
+                                type="button"
+                                role="menuitemcheckbox"
+                                aria-checked={at >= 0}
+                                onClick={() => toggle(c)}
+                                className="group/label flex w-full items-center gap-2 rounded px-1.5 py-1 text-left outline-none hover:bg-hover focus-visible:bg-hover"
+                            >
+                                <span
+                                    aria-hidden
+                                    className={cn(
+                                        'grid size-3.5 flex-none place-items-center rounded-sm border text-[9px] tabular-nums transition-[background-color,border-color,scale] duration-200 group-active/label:scale-85',
+                                        at >= 0 ? 'border-primary bg-primary text-primary-foreground' : 'border-border',
+                                    )}
+                                >
+                                    {at >= 0 ? at + 1 : ''}
+                                </span>
+                                <span className="truncate font-mono">{c}</span>
+                            </button>
+                        );
+                    })}
+                    {!automatic && (
+                        <button
+                            type="button"
+                            onClick={() => choose(null)}
+                            className="mt-1 w-full rounded px-1.5 py-1 text-left text-fg3 outline-none hover:bg-hover hover:text-fg2 focus-visible:bg-hover"
+                        >
+                            Automatic
+                        </button>
+                    )}
+                </div>
+            )}
+        </div>
+    );
 }
 
 /** Enum values, true or false, or a foreign key's rows: a searchable list. ↑↓ move, Enter or a click picks */
@@ -357,6 +448,7 @@ function PickEditor({ value, field, finish, className }: { value: string | null;
                     {lookup.current && <> · {lookup.current}</>}
                 </p>
             )}
+            {ref && <LabelPicker lookup={lookup} />}
             {searchable && (
                 <Input
                     autoFocus

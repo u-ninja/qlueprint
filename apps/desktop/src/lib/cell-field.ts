@@ -2,17 +2,29 @@
 import type { DetailColumn } from '@/bindings';
 
 // Most likely to read as a row's name, in order of preference
-const LABELS = ['name', 'title', 'label', 'display_name', 'email', 'code', 'username'];
+const LABELS = ['name', 'title', 'label', 'display_name', 'username', 'code'];
+// A row's own reference number or code: `appointment_number`, `po_no`, `invoice_ref`
+const IDENTIFIER = /(^|_)(number|no|num|code|ref)$/i;
 const TEXT = /char|text|string|clob/i;
 
-/** The column to show beside a referenced row's key: a name-like text column, else the first text one, else none */
+/**
+ * The column to show beside a referenced row's key, so each row reads differently: a UNIQUE column
+ * (any type: it names exactly one row), then a name-like text column, then a reference-number-like
+ * one, then `email`, then the first text column; none when there's nothing to show
+ */
 export function labelColumnOf(columns: DetailColumn[], keyColumn: string) {
-    const texts = columns.filter((c) => c.name !== keyColumn && c.key !== 'PK' && c.key !== 'FK' && TEXT.test(c.typeName));
-    for (const name of LABELS) {
-        const found = texts.find((c) => c.name.toLowerCase() === name);
-        if (found) return found.name;
-    }
-    return texts[0]?.name;
+    const others = columns.filter((c) => c.name !== keyColumn && c.key !== 'PK' && c.key !== 'FK');
+    const texts = others.filter((c) => TEXT.test(c.typeName));
+    const named = (list: DetailColumn[]) => LABELS.map((n) => list.find((c) => c.name.toLowerCase() === n)).find(Boolean);
+    const unique = others.filter((c) => c.key === 'UQ');
+    return (
+        named(unique) ??
+        unique[0] ??
+        named(texts) ??
+        others.find((c) => IDENTIFIER.test(c.name)) ??
+        texts.find((c) => c.name.toLowerCase() === 'email') ??
+        texts[0]
+    )?.name;
 }
 
 // `2026-01-31`, `2026-01-31 09:05:00`, `2026-01-31T09:05:00.123+05:30`: the day, separator, time and what follows it

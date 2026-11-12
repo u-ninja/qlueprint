@@ -88,7 +88,9 @@ export const useConnections = create<ConnectionsState>()((set, get) => {
                         label: saved.label,
                         kind: config.kind,
                         database: current,
-                        databases: listed,
+                        // Its own database always shows, even a system one (SQL Server's master) the
+                        // list leaves out: the explorer and the picker then show where queries run
+                        databases: !current || listed.includes(current) ? listed : [current, ...listed],
                         switchable,
                         schemas,
                         others: {},

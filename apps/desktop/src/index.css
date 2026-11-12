@@ -8,6 +8,11 @@
 @custom-variant dark (&:is([data-theme=dark] *));
 /* Motion off: View › Motion set to Reduced, or the OS asking for reduced motion. src/lib/spring.ts
    folds both into data-motion, the one switch CSS reads */
+:root {
+    /* Lets heights animate to and from auto (disclosures) */
+    interpolate-size: allow-keywords;
+}
+
 @custom-variant motion-reduce (&:where([data-motion='off'], [data-motion='off'] *));
 
 /* Design tokens copied from docs/design/QluePrint.dc.html; keep the two in sync */
@@ -236,6 +241,195 @@
 /* The Changes button while edits are pending: a thin ring of light circling the button, and a
    reflection crossing its face now and then. Only while there's something to save */
 @layer components {
+    /* Buttons are raised surfaces that press in: a tone shift within their own colour (no hue
+       gradient), a lit top edge, a darker bottom edge and a small contact shadow. Pressed, the face
+       sinks 1px and the shadow moves inside. Each variant sets --btn-face, --btn-edge and --btn-lit */
+    .btn-raised {
+        --btn-face: var(--surface);
+        --btn-edge: var(--border);
+        --btn-lit: oklch(1 0 0 / 0.07);
+        --btn-drop: oklch(0 0 0 / 0.35);
+        background-color: var(--btn-face);
+        background-image: linear-gradient(to bottom, color-mix(in oklch, var(--btn-face), white 7%), var(--btn-face));
+        border-color: var(--btn-edge);
+        border-bottom-color: color-mix(in oklch, var(--btn-edge), black 22%);
+        box-shadow:
+            inset 0 1px 0 var(--btn-lit),
+            0 1px 1.5px var(--btn-drop);
+        transition-property: color, background-color, border-color, box-shadow, translate, opacity;
+        /* Released, it springs back up on the app's spring; pressed, it goes down at once */
+        transition-duration: 280ms;
+    }
+    .btn-raised:hover {
+        background-image: linear-gradient(to bottom, color-mix(in oklch, var(--btn-face), white 11%), color-mix(in oklch, var(--btn-face), white 3%));
+    }
+    .btn-raised:active:not([aria-haspopup]) {
+        transition-duration: 60ms;
+        translate: 0 1px;
+        background-image: linear-gradient(to bottom, color-mix(in oklch, var(--btn-face), black 6%), var(--btn-face));
+        box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.3);
+    }
+    [data-theme='light'] .btn-raised {
+        --btn-face: oklch(1 0 0);
+        --btn-lit: oklch(1 0 0 / 0.9);
+        --btn-drop: oklch(0.2 0.02 265 / 0.14);
+        background-image: linear-gradient(to bottom, oklch(1 0 0), color-mix(in oklch, var(--btn-face), var(--bg) 70%));
+    }
+    [data-theme='light'] .btn-raised:hover {
+        background-image: linear-gradient(to bottom, oklch(1 0 0), color-mix(in oklch, var(--btn-face), var(--bg) 35%));
+    }
+    [data-theme='light'] .btn-raised:active:not([aria-haspopup]) {
+        background-image: linear-gradient(to bottom, color-mix(in oklch, var(--btn-face), var(--bg) 90%), var(--btn-face));
+        box-shadow: inset 0 1px 2px oklch(0.2 0.02 265 / 0.16);
+    }
+    /* The accent: blueprint blue with a deeper edge; its light comes from within */
+    .btn-raised.btn-primary,
+    [data-theme='light'] .btn-raised.btn-primary {
+        --btn-face: var(--primary);
+        --btn-edge: color-mix(in oklch, var(--primary), black 28%);
+        --btn-lit: oklch(1 0 0 / 0.22);
+        background-image: linear-gradient(to bottom, color-mix(in oklch, var(--primary), white 10%), var(--primary));
+    }
+    .btn-raised.btn-primary:hover,
+    [data-theme='light'] .btn-raised.btn-primary:hover {
+        background-image: linear-gradient(to bottom, color-mix(in oklch, var(--primary), white 16%), color-mix(in oklch, var(--primary), white 4%));
+    }
+    .btn-raised.btn-primary:active:not([aria-haspopup]),
+    [data-theme='light'] .btn-raised.btn-primary:active:not([aria-haspopup]) {
+        background-image: linear-gradient(to bottom, color-mix(in oklch, var(--primary), black 10%), var(--primary));
+    }
+    .btn-raised.btn-danger,
+    [data-theme='light'] .btn-raised.btn-danger {
+        --btn-face: color-mix(in oklch, var(--danger) 14%, var(--surface));
+        --btn-edge: color-mix(in oklch, var(--danger) 40%, var(--border));
+    }
+    /* Disabled sits flat: nothing to press */
+    .btn-raised:disabled {
+        box-shadow: none;
+        background-image: none;
+    }
+
+    /* Recessed: fields that hold a value, sunk into the surface so it's clear where to type */
+    .surface-recessed {
+        background-color: color-mix(in oklch, var(--bg), black 14%);
+        border-color: var(--border-soft);
+        box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.3);
+    }
+    [data-theme='light'] .surface-recessed {
+        background-color: color-mix(in oklch, var(--bg), white 55%);
+        border-color: var(--border);
+        box-shadow: inset 0 1px 2px oklch(0.2 0.02 265 / 0.09);
+    }
+
+    /* Floating: lists, menus and dialogs that open over the page. A hairline edge, a tight contact
+       shadow and a long soft one; the highlighted item takes the accent tint, like a selection */
+    .surface-float {
+        background-color: color-mix(in oklch, var(--elev), white 4%);
+        border: 1px solid var(--border);
+        box-shadow:
+            inset 0 1px 0 oklch(1 0 0 / 0.05),
+            0 2px 6px -2px oklch(0 0 0 / 0.4),
+            0 18px 40px -14px oklch(0 0 0 / 0.6);
+    }
+    [data-theme='light'] .surface-float {
+        box-shadow:
+            0 2px 6px -2px oklch(0.2 0.02 265 / 0.12),
+            0 18px 40px -14px oklch(0.2 0.02 265 / 0.24);
+    }
+    /* Dialogs stay one step down, so a list or menu opened inside one still lifts off it */
+    [data-slot='dialog-content'].surface-float,
+    [data-slot='alert-dialog-content'].surface-float {
+        background-color: var(--elev);
+    }
+    .surface-float [data-highlighted] {
+        background-color: var(--primary-soft);
+        color: var(--fg);
+    }
+
+    /* Drafting registration marks in a panel's corners: QluePrint's signature, for dialogs and the
+       command palette only. Background layers, so a panel that scrolls or clips its overflow keeps them */
+    .drafted-ticks {
+        --tick: color-mix(in oklch, var(--primary) 65%, transparent);
+        --at: 7px;
+        background-image:
+            linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)),
+            linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)),
+            linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick));
+        background-repeat: no-repeat;
+        background-size:
+            9px 1.5px,
+            1.5px 9px,
+            9px 1.5px,
+            1.5px 9px,
+            9px 1.5px,
+            1.5px 9px,
+            9px 1.5px,
+            1.5px 9px;
+        background-position:
+            var(--at) var(--at),
+            var(--at) var(--at),
+            calc(100% - var(--at)) var(--at),
+            calc(100% - var(--at)) var(--at),
+            var(--at) calc(100% - var(--at)),
+            var(--at) calc(100% - var(--at)),
+            calc(100% - var(--at)) calc(100% - var(--at)),
+            calc(100% - var(--at)) calc(100% - var(--at));
+    }
+
+    /* Segmented control: a recessed track, the active segment a raised button */
+    [data-slot='tabs-list'][data-variant='default'] {
+        border: 1px solid var(--border-soft);
+        background-color: color-mix(in oklch, var(--bg), black 14%);
+        box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.3);
+    }
+    [data-theme='light'] [data-slot='tabs-list'][data-variant='default'] {
+        border-color: var(--border);
+        background-color: color-mix(in oklch, var(--bg), black 2%);
+        box-shadow: inset 0 1px 2px oklch(0.2 0.02 265 / 0.09);
+    }
+    /* Line tabs: the active one gets small ticks at its top corners, over the sliding underline */
+    [data-slot='tabs-list'][data-variant='line'] > [data-state='active']::before {
+        --tick: var(--primary);
+        content: '';
+        position: absolute;
+        top: 6px;
+        left: -4px;
+        right: -4px;
+        height: 6px;
+        pointer-events: none;
+        background:
+            linear-gradient(var(--tick), var(--tick)) top left / 6px 1.5px no-repeat,
+            linear-gradient(var(--tick), var(--tick)) top left / 1.5px 6px no-repeat,
+            linear-gradient(var(--tick), var(--tick)) top right / 6px 1.5px no-repeat,
+            linear-gradient(var(--tick), var(--tick)) top right / 1.5px 6px no-repeat;
+    }
+
+    /* A check or radio mark arriving: it pops in from small, overshooting a touch on the spring */
+    :is([data-slot='select-item'], [data-slot='menubar-checkbox-item'], [data-slot='menubar-radio-item'], [data-slot='context-menu-checkbox-item'])
+        [data-state='checked']
+        svg {
+        animation: check-pop 320ms var(--spring-ease) both;
+    }
+    @keyframes check-pop {
+        from {
+            scale: 0.4;
+            opacity: 0;
+        }
+    }
+
+    /* Disclosures (<details>, like a dialog's Advanced) open and close on the spring where the engine
+       can size to content; elsewhere they just open */
+    details::details-content {
+        block-size: 0;
+        overflow-y: clip;
+        transition:
+            block-size 320ms var(--spring-ease),
+            content-visibility 320ms allow-discrete;
+    }
+    details[open]::details-content {
+        block-size: auto;
+    }
+
     .changes-live {
         --sheen: color-mix(in oklch, var(--fg) 14%, transparent);
         position: relative;
