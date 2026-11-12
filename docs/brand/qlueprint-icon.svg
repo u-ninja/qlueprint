@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- QluePrint app icon. A Q drawn as a blueprint: its tail is a connection, the node a clue -->
+  <rect x="100.0" y="100.0" width="824.0" height="824.0" rx="185.0" fill="#173f9e"/>
+  <clipPath id="body"><rect x="100.0" y="100.0" width="824.0" height="824.0" rx="185.0"/></clipPath>
+  <g clip-path="url(#body)"><path d="M168.7 100.0V924.0M100.0 168.7H924.0" stroke="#ffffff" stroke-opacity="0.07" stroke-width="2.10"/><path d="M237.3 100.0V924.0M100.0 237.3H924.0" stroke="#ffffff" stroke-opacity="0.07" stroke-width="2.10"/><path d="M306.0 100.0V924.0M100.0 306.0H924.0" stroke="#ffffff" stroke-opacity="0.07" stroke-width="2.10"/><path d="M374.7 100.0V924.0M100.0 374.7H924.0" stroke="#ffffff" stroke-opacity="0.16" stroke-width="2.10"/><path d="M443.3 100.0V924.0M100.0 443.3H924.0" stroke="#ffffff" stroke-opacity="0.07" stroke-width="2.10"/><path d="M512.0 100.0V924.0M100.0 512.0H924.0" stroke="#ffffff" stroke-opacity="0.07" stroke-width="2.10"/><path d="M580.7 100.0V924.0M100.0 580.7H924.0" stroke="#ffffff" stroke-opacity="0.07" stroke-width="2.10"/><path d="M649.3 100.0V924.0M100.0 649.3H924.0" stroke="#ffffff" stroke-opacity="0.16" stroke-width="2.10"/><path d="M718.0 100.0V924.0M100.0 718.0H924.0" stroke="#ffffff" stroke-opacity="0.07" stroke-width="2.10"/><path d="M786.7 100.0V924.0M100.0 786.7H924.0" stroke="#ffffff" stroke-opacity="0.07" stroke-width="2.10"/><path d="M855.3 100.0V924.0M100.0 855.3H924.0" stroke="#ffffff" stroke-opacity="0.07" stroke-width="2.10"/></g>
+  <rect x="101.0" y="101.0" width="822.0" height="822.0" rx="184.0" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="2.0"/>
+  <circle cx="456.9" cy="456.9" r="172.0" fill="none" stroke="#ffffff" stroke-width="76.0"/>
+  <path d="M578.5 555.7 V701.1 H701.1" fill="none" stroke="#ffffff" stroke-width="76.0" stroke-linejoin="round"/>
+  <circle cx="701.1" cy="701.1" r="76.0" fill="#ffffff"/>
+  <circle cx="701.1" cy="701.1" r="31.9" fill="#173f9e"/>
+</svg>

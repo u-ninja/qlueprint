@@ -1,17 +1,20 @@
 <div align="center">
 
-<img src="apps/desktop/src-tauri/icons/128x128@2x.png" width="96" alt="QueryCraft">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/brand/qlueprint-logo-dark.svg">
+  <img src="docs/brand/qlueprint-logo-light.svg" width="320" alt="QluePrint">
+</picture>
 
-# QueryCraft
+### Every Database. One Workspace.
 
-**A local-first database workspace for the desktop.**
+QluePrint (_KLOO-print_) is a local-first desktop workspace for your databases.
 Connect to PostgreSQL, MySQL, MariaDB, SQL Server and SQLite, write and run SQL, browse and edit data, and spin up local database servers in a click. No account, no cloud, no telemetry.
 
-[Download](https://github.com/u-ninja/querycraft/releases/latest) · [Features](#features) · [Install](#install) · [Build from source](#build-from-source) · [License](#license)
+[Download](https://github.com/u-ninja/qlueprint/releases/latest) · [Features](#features) · [Install](#install) · [Build from source](#build-from-source) · [License](#license)
 
 </div>
 
-![QueryCraft workspace](docs/assets/concept-local-servers.png)
+![QluePrint workspace](docs/assets/concept-local-servers.png)
 
 <sub>Design concept. The shipping app follows the same design language; real screenshots are coming.</sub>
 
@@ -51,21 +54,21 @@ Connect to PostgreSQL, MySQL, MariaDB, SQL Server and SQLite, write and run SQL,
 - A tamper-evident audit log of everything the app ran against your databases, kept on your machine.
 - Light and dark themes, full keyboard navigation and accessible contrast.
 
-Not built yet: saved query library, query history view, team collaboration. See the [product spec](docs/product-spec.md) for what’s planned.
+Not built yet: MongoDB and Redis support, a saved query library, the query history view and team collaboration. See the [product spec](docs/product-spec.md) for what’s planned.
 
 ## Install
 
-Download the installer for your system from the [latest release](https://github.com/u-ninja/querycraft/releases/latest).
+Download the installer for your system from the [latest release](https://github.com/u-ninja/qlueprint/releases/latest).
 
-| System                | File                                           |
-| --------------------- | ---------------------------------------------- |
-| macOS (Apple Silicon) | `querycraft_<version>_aarch64.dmg`             |
-| Windows (64-bit)      | `querycraft_<version>_x64-setup.exe` or `.msi` |
-| Linux (64-bit)        | `.AppImage`, `.deb` or `.rpm`                  |
+| System                | File                                          |
+| --------------------- | --------------------------------------------- |
+| macOS (Apple Silicon) | `qlueprint_<version>_aarch64.dmg`             |
+| Windows (64-bit)      | `qlueprint_<version>_x64-setup.exe` or `.msi` |
+| Linux (64-bit)        | `.AppImage`, `.deb` or `.rpm`                 |
 
 **First launch.** The builds aren’t notarized by Apple or signed for Windows yet, so the system asks once:
 
-- **macOS 15 or later:** open the app, close the warning, then go to **System Settings → Privacy & Security** and click **Open Anyway**. Or run `xattr -dr com.apple.quarantine /Applications/querycraft.app`.
+- **macOS 15 or later:** open the app, close the warning, then go to **System Settings → Privacy & Security** and click **Open Anyway**. Or run `xattr -dr com.apple.quarantine /Applications/qlueprint.app`.
 - **macOS 14 and earlier:** right-click the app and choose **Open**.
 - **Windows:** on the SmartScreen prompt, click **More info → Run anyway**.
 
@@ -121,12 +124,16 @@ VITE_API_URL=http://localhost:8080
 | Cloud API     | Node.js, [Fastify](https://fastify.dev), [Drizzle ORM](https://orm.drizzle.team), PostgreSQL on Neon               |
 
 ```text
-querycraft/
+qlueprint/
 ├── apps/
 │   ├── desktop/   # The app: React UI in src/, Rust backend in src-tauri/
 │   └── api/       # Optional cloud API for sign-in and, later, collaboration
 └── docs/          # Product spec and design
 ```
+
+## Brand
+
+Logo files, light and dark, one-colour and the app icon are in [docs/brand](docs/brand). The name is written **QluePrint**: capital Q, capital P, one word.
 
 ## Documentation
 
@@ -135,9 +142,9 @@ querycraft/
 
 ## License
 
-QueryCraft is **source-available** under the [PolyForm Shield License 1.0.0](LICENSE.md).
+QluePrint is **source-available** under the [PolyForm Shield License 1.0.0](LICENSE.md).
 
-You may use, study, modify and share it for free, at home or at work. You may **not** use it, or code taken from it, to build or offer a product that competes with QueryCraft. For any other arrangement, [open an issue](https://github.com/u-ninja/querycraft/issues) to ask.
+You may use, study, modify and share it for free, at home or at work. You may **not** use it, or code taken from it, to build or offer a product that competes with QluePrint. For any other arrangement, [open an issue](https://github.com/u-ninja/qlueprint/issues) to ask.
 
 It is not an OSI open-source license. Third-party code keeps its own license: the vendored SQL Server driver in `apps/desktop/src-tauri/vendor/tiberius` is MIT or Apache-2.0, and dependencies keep theirs.
 

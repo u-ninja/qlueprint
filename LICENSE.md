@@ -1,4 +1,4 @@
-Required Notice: Copyright 2026 u-ninja (https://github.com/u-ninja/querycraft)
+Required Notice: Copyright 2026 u-ninja (https://github.com/u-ninja/qlueprint)
 
 # PolyForm Shield License 1.0.0
 

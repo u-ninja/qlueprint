@@ -6,7 +6,7 @@ Finished screens by Damir Sokolovsky ([@heydamir](https://x.com/heydamir)). Look
 | --- | --- | --- |
 | [unslop-dashboard-after.webp](refs/unslop-dashboard-after.webp) | A finance dashboard with two rendered payment cards and a revenue chart drawn as soft colored curves over a mirrored grey comparison | Quiet graphite chrome, and all the color lives in two moments, a real looking object and a chart where every color means a series |
 
-Upstream also ships three landing-page references (an invoicing hero, a lighthouse engraving and a 3D meadow footer) and story video frames. They are not vendored here because QueryCraft is a desktop app with no landing hero; see the upstream repo if you need them.
+Upstream also ships three landing-page references (an invoicing hero, a lighthouse engraving and a 3D meadow footer) and story video frames. They are not vendored here because QluePrint is a desktop app with no landing hero; see the upstream repo if you need them.
 
 What they share: one bright element per screen, quiet chrome around it, a visual that can be explained in one sentence, and headlines placed on space that was left empty for them.
 

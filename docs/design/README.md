@@ -1,6 +1,6 @@
-# QueryCraft design prototype
+# QluePrint design prototype
 
-`QueryCraft.dc.html` is the interactive desktop workspace prototype exported from Claude Design. It is the visual reference for the app; build screens to match it, one step at a time.
+`QluePrint.dc.html` is the interactive desktop workspace prototype exported from Claude Design. It is the visual reference for the app; build screens to match it, one step at a time.
 
 `support.js` is the runtime the prototype needs. Keep the two files together.
 
@@ -12,7 +12,7 @@ Opening the HTML straight from disk may not work, so serve the folder locally:
 python3 -m http.server 8765 --bind 127.0.0.1 --directory docs/design
 ```
 
-Then open http://127.0.0.1:8765/QueryCraft.dc.html.
+Then open http://127.0.0.1:8765/QluePrint.dc.html.
 
 ## What it contains
 

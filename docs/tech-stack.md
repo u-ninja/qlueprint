@@ -1,6 +1,6 @@
 # Tech stack
 
-The libraries QueryCraft uses and why. Versions are the latest checked on 2026-11-01; the lockfiles and `Cargo.lock` are the source of truth.
+The libraries QluePrint uses and why. Versions are the latest checked on 2026-11-01; the lockfiles and `Cargo.lock` are the source of truth.
 
 Rule for every addition: reuse what is already in the repo first (see [product-spec §17](product-spec.md#17-instructions-for-coding-agents)). Add a library only when it fills something the app does not have yet.
 

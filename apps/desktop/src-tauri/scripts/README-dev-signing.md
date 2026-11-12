@@ -1,7 +1,7 @@
 # Dev signing on macOS (stops repeated Keychain prompts)
 
 `tauri dev` rebuilds an unsigned binary each time, and macOS treats every rebuild as a new app,
-so it asks for the login keychain password whenever QueryCraft reads a saved connection password.
+so it asks for the login keychain password whenever QluePrint reads a saved connection password.
 Signing every debug build with the same local certificate makes macOS recognise it as the same app.
 
 One-time setup:

@@ -66,7 +66,7 @@ jobs:
                   projectPath: apps/desktop
                   # Only a tag publishes; a manual run leaves the release fields empty and just builds
                   tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
-                  releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('querycraft {0}', github.ref_name) || '' }}
+                  releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('QluePrint {0}', github.ref_name) || '' }}
                   releaseBody: |
                       Installers for macOS (Apple Silicon), Windows and Linux.
 
@@ -78,7 +78,7 @@ jobs:
               if: ${{ !startsWith(github.ref, 'refs/tags/') }}
               uses: actions/upload-artifact@v7
               with:
-                  name: querycraft-${{ matrix.name }}
+                  name: qlueprint-${{ matrix.name }}
                   path: |
                       apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
                       apps/desktop/src-tauri/target/release/bundle/msi/*.msi

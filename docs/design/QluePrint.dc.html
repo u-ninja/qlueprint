@@ -38,7 +38,7 @@ textarea::selection{background:var(--sel);color:transparent}
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex:none">
       <div style="width:20px;height:20px;border-radius:6px;background:var(--primary);display:grid;place-items:center"><div style="width:7px;height:7px;background:var(--primary-fg);transform:rotate(45deg);border-radius:1.5px"></div></div>
-      <span style="font-weight:600;font-size:13.5px;letter-spacing:-0.02em">QueryCraft</span>
+      <span style="font-weight:600;font-size:13.5px;letter-spacing:-0.02em">QluePrint</span>
     </div>
     <div style="width:1px;height:18px;background:var(--border-soft);flex:none"></div>
     <button onClick="{{ openWsMenu }}" style="display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--fg);cursor:pointer;font-weight:500;flex:none" style-hover="background:var(--hover)">
@@ -508,7 +508,7 @@ textarea::selection{background:var(--sel);color:transparent}
         </sc-if>
 
         <sc-if value="{{ wiz.isReview }}" hint-placeholder-val="{{ false }}">
-          <div style="display:flex;flex-direction:column;gap:4px;padding-bottom:16px"><span style="font-size:15px;font-weight:600;letter-spacing:-0.015em">Review before creating</span><span style="font-size:12.5px;color:var(--fg3)">Here is exactly what QueryCraft will do on this machine.</span></div>
+          <div style="display:flex;flex-direction:column;gap:4px;padding-bottom:16px"><span style="font-size:15px;font-weight:600;letter-spacing:-0.015em">Review before creating</span><span style="font-size:12.5px;color:var(--fg3)">Here is exactly what QluePrint will do on this machine.</span></div>
           <div style="display:grid;grid-template-columns:130px minmax(0,1fr);gap:9px 16px;font-size:12.5px;padding-bottom:18px">
             <sc-for list="{{ reviewRows }}" as="rr" hint-placeholder-count="5">
               <span style="color:var(--fg3)">{{ rr.k }}</span><span style="color:var(--fg);font-family:{{ rr.font }};font-size:{{ rr.fs }}">{{ rr.v }}</span>
@@ -956,10 +956,10 @@ class Component extends DCLogic {
   // ---------- wizard ----------
   usedPorts(){return this.state.servers.map(s=>s.port).filter(Boolean);}
   freePort(p){const used=this.usedPorts();while(used.includes(p))p++;return p;}
-  openWizard=()=>{const n=this.state.servers.length+1;this.setState({menu:null,palette:false,wiz:{step:0,engine:'postgres',version:'16.4',name:'pg-local-'+n,port:String(this.freePort(5432)),dir:'~/QueryCraft/servers/pg-local-'+n,stage:0,detail:'',fail:null,stageDone:[]}});};
+  openWizard=()=>{const n=this.state.servers.length+1;this.setState({menu:null,palette:false,wiz:{step:0,engine:'postgres',version:'16.4',name:'pg-local-'+n,port:String(this.freePort(5432)),dir:'~/QluePrint/servers/pg-local-'+n,stage:0,detail:'',fail:null,stageDone:[]}});};
   setWiz(p){this.setState(s=>({wiz:{...s.wiz,...p}}));}
   pickEngine(id){const E=ENGINES[id];const w=this.state.wiz;const base={postgres:'pg-local',mysql:'mysql-local',sqlite:'sqlite-local'}[id]+'-'+(this.state.servers.length+1);
-    this.setWiz({engine:id,version:E.versions[id==='postgres'?1:0],name:base,port:E.port?String(this.freePort(E.port)):'',dir:id==='sqlite'?`~/QueryCraft/data/${base}.db`:`~/QueryCraft/servers/${base}`});}
+    this.setWiz({engine:id,version:E.versions[id==='postgres'?1:0],name:base,port:E.port?String(this.freePort(E.port)):'',dir:id==='sqlite'?`~/QluePrint/data/${base}.db`:`~/QluePrint/servers/${base}`});}
   wizValid(){const w=this.state.wiz;const E=ENGINES[w.engine];const nameOk=/^[a-z0-9][a-z0-9-]{1,30}$/.test(w.name)&&!this.state.servers.some(s=>s.name===w.name);
     const p=+w.port;const portOk=!E.port||(p>=1024&&p<=65535&&!this.usedPorts().includes(p));return {nameOk,portOk,ok:nameOk&&portOk&&w.dir.trim().length>2};}
   startProvision(from=0){clearInterval(this._dl);this.setWiz({step:'run',stage:from,fail:null,detail:''});this.later(()=>this.runStage(from),220);}
@@ -1085,7 +1085,7 @@ class Component extends DCLogic {
       engineOpts=[...Object.entries(ENGINES).map(([id,e])=>({label:e.label,desc:e.desc,meta:e.port?':'+e.port:'file',disabled:false,opacity:1,border:w.engine===id?'var(--primary)':'var(--border-soft)',bg:w.engine===id?'var(--primary-soft)':'transparent',radio:w.engine===id?'inset 0 0 0 5px var(--primary)':'inset 0 0 0 1.5px var(--border)',onClick:()=>this.pickEngine(id)})),
         {label:'Microsoft SQL Server',desc:'Coming later — platform and licensing requirements under evaluation.',meta:'—',disabled:true,opacity:0.5,border:'var(--border-soft)',bg:'transparent',radio:'inset 0 0 0 1.5px var(--border)',onClick:()=>{}}];
       versionOpts=E.versions.map(x=>({label:x,border:w.version===x?'var(--primary)':'var(--border-soft)',bg:w.version===x?'var(--primary-soft)':'transparent',fg:w.version===x?'var(--primary-text)':'var(--fg2)',onClick:()=>this.setWiz({version:x})}));
-      reviewRows=[['Engine',`${E.label} ${w.version}`],['Will install',w.engine==='sqlite'?'Nothing — SQLite is bundled with QueryCraft':`${E.label} server binaries (portable, user-level). No system service.`],
+      reviewRows=[['Engine',`${E.label} ${w.version}`],['Will install',w.engine==='sqlite'?'Nothing — SQLite is bundled with QluePrint':`${E.label} server binaries (portable, user-level). No system service.`],
         ['Download',E.mb?`≈ ${Math.round(E.mb)} MB · ${E.file(w.version)}`:'None'],['Disk usage',E.disk+' including initial data'],['Data location',w.dir],
         ...(E.port?[['Listens on',`127.0.0.1:${w.port} (this machine only)`]]:[]),['System changes',w.engine==='sqlite'?'Creates one file':'None outside the data directory. Starts on demand, not at login.'],
         ['Credentials',E.port?`User “${E.user}” · random password stored in keychain`:'—']].map(([k,val])=>({k,v:val,font:/\/|:|~/.test(val)&&k!=='System changes'&&k!=='Will install'?"'JetBrains Mono',monospace":'inherit',fs:'12.5px'}));
@@ -1172,7 +1172,7 @@ class Component extends DCLogic {
       onPalKey:e=>{const n=(this._cmds||[]).length;if(e.key==='ArrowDown'){e.preventDefault();this.setState(s=>({palIdx:(s.palIdx+1)%Math.max(1,n)}));}else if(e.key==='ArrowUp'){e.preventDefault();this.setState(s=>({palIdx:(s.palIdx-1+n)%Math.max(1,n)}));}
         else if(e.key==='Enter'){e.preventDefault();const c=(this._cmds||[])[palIdx];this.setState({palette:false});c&&c[3]();}},
       wizOpen:!!w,wiz:wizVals,wizSteps,engineOpts,versionOpts,reviewRows,prereqRows,stageRows,doneRows,wizButtons,
-      onWizName:e=>this.setWiz({name:e.target.value.toLowerCase(),dir:w&&w.engine==='sqlite'?`~/QueryCraft/data/${e.target.value.toLowerCase()}.db`:`~/QueryCraft/servers/${e.target.value.toLowerCase()}`}),
+      onWizName:e=>this.setWiz({name:e.target.value.toLowerCase(),dir:w&&w.engine==='sqlite'?`~/QluePrint/data/${e.target.value.toLowerCase()}.db`:`~/QluePrint/servers/${e.target.value.toLowerCase()}`}),
       onWizPort:e=>this.setWiz({port:e.target.value.replace(/\D/g,'').slice(0,5)}),onWizDir:e=>this.setWiz({dir:e.target.value}),
       usePortSuggestion:e=>{e.preventDefault();if(w)this.setWiz({port:String(this.freePort(+w.port||5432))});},
       cfOpen:!!cf,cf:cfVals,cfTypes,cfEnvs,cfSsl,cfSet,closeConnForm:()=>this.setState({cf:null}),cfToggleAdv:()=>this.setCf({adv:!cf.adv}),cfToggleRO:()=>this.setCf({ro:!cf.ro}),

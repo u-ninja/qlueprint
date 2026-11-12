@@ -1,9 +1,9 @@
-# QueryCraft — Product, UX, Design System & Local Database Provisioning Specification
+# QluePrint — Product, UX, Design System & Local Database Provisioning Specification
 
 |                       |                                                                                         |
 | --------------------- | --------------------------------------------------------------------------------------- |
 | **Status**            | Product and engineering specification                                                   |
-| **Product**           | QueryCraft                                                                              |
+| **Product**           | QluePrint                                                                              |
 | **Design language**   | Obsidian Flow                                                                           |
 | **Primary platform**  | Windows desktop first; architecture must remain cross-platform                          |
 | **Application model** | Local-first desktop application with optional cloud collaboration                       |
@@ -21,24 +21,24 @@ The second and third concepts show the signed-out experience from [§2.5](#25-ac
 
 ## 1. Product definition
 
-QueryCraft is a professional database workspace that combines database administration, SQL development, data exploration, and team collaboration in one desktop application.
+QluePrint is a professional database workspace that combines database administration, SQL development, data exploration, and team collaboration in one desktop application.
 
 It should compete with established database IDEs while offering a more approachable, coherent, and modern experience. It must be powerful enough for experienced engineers and understandable to developers who do not work with databases every day.
 
 ### Product principles
 
-1. **Local-first and account-free.** A single user can install QueryCraft and use every non-collaboration feature without ever creating an account or signing in, and without depending on cloud services. See [§2.5](#25-accounts-and-sign-in).
+1. **Local-first and account-free.** A single user can install QluePrint and use every non-collaboration feature without ever creating an account or signing in, and without depending on cloud services. See [§2.5](#25-accounts-and-sign-in).
 2. **Safe by default.** Connections, credentials, queries, and destructive operations must be handled deliberately.
 3. **Progressive disclosure.** Common workflows are obvious; advanced controls are available when needed.
 4. **Fast and responsive.** Large schemas and result sets must not make the interface unusable.
 5. **Consistent.** Navigation, terminology, actions, errors, and visual patterns behave consistently.
 6. **Collaborative when requested.** Cloud collaboration is optional and must not silently expose local database access.
 7. **Accessible.** Light and dark themes, keyboard operation, readable contrast, and clear focus states are mandatory.
-8. **Operationally transparent.** Users must understand what QueryCraft installs, starts, downloads, changes, and stores on their device.
+8. **Operationally transparent.** Users must understand what QluePrint installs, starts, downloads, changes, and stores on their device.
 
 ### Product positioning
 
-QueryCraft is not just a SQL editor. It is a database workspace with:
+QluePrint is not just a SQL editor. It is a database workspace with:
 
 - Database connections and discovery.
 - SQL editing and execution.
@@ -141,7 +141,7 @@ The local database server, the desktop app (UI and Rust backend), and the cloud 
 
 ### 2.5 Accounts and sign-in
 
-A single user must be able to use QueryCraft indefinitely without ever signing in.
+A single user must be able to use QluePrint indefinitely without ever signing in.
 
 - **No sign-in wall.** The app opens straight into the local workspace. Launch, onboarding, and every local feature work signed out.
 - **Signed-out scope.** Connections, explorer, SQL workspace, data browsing, history, snippets, local servers, settings, import/export, and backup all work without an account.
@@ -347,13 +347,13 @@ Motion communicates state changes; it does not decorate the UI.
 
 ### 5.1 Launch behavior
 
-QueryCraft opens directly into the database workspace. There is no dashboard, welcome page, feature-selection screen, or unnecessary loading screen. It should feel like opening VS Code, not an admin dashboard: the workspace is ready, and the user decides what to do next.
+QluePrint opens directly into the database workspace. There is no dashboard, welcome page, feature-selection screen, or unnecessary loading screen. It should feel like opening VS Code, not an admin dashboard: the workspace is ready, and the user decides what to do next.
 
 **First launch: empty workspace**
 
 | Area                | What to show                                                     |
 | ------------------- | ---------------------------------------------------------------- |
-| Top bar             | QueryCraft logo, Local Workspace, theme switch, optional sign-in |
+| Top bar             | QluePrint logo, Local Workspace, theme switch, optional sign-in |
 | Left navigation     | Workspace, Connections, Queries, History                         |
 | Main area           | Empty SQL editor                                                 |
 | Bottom panel        | Collapsed results panel                                          |
@@ -361,7 +361,7 @@ QueryCraft opens directly into the database workspace. There is no dashboard, we
 
 The editor's empty state shows a small welcome:
 
-- "Welcome to QueryCraft" and "Your database workspace is ready."
+- "Welcome to QluePrint" and "Your database workspace is ready."
 - Three actions:
     1. **Connect to a database:** opens the connection dialog with the supported database types (PostgreSQL, MySQL, SQL Server, SQLite).
     2. **Create a local database:** opens the provisioning wizard ([§6.4](#64-creation-flow)).
@@ -606,9 +606,9 @@ Open questions:
 
 ### 6.1 Product goal
 
-A user should be able to create a usable local database server from QueryCraft without manually downloading a database installer, configuring services, creating data directories, editing configuration files, or setting up a connection.
+A user should be able to create a usable local database server from QluePrint without manually downloading a database installer, configuring services, creating data directories, editing configuration files, or setting up a connection.
 
-The user selects a database engine and version, reviews the setup, confirms required permissions and storage, and QueryCraft performs the setup with clear progress and recovery behavior.
+The user selects a database engine and version, reviews the setup, confirms required permissions and storage, and QluePrint performs the setup with clear progress and recovery behavior.
 
 The experience should feel like a managed local development environment, not a shell script hidden behind a button.
 
@@ -618,7 +618,7 @@ Do not assume that every database can be installed safely and portably using the
 
 Build a **Local Runtime Provider** abstraction with different installation strategies per operating system and database engine:
 
-1. **Managed container runtime.** Use an installed, supported Docker-compatible runtime. QueryCraft manages containers, volumes, ports, and lifecycle.
+1. **Managed container runtime.** Use an installed, supported Docker-compatible runtime. QluePrint manages containers, volumes, ports, and lifecycle.
 2. **Managed native runtime.** Download and install a verified, supported database distribution into an application-managed directory, where licensing and platform support allow it.
 3. **Embedded database.** SQLite requires no separate server process and is created directly as a local database file.
 
@@ -635,19 +635,19 @@ Do not promise universal one-click installation until each engine/OS combination
 
 **Decision (phase 1, built).** Docker first, native with consent, SQLite always:
 
-- **Docker is the recommended provider** for PostgreSQL, MySQL and MariaDB on Windows, macOS and Linux: pinned official images (postgres 17.11/16.15, mysql 8.4.13/8.0.46, mariadb 11.4.13/10.11.19, never `latest`), one labelled volume per instance (`com.querycraft.managed`, `com.querycraft.instance-id`, `com.querycraft.database`), a port bound to 127.0.0.1 only, a healthcheck and `restart: unless-stopped`. QueryCraft drives the `docker` CLI with argument vectors (it already resolves Docker Desktop's contexts and the Linux socket, and the user can rerun the same commands); it never installs Docker and only ever changes containers and volumes that carry its labels. MariaDB connects through the MySQL driver.
-- **Native install is a real alternative, run only after the user approves the exact commands** shown in a confirmation dialog (passwords masked): winget on Windows (PostgreSQL 17/16, MariaDB 11.4), Homebrew on macOS (never installed by QueryCraft; brew.sh is linked), and apt, dnf, pacman or zypper through `pkexec` on Linux. Then QueryCraft starts the service, creates the database and user, loads sample data, stores the password in the OS credential store and saves the connection. Not done, and said so in the UI: MySQL on Windows (its installer needs the interactive MySQL Configurator), MySQL on Arch and openSUSE, MariaDB 10.11 on Windows, starting or stopping Windows services (manual `net start` as administrator), and uninstalling (the plan shows the command). Native installs use each package's default port except on Windows.
+- **Docker is the recommended provider** for PostgreSQL, MySQL and MariaDB on Windows, macOS and Linux: pinned official images (postgres 17.11/16.15, mysql 8.4.13/8.0.46, mariadb 11.4.13/10.11.19, never `latest`), one labelled volume per instance (`com.querycraft.managed`, `com.querycraft.instance-id`, `com.querycraft.database`), a port bound to 127.0.0.1 only, a healthcheck and `restart: unless-stopped`. QluePrint drives the `docker` CLI with argument vectors (it already resolves Docker Desktop's contexts and the Linux socket, and the user can rerun the same commands); it never installs Docker and only ever changes containers and volumes that carry its labels. MariaDB connects through the MySQL driver.
+- **Native install is a real alternative, run only after the user approves the exact commands** shown in a confirmation dialog (passwords masked): winget on Windows (PostgreSQL 17/16, MariaDB 11.4), Homebrew on macOS (never installed by QluePrint; brew.sh is linked), and apt, dnf, pacman or zypper through `pkexec` on Linux. Then QluePrint starts the service, creates the database and user, loads sample data, stores the password in the OS credential store and saves the connection. Not done, and said so in the UI: MySQL on Windows (its installer needs the interactive MySQL Configurator), MySQL on Arch and openSUSE, MariaDB 10.11 on Windows, starting or stopping Windows services (manual `net start` as administrator), and uninstalling (the plan shows the command). Native installs use each package's default port except on Windows.
 - **SQLite always works**, with no Docker and no install: a file in the app data directory's `databases` folder.
 - Servers already on the machine (containers found by image, native servers found on their ports) are offered for "connect existing". Passwords recovered from a container's env are only used inside the Rust backend to test and save the connection.
-- **MongoDB and Redis are deferred** until QueryCraft has adapters for them; the provider code is structured so they can be added as further engines.
+- **MongoDB and Redis are deferred** until QluePrint has adapters for them; the provider code is structured so they can be added as further engines.
 
-Instances are tracked in `local_instances.json` (no secrets) next to `connections.json`, and every lifecycle action is written to the audit log (§5.10). Sample data (customers, products, orders, order items, employees) is idempotent and refuses to touch tables QueryCraft didn't create.
+Instances are tracked in `local_instances.json` (no secrets) next to `connections.json`, and every lifecycle action is written to the audit log (§5.10). Sample data (customers, products, orders, order items, employees) is idempotent and refuses to touch tables QluePrint didn't create.
 
 ### 6.3 Container runtime considerations
 
 Docker Desktop is not equivalent to a small bundled library. It has its own installation, licensing, resource, startup, and platform requirements.
 
-QueryCraft must:
+QluePrint must:
 
 - Detect whether a supported container runtime is installed and running.
 - Explain when it is missing.
@@ -696,7 +696,7 @@ Defaults are sensible; advanced configuration is collapsed by default. Never sho
 - Required permissions.
 - Expected disk usage if estimable.
 - Network exposure: loopback only by default.
-- What QueryCraft will create or modify.
+- What QluePrint will create or modify.
 
 Require explicit user confirmation before system-level changes, downloads, or data-directory creation.
 
@@ -713,11 +713,11 @@ Require explicit user confirmation before system-level changes, downloads, or da
 9. Starting the server.
 10. Waiting for health check.
 11. Saving secure credentials.
-12. Creating the QueryCraft connection.
+12. Creating the QluePrint connection.
 
 Progress comes from actual task state, never a fabricated percentage animation. Allow cancellation where safe, and explain when a step cannot be interrupted without cleanup or recovery.
 
-**Step 5 — Ready.** Show instance status (Running), engine and version, connection details, default database, and actions: Open in QueryCraft, Create another database, View logs, Stop server.
+**Step 5 — Ready.** Show instance status (Running), engine and version, connection details, default database, and actions: Open in QluePrint, Create another database, View logs, Stop server.
 
 The connection is created automatically after a successful health check, with credentials stored securely if the user chose that option.
 
@@ -740,8 +740,8 @@ Never equate removing an instance with deleting its data. Before destructive ope
 - Suggest an available port without silently changing a user's existing configuration.
 - Record the selected port and actual instance identifier.
 - Never terminate an unrelated process to free a port.
-- Track the exact process/container created by QueryCraft.
-- Clean up only resources owned by that QueryCraft instance.
+- Track the exact process/container created by QluePrint.
+- Clean up only resources owned by that QluePrint instance.
 - Provide diagnostics for failed startup and port conflicts.
 
 ### 6.7 Storage and backup
@@ -803,7 +803,7 @@ Define Rust types for runtime detection, engine/version catalog, provisioning pl
 
 The desktop UI must not directly execute arbitrary shell commands. The Rust backend exposes narrow, validated commands.
 
-Use a durable local metadata store for managed instance records. SQLite in the app's data directory is a suitable choice for QueryCraft's own local metadata; it is separate from user-managed database instances. Do not introduce PostgreSQL merely to manage local server metadata.
+Use a durable local metadata store for managed instance records. SQLite in the app's data directory is a suitable choice for QluePrint's own local metadata; it is separate from user-managed database instances. Do not introduce PostgreSQL merely to manage local server metadata.
 
 ### 6.10 Suggested Tauri commands and events
 
@@ -1006,7 +1006,7 @@ Use the existing repository as the source of truth. Adapt rather than overwrite 
 Suggested target:
 
 ```text
-querycraft/
+qlueprint/
 ├── apps/
 │   ├── desktop/
 │   │   ├── src/                   # React UI
@@ -1118,7 +1118,7 @@ For local server provisioning specifically:
 - Credentials are stored securely.
 - Server binds to loopback by default.
 - Health check confirms readiness.
-- QueryCraft creates a working connection.
+- QluePrint creates a working connection.
 - Stop/start/restart works.
 - Backup and restore behavior is documented and tested.
 - Removal clearly distinguishes instance metadata from database data.
@@ -1126,7 +1126,7 @@ For local server provisioning specifically:
 
 ## 17. Instructions for coding agents
 
-Act as the principal engineer for QueryCraft.
+Act as the principal engineer for QluePrint.
 
 Before changing code:
 
