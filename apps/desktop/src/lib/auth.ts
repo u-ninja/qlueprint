@@ -14,7 +14,7 @@ const VERIFIER_PARAM = 'neon_auth_session_verifier';
 // and catch its redirect on a temporary loopback server.
 // onError covers failures reported after this returns, when the browser redirect comes back with ?error=
 export async function signInWithGoogle(onError: (message: string) => void) {
-    const port = await start({ response: 'You can close this tab and return to QueryCraft.' });
+    const port = await start({ response: 'You can close this tab and return to QluePrint.' });
     let unlisten = () => {};
     const stop = () => {
         clearTimeout(timer);

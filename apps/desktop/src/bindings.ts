@@ -31,6 +31,11 @@ export const commands = {
 	 */
 	tableDetails: (id: string, database: string | null, schema: string, table: string) => __TAURI_INVOKE<TableDetails_Serialize>("table_details", { id, database, schema, table }),
 	/**
+	 *  A stored procedure's or function's definition as the database writes it (Postgres: the overload
+	 *  `args` names), to open in a query tab. Metadata only, so it isn't audited.
+	 */
+	routineDefinition: (id: string, database: string | null, schema: string, name: string, procedure: boolean, args: string | null) => __TAURI_INVOKE<string>("routine_definition", { id, database, schema, name, procedure, args }),
+	/**
 	 *  Up to `limit` rows of `schema.table` to pick a foreign key value from (see `lookup_sql`).
 	 *  `database` works as in `run_query`. It reads row data, so it's audited like a query run.
 	 */
@@ -105,11 +110,11 @@ export const commands = {
 	createLocalDatabase: (provisioningId: string, request: LocalRequest_Deserialize) => __TAURI_INVOKE<LocalCreated_Serialize>("create_local_database", { provisioningId, request }),
 	/**  Stops a provisioning at the next safe point. A no-op once it can no longer be cancelled. */
 	cancelProvisioning: (provisioningId: string) => __TAURI_INVOKE<void>("cancel_provisioning", { provisioningId }),
-	/** Starts a QueryCraft-managed instance. */
+	/** Starts a QluePrint-managed instance. */
 	startLocalDatabase: (id: string) => __TAURI_INVOKE<LocalInstance_Serialize>("start_local_database", { id }),
-	/** Stops a QueryCraft-managed instance. */
+	/** Stops a QluePrint-managed instance. */
 	stopLocalDatabase: (id: string) => __TAURI_INVOKE<LocalInstance_Serialize>("stop_local_database", { id }),
-	/** Restarts a QueryCraft-managed instance. */
+	/** Restarts a QluePrint-managed instance. */
 	restartLocalDatabase: (id: string) => __TAURI_INVOKE<LocalInstance_Serialize>("restart_local_database", { id }),
 	/**  The last `lines` lines of the server's log, passwords masked. */
 	localDatabaseLogs: (id: string, lines: number) => __TAURI_INVOKE<string>("local_database_logs", { id, lines }),
@@ -117,7 +122,7 @@ export const commands = {
 	testLocalDatabase: (target: LocalTarget, login: LocalLogin | null) => __TAURI_INVOKE<TestOutcome>("test_local_database", { target, login }),
 	/**
 	 *  Saves a connection to an existing local database (a discovered container or native server,
-	 *  or a QueryCraft instance whose connection was removed). Validated by connecting first.
+	 *  or a QluePrint instance whose connection was removed). Validated by connecting first.
 	 */
 	connectLocalDatabase: (target: LocalTarget, login: LocalLogin | null) => __TAURI_INVOKE<SavedConnection_Serialize>("connect_local_database", { target, login }),
 	initSampleData: (id: string) => __TAURI_INVOKE<SampleOutcome_Serialize>("init_sample_data", { id }),
@@ -349,10 +354,10 @@ export type Details_Serialize = {
 	error?: string,
 };
 
-/**  A database container found on this machine, QueryCraft's or not. */
+/**  A database container found on this machine, QluePrint's or not. */
 export type DiscoveredContainer = DiscoveredContainer_Serialize | DiscoveredContainer_Deserialize;
 
-/**  A database container found on this machine, QueryCraft's or not. */
+/**  A database container found on this machine, QluePrint's or not. */
 export type DiscoveredContainer_Deserialize = {
 	id: string,
 	name: string,
@@ -372,7 +377,7 @@ export type DiscoveredContainer_Deserialize = {
 	passwordKnown: boolean,
 };
 
-/**  A database container found on this machine, QueryCraft's or not. */
+/**  A database container found on this machine, QluePrint's or not. */
 export type DiscoveredContainer_Serialize = {
 	id: string,
 	name: string,
@@ -488,11 +493,11 @@ export type ErrorCode = "invalid_input" | "not_connected" | "connect_failed" | "
 "permission_denied" | 
 /**  The server didn't pass its health check in time. */
 "startup_timeout" | "invalid_credentials" | 
-/**  The container exited while QueryCraft was waiting for it. */
+/**  The container exited while QluePrint was waiting for it. */
 "container_stopped" | "sample_data_failed" | 
 /**  Provisioning was cancelled by the user. */
 "cancelled" | 
-/**  The container or volume isn't one QueryCraft created, so it isn't touched. */
+/**  The container or volume isn't one QluePrint created, so it isn't touched. */
 "not_managed" | 
 /**  Not possible on this OS or with this package manager; the message has the manual steps. */
 "native_unsupported" | 
@@ -536,7 +541,7 @@ export type InstanceStatus = "creating" | "running" |
 "starting" | "stopped" | "failed" | 
 /**  The container was removed; its data volume is kept. */
 "removed" | 
-/**  The container or file is gone, and QueryCraft didn't remove it. */
+/**  The container or file is gone, and QluePrint didn't remove it. */
 "missing" | 
 /**  Docker isn't reachable right now, so the state can't be read. */
 "unknown";
@@ -566,10 +571,10 @@ export type LocalCreated_Serialize = {
 	starterSql: string | null,
 };
 
-/**  A database QueryCraft created, tracked in `local_instances.json`. No secrets. */
+/**  A database QluePrint created, tracked in `local_instances.json`. No secrets. */
 export type LocalInstance = LocalInstance_Serialize | LocalInstance_Deserialize;
 
-/**  A database QueryCraft created, tracked in `local_instances.json`. No secrets. */
+/**  A database QluePrint created, tracked in `local_instances.json`. No secrets. */
 export type LocalInstance_Deserialize = {
 	id: string,
 	name: string,
@@ -590,7 +595,7 @@ export type LocalInstance_Deserialize = {
 	/**  Unix ms. */
 	createdAt: number,
 	status: InstanceStatus,
-	/**  Docker instances carry QueryCraft's labels; only those are ever changed. */
+	/**  Docker instances carry QluePrint's labels; only those are ever changed. */
 	managed: boolean,
 	savedConnectionId?: string | null,
 	sampleData: SampleState,
@@ -598,7 +603,7 @@ export type LocalInstance_Deserialize = {
 	uninstall?: string | null,
 };
 
-/**  A database QueryCraft created, tracked in `local_instances.json`. No secrets. */
+/**  A database QluePrint created, tracked in `local_instances.json`. No secrets. */
 export type LocalInstance_Serialize = {
 	id: string,
 	name: string,
@@ -619,7 +624,7 @@ export type LocalInstance_Serialize = {
 	/**  Unix ms. */
 	createdAt: number,
 	status: InstanceStatus,
-	/**  Docker instances carry QueryCraft's labels; only those are ever changed. */
+	/**  Docker instances carry QluePrint's labels; only those are ever changed. */
 	managed: boolean,
 	savedConnectionId: string | null,
 	sampleData: SampleState,
@@ -724,7 +729,7 @@ export type LocalRequest_Deserialize = {
 	/**  MySQL/MariaDB root, or the native installer's admin password where one is needed. */
 	rootPassword: string,
 	port: number,
-	/**  Docker only; empty picks `querycraft-<engine>-<id>`. */
+	/**  Docker only; empty picks `qlueprint-<engine>-<id>`. */
 	containerName: string,
 	sampleData: boolean,
 	/**  Native only: the `consentToken` of the plan whose commands the user approved. */
@@ -744,7 +749,7 @@ export type LocalRequest_Serialize = {
 	/**  MySQL/MariaDB root, or the native installer's admin password where one is needed. */
 	rootPassword: string,
 	port: number,
-	/**  Docker only; empty picks `querycraft-<engine>-<id>`. */
+	/**  Docker only; empty picks `qlueprint-<engine>-<id>`. */
 	containerName: string,
 	sampleData: boolean,
 	/**  Native only: the `consentToken` of the plan whose commands the user approved. */
@@ -840,7 +845,7 @@ export type MssqlServer_Deserialize = {
 	 */
 	tenantId?: string,
 	/**
-	 *  Entra app (client) ID instead of QueryCraft's own; for managed identity, a user-assigned
+	 *  Entra app (client) ID instead of QluePrint's own; for managed identity, a user-assigned
 	 *  identity's client ID. Empty: the default.
 	 */
 	clientId?: string,
@@ -878,7 +883,7 @@ export type MssqlServer_Serialize = {
 	 */
 	tenantId: string,
 	/**
-	 *  Entra app (client) ID instead of QueryCraft's own; for managed identity, a user-assigned
+	 *  Entra app (client) ID instead of QluePrint's own; for managed identity, a user-assigned
 	 *  identity's client ID. Empty: the default.
 	 */
 	clientId: string,
@@ -898,7 +903,7 @@ export type NativePlan_Deserialize = {
 	setupSql: string,
 	/**  True when a command asks for administrator rights (UAC, pkexec). */
 	elevated: boolean,
-	/**  False when QueryCraft can't run this safely here: `commands` are then manual steps. */
+	/**  False when QluePrint can't run this safely here: `commands` are then manual steps. */
 	supported: boolean,
 	/**  Whether the admin password field applies (the installer sets it). */
 	needsRootPassword: boolean,
@@ -906,7 +911,7 @@ export type NativePlan_Deserialize = {
 	notes: string[],
 	/**  Sent back in `LocalRequest::consent`; ties the approval to these exact commands. */
 	consentToken: string,
-	/**  What to run to uninstall it later (QueryCraft doesn't uninstall). */
+	/**  What to run to uninstall it later (QluePrint doesn't uninstall). */
 	uninstall?: string | null,
 };
 
@@ -919,7 +924,7 @@ export type NativePlan_Serialize = {
 	setupSql: string,
 	/**  True when a command asks for administrator rights (UAC, pkexec). */
 	elevated: boolean,
-	/**  False when QueryCraft can't run this safely here: `commands` are then manual steps. */
+	/**  False when QluePrint can't run this safely here: `commands` are then manual steps. */
 	supported: boolean,
 	/**  Whether the admin password field applies (the installer sets it). */
 	needsRootPassword: boolean,
@@ -927,7 +932,7 @@ export type NativePlan_Serialize = {
 	notes: string[],
 	/**  Sent back in `LocalRequest::consent`; ties the approval to these exact commands. */
 	consentToken: string,
-	/**  What to run to uninstall it later (QueryCraft doesn't uninstall). */
+	/**  What to run to uninstall it later (QluePrint doesn't uninstall). */
 	uninstall: string | null,
 };
 
@@ -983,7 +988,7 @@ export type PlanNode_Serialize = {
 
 /**  How a local database is provided. */
 export type Provider = 
-/**  A container QueryCraft creates and labels. */
+/**  A container QluePrint creates and labels. */
 "docker" | 
 /**  A server installed with the OS package manager, after the user approved the commands. */
 "native" | 
@@ -1048,6 +1053,24 @@ export type ResultColumn = {
 	kind: ColumnKind,
 };
 
+export type Routine = Routine_Serialize | Routine_Deserialize;
+
+export type Routine_Deserialize = {
+	name: string,
+	/**  A stored procedure; otherwise a function */
+	procedure: boolean,
+	/**  Postgres: its argument types, which tell overloads apart and find its definition */
+	args?: string | null,
+};
+
+export type Routine_Serialize = {
+	name: string,
+	/**  A stored procedure; otherwise a function */
+	procedure: boolean,
+	/**  Postgres: its argument types, which tell overloads apart and find its definition */
+	args: string | null,
+};
+
 export type SampleOutcome = SampleOutcome_Serialize | SampleOutcome_Deserialize;
 
 export type SampleOutcome_Deserialize = {
@@ -1102,11 +1125,15 @@ export type Schema = Schema_Serialize | Schema_Deserialize;
 export type Schema_Deserialize = {
 	name: string,
 	tables: Table_Deserialize[],
+	/**  Stored procedures and functions, by name; none on SQLite */
+	routines: Routine_Deserialize[],
 };
 
 export type Schema_Serialize = {
 	name: string,
 	tables: Table_Serialize[],
+	/**  Stored procedures and functions, by name; none on SQLite */
+	routines: Routine_Serialize[],
 };
 
 /**  Where a network database server is and who to sign in as. */

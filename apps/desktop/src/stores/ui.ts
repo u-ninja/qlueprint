@@ -10,6 +10,15 @@ export type ResultsTab = 'results' | 'messages' | 'plan';
 
 export type Inspected = { connectionId: string; database: string; schema: string; table: string };
 
+/** A local workspace, e.g. one per client: its own saved connections and query tabs */
+export type WorkspaceInfo = { id: string; name: string };
+/** Where connections without a placement live, so ones saved before workspaces existed stay put */
+export const LOCAL_WORKSPACE = 'local';
+const LOCAL: WorkspaceInfo = { id: LOCAL_WORKSPACE, name: 'Local' };
+
+/** The workspace a saved connection is in */
+export const workspaceOf = (placement: Record<string, string>, savedId: string) => placement[savedId] ?? LOCAL_WORKSPACE;
+
 type UiState = {
     theme: Theme;
     motion: Motion;
@@ -31,6 +40,18 @@ type UiState = {
     setResultsTab: (tab: ResultsTab) => void;
     /** Shows a table in the inspector, opening it */
     inspect: (target: Inspected) => void;
+    /** Local first, then in the order made */
+    workspaces: WorkspaceInfo[];
+    /** The shown one; switch with the query store's switchWorkspace, which swaps the tabs too */
+    workspace: string;
+    /** Saved connection id → workspace id; missing means Local */
+    placement: Record<string, string>;
+    /** Adds a workspace and returns its id */
+    createWorkspace: (name: string) => string;
+    renameWorkspace: (id: string, name: string) => void;
+    /** Takes it off the list; its connections move to Local. Not Local itself */
+    removeWorkspace: (id: string) => void;
+    moveConnection: (savedId: string, workspace: string) => void;
 };
 
 // Remembered between launches so the workspace reopens as the user left it
@@ -53,13 +74,54 @@ export const useUi = create<UiState>()(
             setChangesOpen: (changesOpen) => set({ changesOpen }),
             setResultsTab: (resultsTab) => set({ resultsTab }),
             inspect: (inspected) => set({ inspected, inspectorOpen: true }),
+            workspaces: [LOCAL],
+            workspace: LOCAL_WORKSPACE,
+            placement: {},
+            createWorkspace: (name) => {
+                const id = crypto.randomUUID();
+                set((s) => ({ workspaces: [...s.workspaces, { id, name: name.trim() }] }));
+                return id;
+            },
+            renameWorkspace: (id, name) => set((s) => ({ workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, name: name.trim() } : w)) })),
+            removeWorkspace: (id) =>
+                set((s) =>
+                    id === LOCAL_WORKSPACE
+                        ? s
+                        : {
+                              workspaces: s.workspaces.filter((w) => w.id !== id),
+                              placement: Object.fromEntries(Object.entries(s.placement).filter(([, w]) => w !== id)),
+                          },
+                ),
+            moveConnection: (savedId, workspace) => set((s) => ({ placement: { ...s.placement, [savedId]: workspace } })),
         }),
         {
             name: 'qc-ui',
-            partialize: ({ theme, motion, view, sidebarOpen, inspectorOpen }) => ({ theme, motion, view, sidebarOpen, inspectorOpen }),
+            partialize: ({ theme, motion, view, sidebarOpen, inspectorOpen, workspaces, workspace, placement }) => ({
+                theme,
+                motion,
+                view,
+                sidebarOpen,
+                inspectorOpen,
+                workspaces,
+                workspace,
+                placement,
+            }),
         },
     ),
 );
+
+/** Whether a saved connection is in the shown workspace, outside React (stores, editor providers) */
+export function inShownWorkspace(savedId: string) {
+    const { placement, workspace } = useUi.getState();
+    return workspaceOf(placement, savedId) === workspace;
+}
+
+/** Whether a saved connection is in the shown workspace; re-renders when the workspace or placement changes */
+export function useInWorkspace() {
+    const workspace = useUi((s) => s.workspace);
+    const placement = useUi((s) => s.placement);
+    return (savedId: string) => workspaceOf(placement, savedId) === workspace;
+}
 
 const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
 

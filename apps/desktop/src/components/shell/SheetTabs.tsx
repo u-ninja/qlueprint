@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState, type DragEvent, type ReactNode } from 'react';
 import { Copy, FileCode2, Pencil, Plus, RotateCw, Save, Table2, X } from 'lucide-react';
 import {
     AlertDialog,
@@ -20,8 +20,8 @@ import {
     ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useConnections } from '@/stores/connections';
-import { isDirty, useQuery } from '@/stores/query';
+import { useConnections, type Connection } from '@/stores/connections';
+import { isDirty, useQuery, type TableTab } from '@/stores/query';
 import { cn, newQueryShortcut, saveShortcut } from '@/lib/utils';
 
 const sheetTab = 'h-full flex-none gap-1.5 px-1 text-[13px] font-normal';
@@ -71,14 +71,66 @@ type TabProps = {
     onClose: (ids: string[]) => void;
     /** Every tab id in strip order, for Close others / to the right */
     order: string[];
+    /** Shown muted after the label, telling apart tabs with the same name (a table's schema) */
+    qualifier?: string;
+    /** Query tabs drag among query tabs, table tabs among table tabs */
+    kind: 'query' | 'table';
+    /** This tab's kind in strip order, for Move left / right: the keyboard's way to reorder */
+    siblings: string[];
 };
 
-function SheetTab({ id, label, title = label, icon: Icon, active, running, dirty, menu, renaming, onRename, onRenamed, onClose, order }: TabProps) {
+/** The drag's data type names the tab kind, so a drop target can tell before the drop whether it takes it */
+const dragType = (kind: TabProps['kind']) => `application/x-qlueprint-${kind}-tab`;
+
+function SheetTab(props: TabProps) {
+    const {
+        id,
+        label,
+        title = label,
+        icon: Icon,
+        active,
+        running,
+        dirty,
+        menu,
+        renaming,
+        onRename,
+        onRenamed,
+        onClose,
+        order,
+        qualifier,
+        kind,
+        siblings,
+    } = props;
+    const at = siblings.indexOf(id);
     const index = order.indexOf(id);
+    const [dropping, setDropping] = useState(false);
+    const takes = (e: DragEvent) => e.dataTransfer.types.includes(dragType(kind));
     return (
         <ContextMenu>
             <ContextMenuTrigger asChild>
-                <div className="group flex h-full flex-none items-center gap-0.5">
+                <div
+                    draggable={!renaming}
+                    onDragStart={(e) => {
+                        e.dataTransfer.setData(dragType(kind), id);
+                        e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragOver={(e) => {
+                        if (!takes(e)) return;
+                        e.preventDefault();
+                        setDropping(true);
+                    }}
+                    onDragLeave={() => setDropping(false)}
+                    onDrop={(e) => {
+                        setDropping(false);
+                        const from = e.dataTransfer.getData(dragType(kind));
+                        if (from && from !== id) useQuery.getState().moveTab(from, id);
+                    }}
+                    // The drop marker: a line at the tab's leading edge
+                    className={cn(
+                        'group flex h-full flex-none items-center gap-0.5 select-none',
+                        dropping && 'shadow-[inset_2px_0_0_var(--color-primary)]',
+                    )}
+                >
                     {renaming && onRenamed ? (
                         <span className="flex items-center gap-1.5 px-1">
                             <Icon className="size-3.5 text-fg3" aria-hidden />
@@ -95,6 +147,7 @@ function SheetTab({ id, label, title = label, icon: Icon, active, running, dirty
                         >
                             <Icon className={cn('size-3.5', running && 'animate-pulse text-primary-text')} aria-hidden />
                             <span className="max-w-48 truncate">{label}</span>
+                            {qualifier && <span className="max-w-32 truncate text-fg4">{qualifier}</span>}
                         </TabsTrigger>
                     )}
                     {/* One slot: the unsaved dot, which gives way to × on hover, like an editor's tabs */}
@@ -119,6 +172,13 @@ function SheetTab({ id, label, title = label, icon: Icon, active, running, dirty
                     <X aria-hidden />
                     Close
                 </ContextMenuItem>
+                <ContextMenuItem disabled={at <= 0} onSelect={() => useQuery.getState().moveTab(id, siblings[at - 1])}>
+                    Move left
+                </ContextMenuItem>
+                <ContextMenuItem disabled={at === siblings.length - 1} onSelect={() => useQuery.getState().moveTab(id, siblings[at + 1])}>
+                    Move right
+                </ContextMenuItem>
+                <ContextMenuSeparator />
                 <ContextMenuItem disabled={order.length < 2} onSelect={() => onClose(order.filter((t) => t !== id))}>
                     Close others
                 </ContextMenuItem>
@@ -129,6 +189,35 @@ function SheetTab({ id, label, title = label, icon: Icon, active, running, dirty
             </ContextMenuContent>
         </ContextMenu>
     );
+}
+
+/**
+ * What tells apart table tabs with the same table name: the schema when theirs differ, else the
+ * database, else the connection. Tabs with a unique name get none. O(tabs)
+ */
+function tableQualifiers(tables: TableTab[], connections: Connection[]) {
+    const byName = new Map<string, TableTab[]>();
+    for (const t of tables) {
+        const name = t.table.toLowerCase();
+        const same = byName.get(name);
+        if (same) same.push(t);
+        else byName.set(name, [t]);
+    }
+    const qualifiers = new Map<string, string>();
+    for (const same of byName.values()) {
+        if (same.length < 2) continue;
+        const differ = (part: (t: TableTab) => string) => new Set(same.map(part)).size === same.length;
+        const bySchema = differ((t) => t.schema);
+        const byDatabase = !bySchema && differ((t) => t.database);
+        for (const t of same) {
+            let qualifier: string;
+            if (bySchema) qualifier = t.schema;
+            else if (byDatabase) qualifier = `${t.database}.${t.schema}`;
+            else qualifier = connections.find((c) => c.id === t.connectionId)?.label ?? 'closed';
+            qualifiers.set(t.id, qualifier);
+        }
+    }
+    return qualifiers;
 }
 
 /** Query tabs, then the tables opened from the explorer, then + for a new query */
@@ -142,6 +231,7 @@ export function SheetTabs() {
     const [renaming, setRenaming] = useState<string | null>(null);
 
     const order = [...queries, ...tables].map((t) => t.id);
+    const qualifiers = tableQualifiers(tables, connections);
     // Query tabs with unsaved SQL and table tabs with unsaved edits, by name
     const dirtyClosing = [...queries, ...tables].filter((t) => closing.includes(t.id) && isDirty(t)).map((t) => ('title' in t ? t.title : t.table));
 
@@ -163,6 +253,8 @@ export function SheetTabs() {
                             onRenamed={() => setRenaming(null)}
                             onClose={requestClose}
                             order={order}
+                            kind="query"
+                            siblings={queries.map((x) => x.id)}
                             menu={
                                 <>
                                     <ContextMenuItem disabled={!isDirty(q)} onSelect={() => save(q.id)}>
@@ -188,6 +280,9 @@ export function SheetTabs() {
                             key={t.id}
                             id={t.id}
                             label={t.table}
+                            qualifier={qualifiers.get(t.id)}
+                            kind="table"
+                            siblings={tables.map((x) => x.id)}
                             title={`${t.database}.${t.schema}.${t.table} on ${connections.find((c) => c.id === t.connectionId)?.label ?? 'a closed connection'}`}
                             icon={Table2}
                             active={t.id === activeTab}

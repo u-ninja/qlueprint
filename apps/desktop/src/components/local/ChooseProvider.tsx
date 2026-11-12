@@ -95,7 +95,7 @@ function ProviderOption(props: {
     );
 }
 
-/** Credentials for a server whose password QueryCraft couldn't recover */
+/** Credentials for a server whose password QluePrint couldn't recover */
 function LoginForm({ defaults, pending, onSubmit }: { defaults: LocalLogin; pending: boolean; onSubmit: (login: LocalLogin) => void }) {
     function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -191,7 +191,7 @@ function CopyCommand({ command }: { command: string }) {
         <Button
             variant="outline"
             size="xs"
-            title="Copy the command; QueryCraft only changes containers it created"
+            title="Copy the command; QluePrint only changes containers it created"
             onClick={() => void navigator.clipboard.writeText(command).then(() => setCopied(true))}
         >
             {copied ? 'Copied' : `Copy “${command}”`}
@@ -234,13 +234,13 @@ function OnThisMachine({ template, discovery, onChanged }: { template: Template;
                     <Existing
                         key={c.id}
                         name={c.name}
-                        meta={[c.version, c.hostPort && `:${c.hostPort}`, c.managed ? 'QueryCraft' : 'container'].filter(Boolean).join(' ')}
+                        meta={[c.version, c.hostPort && `:${c.hostPort}`, c.managed ? 'QluePrint' : 'container'].filter(Boolean).join(' ')}
                         state={!running ? 'closed' : c.health === 'unhealthy' ? 'failed' : 'open'}
                         target={running && c.hostPort ? { kind: 'container', id: c.id } : null}
                         login={{ user: c.user ?? '', password: '', database: c.database ?? '' }}
                         askFirst={!c.passwordKnown}
                         action={running ? undefined : stoppedAction}
-                        hint={running && !c.hostPort ? 'Doesn’t publish its port to this machine, so QueryCraft can’t reach it.' : undefined}
+                        hint={running && !c.hostPort ? 'Doesn’t publish its port to this machine, so QluePrint can’t reach it.' : undefined}
                     />
                 );
             })}

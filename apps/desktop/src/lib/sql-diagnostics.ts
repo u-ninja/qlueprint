@@ -8,7 +8,7 @@ import { quoteName } from './sql-quote';
 import { NAME, referenced, unquote } from './sql-refs';
 import { monaco } from './monaco';
 
-const OWNER = 'querycraft';
+const OWNER = 'qlueprint';
 const DELAY = 400;
 
 type Parser = { astify: (sql: string, opt?: { database: string }) => unknown };
@@ -134,7 +134,7 @@ async function check(model: monaco.editor.ITextModel) {
                 endColumn: to.column,
                 message: f.message,
                 severity: f.severity === 'error' ? monaco.MarkerSeverity.Error : monaco.MarkerSeverity.Warning,
-                source: 'QueryCraft',
+                source: 'QluePrint',
                 // The quick fix's replacement text rides on the marker's code
                 ...(f.fix && { code: JSON.stringify(f.fix) }),
             };
@@ -181,7 +181,7 @@ export function registerSqlDiagnostics() {
     monaco.languages.registerCodeActionProvider('pgsql', {
         provideCodeActions: (model, _range, context) => ({
             actions: context.markers
-                .filter((m) => m.source === 'QueryCraft' && typeof m.code === 'string')
+                .filter((m) => m.source === 'QluePrint' && typeof m.code === 'string')
                 .map((marker) => {
                     const fix = JSON.parse(marker.code as string) as { title: string; text: string };
                     return {

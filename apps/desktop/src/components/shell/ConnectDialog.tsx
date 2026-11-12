@@ -60,7 +60,7 @@ const authMethods: AuthMethod[] = [
     {
         id: 'managed_identity',
         label: 'Managed identity',
-        hint: 'Signs in as the identity of the Azure VM or App Service QueryCraft runs on. A user-assigned one goes under Advanced.',
+        hint: 'Signs in as the identity of the Azure VM or App Service QluePrint runs on. A user-assigned one goes under Advanced.',
     },
     {
         id: 'entra_password',
@@ -596,7 +596,6 @@ function ConnectForm({ initial, edit, onBack, onDone }: { initial: Engine; edit?
     const [text, setText] = useState('');
     const [notice, setNotice] = useState('');
     const [test, setTest] = useState<Test>(null);
-    const [error, setError] = useState('');
     const [pending, setPending] = useState(false);
     const server = engine.kind !== 'sqlite';
     const mssql = engine.kind === 'mssql';
@@ -655,7 +654,8 @@ function ConnectForm({ initial, edit, onBack, onDone }: { initial: Engine; edit?
             document.getElementById('connect-string')?.focus();
             return;
         }
-        setError('');
+        // One status line: a failed Connect replaces a test's result instead of stacking under it
+        setTest(null);
         setPending(true);
         try {
             const request = requestOf(engine, values);
@@ -667,7 +667,7 @@ function ConnectForm({ initial, edit, onBack, onDone }: { initial: Engine; edit?
             }
             onDone();
         } catch (err) {
-            setError(errorMessage(err));
+            setTest({ error: errorMessage(err) });
         } finally {
             setPending(false);
         }
@@ -692,7 +692,7 @@ function ConnectForm({ initial, edit, onBack, onDone }: { initial: Engine; edit?
                 </DialogDescription>
             </DialogHeader>
 
-            <form className="grid gap-4" onSubmit={onSubmit}>
+            <form className="grid min-w-0 gap-4" onSubmit={onSubmit}>
                 <Field label="Name" name="name" value={name} onChange={(e) => setOwnName(e.target.value)} required />
 
                 <Tabs value={mode} onValueChange={switchMode} className="gap-3">
@@ -831,7 +831,7 @@ function ConnectForm({ initial, edit, onBack, onDone }: { initial: Engine; edit?
                 </Tabs>
 
                 {test && (
-                    <p role="status" className="flex items-start gap-2 text-sm">
+                    <p role={typeof test === 'object' && 'error' in test ? 'alert' : 'status'} className="flex items-start gap-2 text-sm">
                         {test === 'testing' ? (
                             <>
                                 <LoaderCircleIcon className="mt-0.5 size-4 flex-none animate-spin text-fg3" aria-hidden />
@@ -845,14 +845,9 @@ function ConnectForm({ initial, edit, onBack, onDone }: { initial: Engine; edit?
                         ) : (
                             <>
                                 <CircleAlertIcon className="mt-0.5 size-4 flex-none text-danger" aria-hidden />
-                                <span className="text-danger">{test.error}</span>
+                                <span className="min-w-0 text-danger [overflow-wrap:anywhere]">{test.error}</span>
                             </>
                         )}
-                    </p>
-                )}
-                {error && (
-                    <p role="alert" className="text-sm text-danger">
-                        {error}
                     </p>
                 )}
 
@@ -906,7 +901,8 @@ export function ConnectDialog({ children, edit, ...controlled }: ConnectDialogPr
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             {children && <DialogTrigger asChild>{children}</DialogTrigger>}
-            <DialogContent className="sm:max-w-md">
+            {/* The form is wide enough for a full Azure or Fabric host; picking an engine stays compact */}
+            <DialogContent className={cn('max-h-[calc(100%-2rem)] overflow-y-auto', edit || picked ? 'sm:max-w-2xl' : 'sm:max-w-md')}>
                 {edit ? (
                     <ConnectForm initial={edit.config.kind} edit={edit} onDone={() => onOpenChange(false)} />
                 ) : picked ? (

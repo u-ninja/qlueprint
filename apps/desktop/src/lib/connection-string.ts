@@ -71,7 +71,7 @@ const sslModes = new Map<string, SslMode>(
 
 function sslModeOf(value: string): SslMode {
     const mode = sslModes.get(value.toLowerCase());
-    if (!mode) throw new Error(`SSL mode “${value}” isn’t one QueryCraft knows. Use disable, prefer, require, verify-ca or verify-full.`);
+    if (!mode) throw new Error(`SSL mode “${value}” isn’t one QluePrint knows. Use disable, prefer, require, verify-ca or verify-full.`);
     return mode;
 }
 

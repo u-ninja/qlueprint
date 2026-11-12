@@ -7,6 +7,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/componen
 import { QueryToolbar } from '@/components/workspace/QueryToolbar';
 import { ResultsPanel, TableResults } from '@/components/workspace/ResultsPanel';
 import { useConnections } from '@/stores/connections';
+import { useInWorkspace } from '@/stores/ui';
 import { useQuery } from '@/stores/query';
 import { useLocal } from '@/stores/local';
 import { cn, newQueryShortcut, runShortcut, shortcutLabel } from '@/lib/utils';
@@ -34,7 +35,7 @@ function Welcome() {
                     Connect a database to start
                 </h1>
                 <p className="mt-1 text-fg3">
-                    QueryCraft runs on this machine. Connections and drafts stay here, passwords go to your system’s credential store.
+                    QluePrint runs on this machine. Connections and drafts stay here, passwords go to your system’s credential store.
                 </p>
                 <ul className="mt-5 flex flex-col gap-1">
                     {startActions.map(({ icon: Icon, title, detail, connect, local }) => {
@@ -133,7 +134,8 @@ function NothingOpen() {
 }
 
 export function Workspace() {
-    const noConnections = useConnections((s) => s.saved.length === 0);
+    const inWorkspace = useInWorkspace();
+    const noConnections = useConnections((s) => !s.saved.some((c) => inWorkspace(c.id)));
     const noTabs = useQuery((s) => s.queries.length === 0 && s.tables.length === 0);
     const query = useQuery((s) => s.queries.some((q) => q.id === s.activeTab));
     const table = useQuery((s) => s.tables.find((t) => t.id === s.activeTab));
@@ -157,7 +159,7 @@ export function Workspace() {
                     <EditorAndResults />
                 </div>
             )}
-            {table && <TableResults tab={table} />}
+            {table && <TableResults key={table.id} tab={table} />}
             {!query && !table && <NothingOpen />}
         </main>
     );

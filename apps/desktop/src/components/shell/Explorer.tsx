@@ -6,21 +6,25 @@ import {
     Database,
     Eye,
     Folder,
+    FolderInput,
     PanelRight,
     Pencil,
     Plug,
     RefreshCw,
     RotateCw,
     Rows3,
+    ScrollText,
     Search,
+    SquareFunction,
     SquarePen,
     Table2,
     TextCursorInput,
     Trash2,
     Unplug,
     X,
+    type LucideIcon,
 } from 'lucide-react';
-import type { SavedConfig, SavedConnection, Schema, Table } from '@/bindings';
+import { commands, type Engine, type Routine, type SavedConfig, type SavedConnection, type Schema, type Table } from '@/bindings';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -38,17 +42,22 @@ import {
     ContextMenuItem,
     ContextMenuSeparator,
     ContextMenuShortcut,
+    ContextMenuSub,
+    ContextMenuSubContent,
+    ContextMenuSubTrigger,
     ContextMenuTrigger,
 } from '@/components/ui/context-menu';
-import { closedState, errorMessage, useConnections, type Closed, type Connection } from '@/stores/connections';
+import { closedState, errorMessage, useConnections, type Closed, type Connection, type ConnectionState } from '@/stores/connections';
 import { qualifiedName, selectSql, useQuery } from '@/stores/query';
-import { useUi } from '@/stores/ui';
+import { useInWorkspace, useUi } from '@/stores/ui';
 import { Input } from '@/components/ui/input';
+import { Skeleton, Spinner } from '@/components/ui/loading';
 import { cn, count, formatBytes } from '@/lib/utils';
 import { useCopy } from '@/lib/use-copy';
 import { serverName } from '@/lib/connection-string';
-import { hasDatabases } from '@/lib/engines';
+import { engineName, hasDatabases } from '@/lib/engines';
 import { ConnectDialog } from './ConnectDialog';
+import { EngineLogo } from './engine-logos';
 import { StatusDot } from './StatusDot';
 
 // How long a click waits to see if it's the start of a double-click (the usual system default is about this)
@@ -162,6 +171,29 @@ function Branch(props: {
     );
 }
 
+/** The other workspaces, to move a connection to; nothing when there's only one */
+function MoveToWorkspace({ savedId }: { savedId: string }) {
+    const workspaces = useUi((s) => s.workspaces);
+    const current = useUi((s) => s.workspace);
+    const others = workspaces.filter((w) => w.id !== current);
+    if (!others.length) return null;
+    return (
+        <ContextMenuSub>
+            <ContextMenuSubTrigger>
+                <FolderInput aria-hidden />
+                Move to workspace
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent>
+                {others.map((w) => (
+                    <ContextMenuItem key={w.id} onSelect={() => useUi.getState().moveConnection(savedId, w.id)}>
+                        {w.name}
+                    </ContextMenuItem>
+                ))}
+            </ContextMenuSubContent>
+        </ContextMenuSub>
+    );
+}
+
 /** user@host:port/database (SQL Server: host\\instance), or a SQLite file’s path: never the password */
 function connectionDetails(config: SavedConfig) {
     if (config.kind === 'sqlite') return config.path;
@@ -223,6 +255,21 @@ function RenameInput({ saved, onDone }: { saved: SavedConnection; onDone: () => 
 }
 
 type Pending = 'rename' | 'edit' | 'remove';
+
+/** A connection's engine logo with its state as a dot on the corner, ringed so it reads over the logo */
+function ConnectionLogo({ kind, state }: { kind: Engine; state: ConnectionState }) {
+    return (
+        <span className="relative grid">
+            <EngineLogo id={kind} className="size-3.5" />
+            {/* Connecting shows a spinner beside the logo instead */}
+            {state !== 'connecting' && (
+                <span className="absolute -right-0.5 -bottom-0.5 flex rounded-full ring-2 ring-panel group-hover:ring-hover">
+                    <StatusDot state={state} />
+                </span>
+            )}
+        </span>
+    );
+}
 
 /**
  * A saved connection, open (`c`) or not: its row, its right-click menu, and the edit and remove
@@ -296,6 +343,7 @@ function ConnectionNode({ saved, c, state }: { saved: SavedConnection; c: Connec
                 <Copy aria-hidden />
                 Copy connection details
             </ContextMenuItem>
+            <MoveToWorkspace savedId={saved.id} />
             <ContextMenuSeparator />
             <ContextMenuDestructiveItem
                 onSelect={() => {
@@ -317,7 +365,7 @@ function ConnectionNode({ saved, c, state }: { saved: SavedConnection; c: Connec
                     <AlertDialogHeader>
                         <AlertDialogTitle>Remove {saved.label}?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            QueryCraft forgets this connection and deletes its saved password. The database itself isn’t touched.
+                            QluePrint forgets this connection and deletes its saved password. The database itself isn’t touched.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -335,9 +383,8 @@ function ConnectionNode({ saved, c, state }: { saved: SavedConnection; c: Connec
         return (
             <>
                 <Branch
-                    lead={<StatusDot state="open" />}
+                    lead={<ConnectionLogo kind={saved.config.kind} state="open" />}
                     label={c.label}
-                    meta={c.kind}
                     defaultOpen
                     forceOpen={!!filter}
                     menu={menu}
@@ -374,13 +421,20 @@ function ConnectionNode({ saved, c, state }: { saved: SavedConnection; c: Connec
                         >
                             <ChevronRight className="size-3.5 flex-none text-fg3" aria-hidden />
                             <span className={glyph}>
-                                <StatusDot state={closedState(state)} />
+                                <ConnectionLogo kind={saved.config.kind} state={closedState(state)} />
                             </span>
+                            {connecting && <Spinner className="size-3 text-fg3" />}
                             <span className="min-w-0 flex-1 truncate text-fg3">{saved.label}</span>
                         </button>
                     )}
                     <RowEnd
-                        meta={connecting ? <span role="status">connecting…</span> : saved.config.kind}
+                        meta={
+                            connecting && (
+                                <span role="status" className="sr-only">
+                                    Connecting…
+                                </span>
+                            )
+                        }
                         actions={
                             !connecting && (
                                 <>
@@ -421,7 +475,8 @@ const note = 'h-7 truncate px-6 leading-7';
 /** The explorer's filter, lowercased; '' shows everything */
 const FilterContext = createContext('');
 
-const matching = (tables: Table[], filter: string) => (filter ? tables.filter((t) => t.name.toLowerCase().includes(filter)) : tables);
+const matching = <T extends { name: string }>(items: T[], filter: string) =>
+    filter ? items.filter((t) => t.name.toLowerCase().includes(filter)) : items;
 
 /** The part of a name the filter matched, marked so the eye lands on why it's listed */
 function Highlight({ text }: { text: string }) {
@@ -550,8 +605,15 @@ function Schemas({ c, schemas, database }: { c: Connection; schemas: Schema[]; d
     const filter = useContext(FilterContext);
     return schemas.map((s) => {
         const tables = matching(s.tables, filter);
+        const routines = matching(s.routines, filter);
         // Filtering: schemas without a match drop out, the rest open to show theirs
-        if (filter && !tables.length) return null;
+        if (filter && !tables.length && !routines.length) return null;
+        const [views, plain] = partition(tables, (t) => t.view);
+        const [procedures, functions] = partition(routines, (r) => r.procedure);
+        const tableRow = (t: Table) => <TableRow key={t.name} c={c} database={database} schema={s.name} table={t} />;
+        const routineRow = (r: Routine, icon: LucideIcon) => (
+            <RoutineRow key={`${r.name}(${r.args ?? ''})`} c={c} database={database} schema={s.name} routine={r} icon={icon} />
+        );
         return (
             <Branch
                 key={s.name}
@@ -562,14 +624,109 @@ function Schemas({ c, schemas, database }: { c: Connection; schemas: Schema[]; d
                 forceOpen={!!filter}
                 menu={<ContainerMenu c={c} database={c.kind === 'mysql' ? s.name : database} name={s.name} />}
             >
-                {tables.length === 0 && <li className={cn(note, 'text-fg3')}>No tables</li>}
-                {/* shortcut: renders every table of an open schema, virtualize (TanStack Virtual) if 10k+ table schemas lag */}
-                {tables.map((t) => (
-                    <TableRow key={t.name} c={c} database={database} schema={s.name} table={t} />
-                ))}
+                {tables.length === 0 && routines.length === 0 && <li className={cn(note, 'text-fg3')}>No tables</li>}
+                <Group label="Tables" icon={Table2} open count={plain.length}>
+                    {plain.map(tableRow)}
+                </Group>
+                <Group label="Views" icon={Eye} open={!plain.length} count={views.length}>
+                    {views.map(tableRow)}
+                </Group>
+                <Group label="Procedures" icon={ScrollText} count={procedures.length}>
+                    {procedures.map((r) => routineRow(r, ScrollText))}
+                </Group>
+                <Group label="Functions" icon={SquareFunction} count={functions.length}>
+                    {functions.map((r) => routineRow(r, SquareFunction))}
+                </Group>
             </Branch>
         );
     });
+}
+
+/** One kind of a schema's objects (tables, views, procedures, functions) in its own branch; none, no branch */
+function Group({
+    label,
+    icon: Icon,
+    open = false,
+    count: n,
+    children,
+}: {
+    label: string;
+    icon: LucideIcon;
+    open?: boolean;
+    count: number;
+    children: ReactNode;
+}) {
+    const filter = useContext(FilterContext);
+    if (!n) return null;
+    return (
+        <Branch lead={<Icon className="size-3.5" aria-hidden />} label={label} meta={n} defaultOpen={open} forceOpen={!!filter}>
+            {/* shortcut: renders every row of an open branch, virtualize (TanStack Virtual) if 10k+ table schemas lag */}
+            {children}
+        </Branch>
+    );
+}
+
+/** Splits a list in one pass: those `test` keeps, then the rest */
+function partition<T>(items: T[], test: (item: T) => boolean): [T[], T[]] {
+    const yes: T[] = [];
+    const no: T[] = [];
+    for (const item of items) (test(item) ? yes : no).push(item);
+    return [yes, no];
+}
+
+/** Opens a query tab on its definition: double-click, Enter or its menu */
+function RoutineRow(props: { c: Connection; database: string; schema: string; routine: Routine; icon: LucideIcon }) {
+    const { c, database, schema, routine, icon: Icon } = props;
+    const [, copy] = useCopy();
+    // MySQL's schemas are its databases
+    const db = c.kind === 'mysql' ? schema : database;
+    const open = async () => {
+        let sql: string;
+        try {
+            sql = await commands.routineDefinition(c.id, db || null, schema, routine.name, routine.procedure, routine.args ?? null);
+        } catch (err) {
+            sql = `-- Couldn’t load ${schema}.${routine.name}: ${errorMessage(err)}`;
+        }
+        newQueryOn(c.id, db);
+        useQuery.getState().setSql(sql);
+    };
+    const label = routine.args == null ? routine.name : `${routine.name}(${routine.args})`;
+    return (
+        <li>
+            <ContextMenu>
+                <ContextMenuTrigger asChild>
+                    <button
+                        onDoubleClick={() => void open()}
+                        onKeyDown={(e) => e.key === 'Enter' && void open()}
+                        className={cn(row, 'w-full pl-6 text-left focus-visible:bg-hover data-[state=open]:bg-hover')}
+                        title={`${label} · double-click to open its definition`}
+                    >
+                        <Icon className="size-3.5 flex-none text-fg3" aria-label={routine.procedure ? 'Procedure' : 'Function'} />
+                        <span className="truncate">
+                            <Highlight text={routine.name} />
+                            {routine.args != null && <span className="text-fg4">({routine.args})</span>}
+                        </span>
+                    </button>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                    <ContextMenuItem onSelect={() => void open()}>
+                        <SquarePen aria-hidden />
+                        Open definition
+                        <ContextMenuShortcut>Double-click</ContextMenuShortcut>
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem onSelect={() => copy(routine.name)}>
+                        <Copy aria-hidden />
+                        Copy name
+                    </ContextMenuItem>
+                    <ContextMenuItem onSelect={() => copy(qualifiedName(c.kind, schema, routine.name))}>
+                        <Copy aria-hidden />
+                        Copy qualified name
+                    </ContextMenuItem>
+                </ContextMenuContent>
+            </ContextMenu>
+        </li>
+    );
 }
 
 /**
@@ -592,8 +749,10 @@ function OtherDatabaseSchemas({ c, database }: { c: Connection; database: string
         );
     if (!schemas)
         return (
-            <li role="status" className={cn(note, 'font-mono text-[11px] text-fg4')}>
-                loading…
+            <li role="status" aria-label="Loading schemas" className="flex flex-col gap-3 py-2 pl-6">
+                {['w-24', 'w-32', 'w-20'].map((w) => (
+                    <Skeleton key={w} className={w} />
+                ))}
             </li>
         );
     return <Schemas c={c} schemas={schemas} database={database} />;
@@ -629,12 +788,30 @@ function countMatches(schemas: Schema[], filter: string) {
 
 /** Saved connections; the open ones expand into their schema > table tree. The box on top narrows it to matching tables */
 export function Explorer() {
-    const { saved, connections, closed } = useConnections(useShallow((s) => ({ saved: s.saved, connections: s.connections, closed: s.closed })));
+    const {
+        saved: everySaved,
+        connections,
+        closed,
+    } = useConnections(useShallow((s) => ({ saved: s.saved, connections: s.connections, closed: s.closed })));
+    // The shown workspace's connections only
+    const inWorkspace = useInWorkspace();
+    const saved = everySaved.filter((s) => inWorkspace(s.id));
     const [query, setQuery] = useState('');
     // The box keeps up with typing; the tree filters behind it
     const filter = useDeferredValue(query.trim().toLowerCase());
     // Every loaded database of every open connection, so the count matches what the tree can show
     const found = filter ? connections.reduce((n, c) => n + countMatches([c.schemas, ...Object.values(c.others)].flat(), filter), 0) : 0;
+    // One group per engine in use, by name; each keeps its connections in saved order. Filtering:
+    // closed connections have nothing to match. One pass, then a lookup per row
+    const openBySaved = new Map(connections.map((c) => [c.savedId, c]));
+    const groups = new Map<Engine, SavedConnection[]>();
+    for (const entry of saved) {
+        if (filter && !openBySaved.has(entry.id)) continue;
+        const group = groups.get(entry.config.kind);
+        if (group) group.push(entry);
+        else groups.set(entry.config.kind, [entry]);
+    }
+    const kinds = [...groups.keys()].sort((a, b) => engineName[a].localeCompare(engineName[b]));
 
     return (
         <FilterContext value={filter}>
@@ -664,11 +841,22 @@ export function Explorer() {
                 </div>
             )}
             <ul aria-label="Database explorer" className="px-1.5">
-                {saved.map((entry) => {
-                    const c = connections.find((open) => open.savedId === entry.id);
-                    // Filtering: closed connections have nothing to match
-                    if (filter && !c) return null;
-                    return <ConnectionNode key={entry.id} saved={entry} c={c} state={closed[entry.id]} />;
+                {kinds.map((kind) => {
+                    const entries = groups.get(kind)!;
+                    return (
+                        <Branch
+                            key={kind}
+                            lead={<EngineLogo id={kind} className="size-3.5" />}
+                            label={engineName[kind]}
+                            meta={entries.length}
+                            defaultOpen
+                            forceOpen={!!filter}
+                        >
+                            {entries.map((entry) => (
+                                <ConnectionNode key={entry.id} saved={entry} c={openBySaved.get(entry.id)} state={closed[entry.id]} />
+                            ))}
+                        </Branch>
+                    );
                 })}
             </ul>
         </FilterContext>

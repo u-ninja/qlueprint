@@ -1,5 +1,5 @@
 // SQL formatting: sql-formatter, the engine prettier-plugin-sql runs, used directly. Only the four
-// dialects QueryCraft connects to are imported, so the other nineteen don't ship.
+// dialects QluePrint connects to are imported, so the other nineteen don't ship.
 import { formatDialect, mysql, postgresql, sqlite, transactsql } from 'sql-formatter';
 
 const dialects = { postgres: postgresql, mysql, mssql: transactsql, sqlite };

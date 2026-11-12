@@ -126,7 +126,7 @@ export const useAudit = create<AuditState>()((set, get) => {
             const url = URL.createObjectURL(new Blob([text], { type }));
             const link = document.createElement('a');
             link.href = url;
-            link.download = `querycraft-audit-${new Date().toISOString().slice(0, 10)}.${format}`;
+            link.download = `qlueprint-audit-${new Date().toISOString().slice(0, 10)}.${format}`;
             link.click();
             URL.revokeObjectURL(url);
         },

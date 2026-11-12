@@ -10,7 +10,7 @@
    folds both into data-motion, the one switch CSS reads */
 @custom-variant motion-reduce (&:where([data-motion='off'], [data-motion='off'] *));
 
-/* Design tokens copied from docs/design/QueryCraft.dc.html; keep the two in sync */
+/* Design tokens copied from docs/design/QluePrint.dc.html; keep the two in sync */
 :root,
 [data-theme='dark'] {
     color-scheme: dark;

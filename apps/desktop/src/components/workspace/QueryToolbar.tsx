@@ -7,7 +7,7 @@ import { PendingAction } from '@/components/shell/PendingAction';
 import { StatusDot } from '@/components/shell/StatusDot';
 import { useConnections } from '@/stores/connections';
 import { activeConnection, activeDatabase, currentQuery, rerunnable, useQuery } from '@/stores/query';
-import { useUi } from '@/stores/ui';
+import { useInWorkspace, useUi } from '@/stores/ui';
 import { engineName, hasDatabases } from '@/lib/engines';
 import { cn, explainAnalyzeShortcut, explainShortcut, runShortcut } from '@/lib/utils';
 import { motion, useSpring2 } from '@/lib/spring';
@@ -17,7 +17,8 @@ import { motion, useSpring2 } from '@/lib/spring';
 const menu = 'max-w-80 min-w-(--radix-select-trigger-width)';
 
 function ConnectionPicker() {
-    const connections = useConnections((s) => s.connections);
+    const inWorkspace = useInWorkspace();
+    const connections = useConnections((s) => s.connections).filter((c) => inWorkspace(c.savedId));
     const connectionId = useQuery((s) => currentQuery(s).connectionId);
     const setConnectionId = useQuery((s) => s.setConnectionId);
     const active = activeConnection(connections, connectionId);

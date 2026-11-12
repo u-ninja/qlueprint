@@ -1,7 +1,7 @@
 import { Plus, Server } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useConnections } from '@/stores/connections';
-import { useUi, type View } from '@/stores/ui';
+import { useInWorkspace, useUi, type View } from '@/stores/ui';
 import { ConnectDialog } from './ConnectDialog';
 import { Explorer } from './Explorer';
 import { views } from './Rail';
@@ -21,7 +21,8 @@ const emptyText: Record<View, string> = {
 export function Sidebar() {
     const view = useUi((s) => s.view);
     const title = views.find((v) => v.value === view)?.label;
-    const savedCount = useConnections((s) => s.saved.length);
+    const inWorkspace = useInWorkspace();
+    const savedCount = useConnections((s) => s.saved.filter((c) => inWorkspace(c.id)).length);
     const setCreateOpen = useLocal((s) => s.setCreateOpen);
     // Both views list the saved connections; the others have nothing to list yet
     const listsConnections = view === 'workspace' || view === 'connections';

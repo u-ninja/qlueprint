@@ -18,7 +18,7 @@ export function AccountButton() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-sm">
                 <DialogHeader>
-                    <DialogTitle>{user ? 'Account' : 'Sign in to QueryCraft'}</DialogTitle>
+                    <DialogTitle>{user ? 'Account' : 'Sign in to QluePrint'}</DialogTitle>
                     <DialogDescription>
                         {user
                             ? 'Your account is only used for collaboration features.'

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="100 100 824 824">
+  <!-- QluePrint app icon. A Q drawn as a blueprint: its tail is a connection, the node a clue -->
+  <rect x="100.0" y="100.0" width="824.0" height="824.0" rx="185.0" fill="#173f9e"/>
+  <rect x="101.0" y="101.0" width="822.0" height="822.0" rx="184.0" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="2.0"/>
+  <circle cx="452.9" cy="452.9" r="172.0" fill="none" stroke="#ffffff" stroke-width="92.0"/>
+  <path d="M574.5 546.9 V697.1 H697.1" fill="none" stroke="#ffffff" stroke-width="92.0" stroke-linejoin="round"/>
+  <circle cx="697.1" cy="697.1" r="92.0" fill="#ffffff"/>
+  <circle cx="697.1" cy="697.1" r="38.6" fill="#173f9e"/>
+</svg>

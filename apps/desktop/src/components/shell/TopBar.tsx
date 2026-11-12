@@ -9,26 +9,13 @@ import { AppMenu } from './AppMenu';
 import { ConnectDialog } from './ConnectDialog';
 import { createActions, useNativeMenu } from './menu';
 import { WindowControls } from './WindowControls';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher';
+import mark from '@/assets/qlueprint-mark.svg';
 
 const themes: { value: Theme; label: string; icon: LucideIcon }[] = [
     { value: 'light', label: 'Light theme', icon: Sun },
     { value: 'dark', label: 'Dark theme', icon: Moon },
     { value: 'system', label: 'Match system theme', icon: Monitor },
-];
-
-// [column, row] of the logo's neutral cells on its 5×5 grid
-const qCells = [
-    [1, 0],
-    [2, 0],
-    [3, 0],
-    [0, 1],
-    [4, 1],
-    [0, 2],
-    [4, 2],
-    [0, 3],
-    [3, 3],
-    [1, 4],
-    [2, 4],
 ];
 
 // Windows and Linux: the window has no OS title bar, so this draws the menu and window buttons.
@@ -90,18 +77,13 @@ export function TopBar() {
             {/* Room for the traffic lights, placed by src-tauri/src/chrome.rs */}
             {isTauri && isMac && <div className="w-[58px] flex-none" aria-hidden />}
             <div className="flex flex-none items-center gap-2 font-semibold">
-                {/* The app icon's mark (src-tauri/icons/logo.svg): a Q in grid cells, the selected one is the tail */}
-                <svg viewBox="0 0 4.86 4.86" className="size-[18px] text-fg2" aria-hidden>
-                    {qCells.map(([x, y]) => (
-                        <rect key={`${x}${y}`} x={x} y={y} width="0.86" height="0.86" rx="0.17" fill="currentColor" />
-                    ))}
-                    <rect x="4" y="4" width="0.86" height="0.86" rx="0.17" className="fill-primary" />
-                </svg>
-                QueryCraft
+                {/* The app icon's mark, cropped to its tile (docs/brand/qlueprint-favicon.svg) */}
+                <img src={mark} alt="" width={20} height={20} className="size-5" draggable={false} />
+                QluePrint
             </div>
             {!isMac && <AppMenu actions={actions} />}
             <div className="h-[18px] w-px flex-none bg-border-soft" aria-hidden />
-            <span className="flex-none text-fg2">Local Workspace</span>
+            <WorkspaceSwitcher />
             {!session.data && (
                 <span className="flex min-w-0 items-center gap-1.5 text-xs text-fg3">
                     <span className="size-1.5 flex-none rounded-full bg-fg4" aria-hidden />

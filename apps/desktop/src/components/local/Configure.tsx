@@ -128,7 +128,7 @@ export function Configure(props: {
             description={
                 server
                     ? `${native ? 'Native install' : 'Docker container'} on 127.0.0.1. Defaults are filled in; change what you need.`
-                    : 'A database file in QueryCraft’s app data folder. The review shows the full path.'
+                    : 'A database file in QluePrint’s app data folder. The review shows the full path.'
             }
             footer={
                 <>
@@ -201,8 +201,8 @@ export function Configure(props: {
                             onChange={(rootPassword) => change({ rootPassword })}
                             hint={
                                 native
-                                    ? 'For the server’s admin account. Copy it now: QueryCraft doesn’t show it again.'
-                                    : 'For the root account. Copy it now: QueryCraft doesn’t show it again.'
+                                    ? 'For the server’s admin account. Copy it now: QluePrint doesn’t show it again.'
+                                    : 'For the root account. Copy it now: QluePrint doesn’t show it again.'
                             }
                         />
                     </div>
@@ -225,7 +225,7 @@ export function Configure(props: {
                         id="local-container"
                         label="Container name"
                         value={draft.containerName}
-                        placeholder={`querycraft-${draft.engine}-${draft.port}`}
+                        placeholder={`qlueprint-${draft.engine}-${draft.port}`}
                         onChange={(e) => change({ containerName: e.target.value })}
                         className={mono}
                     />

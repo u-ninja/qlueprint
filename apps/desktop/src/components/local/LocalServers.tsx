@@ -87,8 +87,8 @@ function RemoveButton({ instance }: { instance: LocalInstance }) {
                         {docker
                             ? `Removes the container ${instance.containerName}. The data stays in the volume ${instance.volume}; delete it separately.`
                             : instance.provider === 'native'
-                              ? `QueryCraft stops tracking it. The server stays installed${instance.uninstall ? `; to uninstall it: ${instance.uninstall}` : ''}.`
-                              : 'QueryCraft stops tracking it. The file stays where it is.'}
+                              ? `QluePrint stops tracking it. The server stays installed${instance.uninstall ? `; to uninstall it: ${instance.uninstall}` : ''}.`
+                              : 'QluePrint stops tracking it. The file stays where it is.'}
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -218,7 +218,7 @@ function InstanceRow({ instance }: { instance: LocalInstance }) {
     );
 }
 
-/** The Local servers view: databases QueryCraft created on this machine and their lifecycle */
+/** The Local servers view: databases QluePrint created on this machine and their lifecycle */
 export function LocalServers() {
     const { instances, loading, error, load, setCreateOpen } = useLocal();
     useEffect(() => {

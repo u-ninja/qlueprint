@@ -7,7 +7,7 @@ export function ChooseEngine({ templates, onChoose }: { templates: Template[]; o
     return (
         <StepFrame
             title="Choose a database"
-            description="QueryCraft sets it up on this machine, loads sample data if you want it, and saves the connection."
+            description="QluePrint sets it up on this machine, loads sample data if you want it, and saves the connection."
             footer={
                 <ConnectDialog>
                     <Button variant="link" className="px-0 text-fg3 hover:text-foreground">

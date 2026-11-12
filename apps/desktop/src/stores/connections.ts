@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { commands, type CommandError, type ConnectRequest, type SavedConfig, type SavedConnection, type Schema } from '@/bindings';
 import { forgetColumns } from '@/lib/columns';
 import { forgetDetails } from '@/lib/table-details';
+import { useUi } from './ui';
 
 /**
  * An open connection: `id` is the Rust pool, which is keyed by `savedId`, the saved entry it was opened from.
@@ -113,6 +114,9 @@ export const useConnections = create<ConnectionsState>()((set, get) => {
         },
 
         add: async (saved) => {
+            // A new one goes into the workspace on show
+            const ui = useUi.getState();
+            if (!get().saved.some((c) => c.id === saved.id)) ui.moveConnection(saved.id, ui.workspace);
             // An edited connection keeps its place in the list
             set((s) => ({
                 saved: s.saved.some((c) => c.id === saved.id) ? s.saved.map((c) => (c.id === saved.id ? saved : c)) : [...s.saved, saved],

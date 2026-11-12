@@ -40,7 +40,7 @@ function ConsentButton({ native, onConfirm }: { native: NativePlan; onConfirm: (
                 <AlertDialogHeader>
                     <AlertDialogTitle>Run these commands?</AlertDialogTitle>
                     <AlertDialogDescription>
-                        QueryCraft runs exactly these with {native.manager}
+                        QluePrint runs exactly these with {native.manager}
                         {native.elevated ? ', and your system asks for administrator approval' : ''}. Passwords are hidden here.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
@@ -121,7 +121,7 @@ export function Review({ plan, onBack, onCreate }: { plan: LocalPlan; onBack: ()
                         </h3>
                         <Commands native={plan.native} />
                         {plan.native.uninstall && (
-                            <p className="text-xs text-fg3">QueryCraft doesn’t uninstall servers. To remove it later: {plan.native.uninstall}</p>
+                            <p className="text-xs text-fg3">QluePrint doesn’t uninstall servers. To remove it later: {plan.native.uninstall}</p>
                         )}
                     </section>
                 )}

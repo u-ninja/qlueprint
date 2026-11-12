@@ -110,7 +110,7 @@ export const menus: Menu[] = [
         label: 'Help',
         entries: [
             { id: 'shortcuts', label: 'Keyboard shortcuts' },
-            { id: 'about', label: 'About QueryCraft' },
+            { id: 'about', label: 'About QluePrint' },
         ],
     },
 ];

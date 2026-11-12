@@ -26,7 +26,7 @@ function draftFor(template: Template, provider: Provider): Draft {
         engine: template.engine,
         provider,
         version: template.versions[0]?.id ?? '',
-        database: 'querycraft_demo',
+        database: 'qlueprint_demo',
         user: template.defaultUser,
         password: generatePassword(),
         rootPassword: template.hasRootPassword ? generatePassword() : '',

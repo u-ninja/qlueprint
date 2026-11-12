@@ -8,7 +8,7 @@ import { quoteName, sqlValue } from '@/lib/sql-quote';
 import { tableKey } from '@/lib/table-details';
 import { sourceTable } from '@/lib/columns';
 import { markAccepted } from '@/lib/sql-lint';
-import { useUi } from './ui';
+import { inShownWorkspace, useUi } from './ui';
 
 export type Message = { at: Date; ok: boolean; text: string };
 
@@ -54,6 +54,8 @@ export type QueryTab = {
     last: Outcome | null;
     /** What produced `last`, so "Load all rows" can run it again */
     lastRun: { connectionId: string; database: string; sql: string } | null;
+    /** The order the database put `last` in: a cut-off result is sorted by running it again */
+    serverSort: Sort | null;
     /** Separate from `last`: explaining doesn't replace the results */
     plan: Plan | null;
 };
@@ -86,6 +88,8 @@ export type TableTab = {
     saving: boolean;
     /** A cell (`rowKey` and column name) the grid should select and scroll to, once; it clears it */
     focus: { row: string; column: string } | null;
+    /** How the database runs this tab's SELECT, once explained */
+    plan: Plan | null;
 };
 
 type QueryState = {
@@ -116,6 +120,9 @@ type QueryState = {
     explain: (analyze?: boolean) => Promise<void>;
     /** Runs the current query tab's last statement again, keeping all its rows */
     loadAllRows: () => Promise<void>;
+    /** Runs the current query tab's cut-off result again, ordered by the database (null: unordered);
+     * false (logged) when it can't, and the caller sorts the loaded rows instead */
+    sortResult: (sort: Sort | null) => Promise<boolean>;
     newQuery: () => void;
     /** Saves a query tab (the current one by default): its SQL is what comes back after a restart */
     save: (id?: string) => void;
@@ -144,7 +151,21 @@ type QueryState = {
      * A table tab whose edits fail to save stays open, showing why */
     finishClose: (save: boolean | null) => Promise<void>;
     setActiveTab: (id: string) => void;
+    /** The other workspaces' tabs, by workspace id, while one is shown */
+    parked: Record<string, Tabs>;
+    /** Explains a table tab's SELECT (its WHERE, filters and order), without running it unless `analyze` */
+    explainTable: (id: string, analyze?: boolean) => Promise<void>;
+    /** Puts tab `id` where tab `to` is, among tabs of the same kind (query or table) */
+    moveTab: (id: string, to: string) => void;
+    /** Shows another workspace: parks this one's tabs and brings back its own */
+    switchWorkspace: (id: string) => void;
+    /** Forgets a workspace's parked tabs (a removed one) */
+    dropWorkspace: (id: string) => void;
 };
+
+/** One workspace's tabs */
+type Tabs = Pick<QueryState, 'queries' | 'tables' | 'currentQuery' | 'activeTab'>;
+const NO_TABS: Tabs = { queries: [], tables: [], currentQuery: '', activeTab: '' };
 
 /** The query tab the editor and results panel show */
 export function currentQuery(s: Pick<QueryState, 'queries' | 'currentQuery'>) {
@@ -176,6 +197,33 @@ function log(ok: boolean, text: string) {
 }
 
 /** Runs SQL on a connection, the outcome either way, and logs it to Messages */
+/** Explains `sql`, showing the previous plan dimmed meanwhile (`set`), and logs how it went. `what` names
+ * what was explained, after "Explain" */
+async function runExplain(
+    previous: Plan | null,
+    connectionId: string,
+    sql: string,
+    database: string,
+    analyze: boolean,
+    what: string,
+    set: (plan: Plan) => void,
+) {
+    const since = Date.now();
+    set({ runningSince: since, outcome: previous?.outcome ?? null });
+    let outcome: Plan['outcome'];
+    try {
+        outcome = { ok: true, plan: await commands.explainQuery(connectionId, sql, database, analyze) };
+    } catch (error) {
+        outcome = { ok: false, error: errorMessage(error) };
+    }
+    const label = `${analyze ? 'Explain analyze' : 'Explain'}${what}`;
+    log(
+        outcome.ok,
+        outcome.ok ? `${label}: ${count(outcome.plan.nodes.length, 'step')} · ${(Date.now() - since).toLocaleString()} ms` : outcome.error,
+    );
+    set({ runningSince: null, outcome });
+}
+
 async function execute(connectionId: string, sql: string, database: string, allRows = false): Promise<Outcome> {
     let outcome: Outcome;
     try {
@@ -229,7 +277,11 @@ export function editStatements(kind: Connection['kind'], schema: string, table: 
 
 /** The toolbar's choice if it's still open, otherwise the newest connection */
 export function activeConnection(connections: Connection[], id: string | null) {
-    return connections.find((c) => c.id === id) ?? connections[connections.length - 1];
+    const picked = connections.find((c) => c.id === id);
+    if (picked) return picked;
+    // The fallback stays in the shown workspace: a new tab never runs on another client's database
+    const shown = connections.filter((c) => inShownWorkspace(c.savedId));
+    return shown[shown.length - 1];
 }
 
 /** `schema.table`, quoted for the engine */
@@ -285,8 +337,17 @@ function queryTab(title: string, from?: QueryTab): QueryTab {
         runningSince: null,
         last: null,
         lastRun: null,
+        serverSort: null,
         plan: null,
     };
+}
+
+/** A result's statement again, its rows ordered by the database: by column number, so duplicate or
+ * unquotable column names don't matter. SQL Server refuses it when the statement has its own ORDER BY */
+export function sortedSql(sql: string, columns: QueryOutput['columns'], sort: Sort | null) {
+    const index = sort ? columns.findIndex((c) => c.name === sort.column) : -1;
+    if (!sort || index < 0) return sql;
+    return `SELECT * FROM (\n${sql.trim().replace(/;\s*$/, '')}\n) AS sorted ORDER BY ${index + 1} ${sort.desc ? 'DESC' : 'ASC'}`;
 }
 
 /** "Query 3": one past the highest number in use, so closing Query 2 doesn't hand its name to a new tab */
@@ -315,7 +376,46 @@ const debouncedLocalStorage = {
 // Don’t lose the last 400 ms of typing when the window closes
 window.addEventListener('pagehide', flush);
 
-type Saved = { queries: Pick<QueryTab, 'id' | 'title' | 'saved' | 'connectionId' | 'database'>[]; currentQuery: string };
+type SavedTab = Pick<QueryTab, 'id' | 'title' | 'saved' | 'connectionId' | 'database'>;
+/** The shown workspace's saved query tabs, and the parked workspaces' (workspace: whose `queries` are) */
+type Saved = {
+    queries: SavedTab[];
+    currentQuery: string;
+    workspace?: string;
+    parked?: Record<string, { queries: SavedTab[]; currentQuery: string }>;
+};
+
+/** Only a tab's saved SQL survives a restart */
+const savedTabs = (queries: QueryTab[]): SavedTab[] =>
+    queries.filter((q) => q.saved !== '').map(({ id, title, saved, connectionId, database }) => ({ id, title, saved, connectionId, database }));
+
+/** The parked workspaces' saved tabs. Persisting runs on every change (each keystroke); parked
+ * workspaces change only on a switch, so their part is worked out once per switch */
+let parkedCache: { from: QueryState['parked']; saved: NonNullable<Saved['parked']> } | null = null;
+function savedParked(parked: QueryState['parked']) {
+    if (parkedCache?.from !== parked) {
+        const saved = Object.fromEntries(
+            Object.entries(parked).map(([id, p]) => [id, { queries: savedTabs(p.queries), currentQuery: p.currentQuery }]),
+        );
+        parkedCache = { from: parked, saved };
+    }
+    return parkedCache.saved;
+}
+
+/** Saved tabs back as tabs, the last shown one current. Tabs saved before tabs had their own
+ * connection come back on the newest one */
+function restoreTabs(queries: SavedTab[] | undefined, current: string | undefined): Tabs {
+    if (!queries?.length) return NO_TABS;
+    const restored = queries.map((q) => ({
+        ...queryTab(q.title),
+        ...q,
+        sql: q.saved,
+        connectionId: q.connectionId ?? null,
+        database: q.database ?? null,
+    }));
+    const shown = restored.some((q) => q.id === current) ? current! : restored[0].id;
+    return { queries: restored, tables: [], currentQuery: shown, activeTab: shown };
+}
 
 /** A query tab has unsaved changes, or a table tab unsaved edits */
 /** A table tab before its first load */
@@ -334,6 +434,7 @@ export const newTableTab = (t: Pick<TableTab, 'connectionId' | 'database' | 'sch
     editsError: null,
     saving: false,
     focus: null,
+    plan: null,
 });
 
 export const isDirty = (t: QueryTab | TableTab) => ('edits' in t ? editCount(t) > 0 : t.sql !== t.saved);
@@ -411,7 +512,24 @@ export const useQuery = create<QueryState>()(
                     const run = { connectionId: connection.id, database: activeDatabase(connection, tab), sql: text };
                     const outcome = await execute(run.connectionId, run.sql, run.database);
                     if (outcome.ok) markAccepted(run.sql);
-                    updateQuery(tab.id, { runningSince: null, last: outcome, lastRun: run });
+                    updateQuery(tab.id, { runningSince: null, last: outcome, lastRun: run, serverSort: null });
+                },
+
+                sortResult: async (sort) => {
+                    const tab = currentQuery(get());
+                    const { lastRun: run, last } = tab;
+                    if (!run || !last?.ok || tab.runningSince !== null || !rerunnable(run.sql)) return false;
+                    updateQuery(tab.id, { runningSince: Date.now() });
+                    // Keeps "Load all rows": a result longer than the cap had them all
+                    const sql = sortedSql(run.sql, last.output.columns, sort);
+                    const outcome = await execute(run.connectionId, sql, run.database, last.output.rows.length > ROW_CAP);
+                    if (!outcome.ok) {
+                        log(false, 'Sorted only the loaded rows: the database couldn’t sort the whole result (its error is above).');
+                        updateQuery(tab.id, { runningSince: null });
+                        return false;
+                    }
+                    updateQuery(tab.id, { runningSince: null, last: outcome, serverSort: sort });
+                    return true;
                 },
 
                 explain: async (analyze = false) => {
@@ -420,23 +538,9 @@ export const useQuery = create<QueryState>()(
                     const { tab, connection, text } = target();
                     useUi.getState().setResultsTab('plan');
                     if (tab.plan?.runningSince != null || !connection || !text) return;
-                    const since = Date.now();
-                    updateQuery(tab.id, { plan: { runningSince: since, outcome: tab.plan?.outcome ?? null } });
-                    let outcome: Plan['outcome'];
-                    try {
-                        const plan = await commands.explainQuery(connection.id, text, activeDatabase(connection, tab), analyze);
-                        outcome = { ok: true, plan };
-                    } catch (error) {
-                        outcome = { ok: false, error: errorMessage(error) };
-                    }
-                    const what = analyze ? 'Explain analyze' : 'Explain';
-                    log(
-                        outcome.ok,
-                        outcome.ok
-                            ? `${what}: ${count(outcome.plan.nodes.length, 'step')} · ${(Date.now() - since).toLocaleString()} ms`
-                            : outcome.error,
+                    await runExplain(tab.plan, connection.id, text, activeDatabase(connection, tab), analyze, '', (plan) =>
+                        updateQuery(tab.id, { plan }),
                     );
-                    updateQuery(tab.id, { plan: { runningSince: null, outcome } });
                 },
 
                 loadAllRows: async () => {
@@ -444,7 +548,8 @@ export const useQuery = create<QueryState>()(
                     const run = tab.lastRun;
                     if (!run || tab.runningSince !== null || !rerunnable(run.sql)) return;
                     updateQuery(tab.id, { runningSince: Date.now() });
-                    const outcome = await execute(run.connectionId, run.sql, run.database, true);
+                    const columns = tab.last?.ok ? tab.last.output.columns : [];
+                    const outcome = await execute(run.connectionId, sortedSql(run.sql, columns, tab.serverSort), run.database, true);
                     updateQuery(tab.id, { runningSince: null, last: outcome });
                 },
 
@@ -596,6 +701,48 @@ export const useQuery = create<QueryState>()(
                         return { queries, tables, activeTab, currentQuery: queries.some((q) => q.id === activeTab) ? activeTab : current };
                     }),
 
+                explainTable: async (id, analyze = false) => {
+                    const tab = get().tables.find((t) => t.id === id);
+                    const connection = useConnections.getState().connections.find((c) => c.id === tab?.connectionId);
+                    if (!tab || !connection || tab.plan?.runningSince != null) return;
+                    const sql = selectSql(connection.kind, tab.schema, tab.table, tab.where, tab.sort, tab.filters, tab.all);
+                    await runExplain(tab.plan, connection.id, sql, tab.database, analyze, ` ${tab.schema}.${tab.table}`, (plan) =>
+                        updateTable(id, { plan }),
+                    );
+                },
+                moveTab: (id, to) =>
+                    set((s) => {
+                        const move = <T extends { id: string }>(list: T[]) => {
+                            const from = list.findIndex((t) => t.id === id);
+                            const at = list.findIndex((t) => t.id === to);
+                            if (from < 0 || at < 0) return list;
+                            const next = [...list];
+                            next.splice(at, 0, ...next.splice(from, 1));
+                            return next;
+                        };
+                        return { queries: move(s.queries), tables: move(s.tables) };
+                    }),
+                parked: {},
+                switchWorkspace: (id) => {
+                    const from = useUi.getState().workspace;
+                    if (id === from) return;
+                    const s = get();
+                    const { [id]: next = NO_TABS, ...rest } = s.parked;
+                    // shortcut: a query still running when its workspace is parked drops its result; keep
+                    // per-workspace tab state in the tab itself if that matters
+                    // The UI store first, so persisting this change records the new workspace
+                    useUi.setState({ workspace: id, inspected: null });
+                    set({
+                        ...next,
+                        parked: { ...rest, [from]: { queries: s.queries, tables: s.tables, currentQuery: s.currentQuery, activeTab: s.activeTab } },
+                    });
+                },
+                dropWorkspace: (id) =>
+                    set((s) => {
+                        const { [id]: _, ...rest } = s.parked;
+                        return { parked: rest };
+                    }),
+
                 setActiveTab: (activeTab) =>
                     set((s) => ({ activeTab, currentQuery: s.queries.some((q) => q.id === activeTab) ? activeTab : s.currentQuery })),
             };
@@ -606,24 +753,20 @@ export const useQuery = create<QueryState>()(
             // Only saved SQL survives a restart, and only tabs saved at least once; unsaved edits, results,
             // table tabs and connections end with the app
             partialize: (s): Saved => ({
-                queries: s.queries
-                    .filter((q) => q.saved !== '')
-                    .map(({ id, title, saved, connectionId, database }) => ({ id, title, saved, connectionId, database })),
+                queries: savedTabs(s.queries),
                 currentQuery: s.currentQuery,
+                workspace: useUi.getState().workspace,
+                parked: savedParked(s.parked),
             }),
             merge: (saved, current) => {
-                const { queries, currentQuery: id } = (saved ?? {}) as Partial<Saved>;
-                if (!queries?.length) return current;
-                // Tabs saved before tabs had their own connection come back on the newest one
-                const restored = queries.map((q) => ({
-                    ...queryTab(q.title),
-                    ...q,
-                    sql: q.saved,
-                    connectionId: q.connectionId ?? null,
-                    database: q.database ?? null,
-                }));
-                const shown = restored.some((q) => q.id === id) ? id! : restored[0].id;
-                return { ...current, queries: restored, currentQuery: shown, activeTab: shown };
+                const { queries, currentQuery: id, workspace, parked } = (saved ?? {}) as Partial<Saved>;
+                // These tabs are this workspace's: the UI store, restored apart, must show the same one
+                if (workspace) useUi.setState({ workspace });
+                return {
+                    ...current,
+                    ...restoreTabs(queries, id),
+                    parked: Object.fromEntries(Object.entries(parked ?? {}).map(([w, p]) => [w, restoreTabs(p.queries, p.currentQuery)])),
+                };
             },
             // Version 0 kept one draft, version 1 every tab's draft: both count as saved, so nothing is lost on upgrade
             migrate: (old, version) => {

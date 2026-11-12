@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, type ReactNode, type RefObject } from 'react';
 
-// Spring motion, ported from the prototype (docs/design/QueryCraft.dc.html, "physics"): named
+// Spring motion, ported from the prototype (docs/design/QluePrint.dc.html, "physics"): named
 // springs stepped by one shared requestAnimationFrame loop that stops when nothing is moving.
 // Styles are written straight to elements, so a moving spring never re-renders React.
 

@@ -6,7 +6,7 @@ import * as monaco from './monaco-editor';
 self.MonacoEnvironment = { getWorker: () => new EditorWorker() };
 loader.config({ monaco });
 
-export const THEME = 'querycraft';
+export const THEME = 'qlueprint';
 
 const probe = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
 

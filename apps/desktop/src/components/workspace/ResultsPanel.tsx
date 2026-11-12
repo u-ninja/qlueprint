@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState, type ComponentProps } from 'react';
+import { useEffect, useMemo, useState, type ComponentProps, type ReactNode } from 'react';
 import { CircleAlert, TriangleAlert } from 'lucide-react';
 import type { PlanNode, QueryPlan } from '@/bindings';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
+import { Skeleton } from '@/components/ui/loading';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { schemasOf } from '@/components/shell/Explorer';
 import { useConnections, type Connection } from '@/stores/connections';
@@ -16,6 +17,8 @@ import {
     summary,
     useQuery,
     type Outcome,
+    type Plan,
+    type QueryTab,
     type TableTab,
 } from '@/stores/query';
 import { useUi, type Inspected, type ResultsTab } from '@/stores/ui';
@@ -106,15 +109,30 @@ function OutcomeView({ outcome, ...grid }: { outcome: Outcome } & Omit<Component
     return <div className="grid h-full place-items-center text-fg3">{summary(output)}</div>;
 }
 
+type Run = QueryTab['lastRun'];
+
 /**
- * Sort and filters for a query result, applied to its loaded rows. Tagged with the result they were
- * set on, so a new run starts unsorted and unfiltered without an effect
+ * Sort and filters for a query result, applied to its loaded rows. Tagged with the run they were set
+ * on, so a new run starts unsorted and unfiltered without an effect, while loading all rows or a
+ * re-sort by the database keeps them. A cut-off result's sort runs it again, ordered by the database,
+ * so the order covers every row; if the database refuses, the loaded rows are sorted (`sortResult`)
  */
-function useShape(last: Outcome | null) {
-    const [state, setState] = useState<{ for: Outcome | null } & Shape>({ for: null, sort: null, filters: [] });
-    const shape: Shape = state.for === last ? state : { sort: null, filters: [] };
-    const set = (change: Partial<Shape>) => setState({ ...shape, ...change, for: last });
-    return [shape, set] as const;
+function useShape(run: Run) {
+    const [state, setState] = useState<{ for: Run } & Shape>({ for: null, sort: null, filters: [] });
+    const shape: Shape = state.for === run ? state : { sort: null, filters: [] };
+    const set = (change: Partial<Shape>) => setState((prev) => ({ ...(prev.for === run ? prev : shape), ...change, for: run }));
+    const change = (change: Partial<Shape>) => {
+        const { last, serverSort } = currentQuery(useQuery.getState());
+        // The database sorts a cut-off result; clearing its sort runs it again to get the original order back.
+        // With every row loaded, the grid sorts them itself
+        const viaDatabase = last?.ok && (last.output.truncated || (serverSort !== null && !change.sort));
+        if (!('sort' in change) || !viaDatabase) return set(change);
+        void useQuery
+            .getState()
+            .sortResult(change.sort ?? null)
+            .then(() => set(change));
+    };
+    return [shape, change] as const;
 }
 
 function ResultsView({ shape, setShape }: { shape: Shape; setShape: (change: Partial<Shape>) => void }) {
@@ -356,9 +374,9 @@ function PlanResult({ plan }: { plan: QueryPlan }) {
     );
 }
 
-function PlanView() {
-    const plan = useQuery((s) => currentQuery(s).plan);
-    if (!plan) return <Empty text="Explain a query to see how the database runs it" keys={explainShortcut} does="explains" />;
+/** A query tab's or a table tab's plan; `empty` until it's explained */
+function PlanView({ plan, empty }: { plan: Plan | null; empty: ReactNode }) {
+    if (!plan) return empty;
     const { outcome, runningSince } = plan;
     if (!outcome) return <Running doing="Explaining" />;
     return (
@@ -369,7 +387,32 @@ function PlanView() {
     );
 }
 
+function QueryPlanView() {
+    const plan = useQuery((s) => currentQuery(s).plan);
+    return <PlanView plan={plan} empty={<Empty text="Explain a query to see how the database runs it" keys={explainShortcut} does="explains" />} />;
+}
+
 const tab = 'flex-none px-0.5 text-[13px]';
+
+/** The Results / Messages / Plan switcher of a query or table tab; `children` fill the rest of the row */
+function PanelHeader({ children }: { children: ReactNode }) {
+    return (
+        <div className="relative flex h-10 flex-none items-center gap-4 border-b border-border-soft pr-4 text-xs text-fg3">
+            <TabsList variant="line" className="h-full flex-none justify-start gap-4 rounded-none px-4 py-0">
+                <TabsTrigger value="results" className={tab}>
+                    Results
+                </TabsTrigger>
+                <TabsTrigger value="messages" className={tab}>
+                    Messages
+                </TabsTrigger>
+                <TabsTrigger value="plan" className={tab}>
+                    Plan
+                </TabsTrigger>
+            </TabsList>
+            {children}
+        </div>
+    );
+}
 
 /**
  * Editing for a table tab: only a table (not a view) whose whole primary key is in the loaded
@@ -429,8 +472,36 @@ export function useTableEditing(t: TableTab) {
     return { engine, details, fields, editor, readOnly };
 }
 
+/** A table tab before its first rows: the grid's shape, a header and rows of placeholder cells */
+function TableSkeleton({ name }: { name: string }) {
+    const widths = ['w-10', 'w-24', 'w-16', 'w-28', 'w-14'];
+    return (
+        <div role="status" aria-label={`Loading ${name}…`} className="h-full overflow-hidden">
+            <div className="flex h-8 items-center gap-8 border-b border-border-soft px-4">
+                {widths.map((w) => (
+                    <Skeleton key={w} className={cn(w, 'bg-fg4/25')} />
+                ))}
+            </div>
+            {Array.from({ length: 12 }, (_, row) => (
+                <div key={row} className="flex h-7 items-center gap-8 border-b border-border-soft/50 px-4">
+                    {widths.map((w) => (
+                        <Skeleton key={w} className={w} />
+                    ))}
+                </div>
+            ))}
+        </div>
+    );
+}
+
 /** A table tab's whole body: a WHERE filter, the rows (sorted and filtered by the database), then its details. No editor */
 export function TableResults({ tab: t }: { tab: TableTab }) {
+    // Its own, not the query panel's: switching here leaves the query tabs where they were
+    const [panel, setPanel] = useState<ResultsTab>('results');
+    const explainTable = useQuery((s) => s.explainTable);
+    const explain = (analyze: boolean) => {
+        setPanel('plan');
+        void explainTable(t.id, analyze);
+    };
     const queryTable = useQuery((s) => s.queryTable);
     const openTable = useQuery((s) => s.openTable);
     const name = `${t.schema}.${t.table}`;
@@ -443,18 +514,57 @@ export function TableResults({ tab: t }: { tab: TableTab }) {
         void openTable(t.connectionId, engine === 'mysql' ? r.schema : t.database, r.schema, r.table, [filter]);
 
     return (
-        <section aria-label={name} className="flex min-h-0 flex-1 flex-col bg-surface">
-            <div className="relative flex h-10 flex-none items-center gap-4 border-b border-border-soft px-4 text-xs text-fg3">
-                <WhereBar tab={t} />
+        <Tabs
+            value={panel}
+            onValueChange={(v) => setPanel(v as ResultsTab)}
+            aria-label={name}
+            className="flex min-h-0 flex-1 flex-col gap-0 bg-surface"
+        >
+            <PanelHeader>
+                <span className="h-4 w-px flex-none bg-border-soft" aria-hidden />
+                {panel === 'plan' ? (
+                    <span className="ml-auto flex flex-none items-center gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => explain(false)} disabled={t.plan?.runningSince != null}>
+                            Explain
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => explain(true)}
+                            disabled={t.plan?.runningSince != null}
+                            title="Runs the SELECT to measure it"
+                        >
+                            Explain analyze
+                        </Button>
+                    </span>
+                ) : (
+                    <WhereBar tab={t} />
+                )}
                 {t.runningSince !== null && (
                     <span role="status" className="flex flex-none items-baseline gap-2">
                         Loading…
                         <Elapsed since={t.runningSince} />
                     </span>
                 )}
-                {t.runningSince !== null && <RunningBar />}
-            </div>
-            <div className="min-h-0 flex-1">
+                {(t.runningSince !== null || t.plan?.runningSince != null) && <RunningBar />}
+            </PanelHeader>
+            <TabsContent value="messages" className="min-h-0">
+                <MessagesView />
+            </TabsContent>
+            <TabsContent value="plan" className="min-h-0">
+                <PlanView
+                    plan={t.plan}
+                    empty={
+                        <div className="grid h-full place-content-center justify-items-center gap-3 text-fg3">
+                            How the database reads this table, with its filter and order
+                            <Button variant="outline" size="sm" onClick={() => explain(false)}>
+                                Explain
+                            </Button>
+                        </div>
+                    }
+                />
+            </TabsContent>
+            <TabsContent value="results" className="min-h-0 flex-1">
                 {t.outcome ? (
                     <div className={cn('h-full transition-opacity duration-200', t.runningSince !== null && 'opacity-50 delay-300')}>
                         <OutcomeView
@@ -472,11 +582,11 @@ export function TableResults({ tab: t }: { tab: TableTab }) {
                         />
                     </div>
                 ) : (
-                    <div className="grid h-full place-items-center text-fg3">Loading {name}…</div>
+                    <TableSkeleton name={name} />
                 )}
-            </div>
+            </TabsContent>
             <TableStatusBar tab={t} onChange={change} readOnly={readOnly} />
-        </section>
+        </Tabs>
     );
 }
 
@@ -533,29 +643,18 @@ function QueryStatusBar({ shape, setShape }: { shape: Shape; setShape: (change: 
 
 export function ResultsPanel() {
     const running = useQuery((s) => currentQuery(s).runningSince !== null || currentQuery(s).plan?.runningSince != null);
-    const last = useQuery((s) => currentQuery(s).last);
+    const lastRun = useQuery((s) => currentQuery(s).lastRun);
     const resultsTab = useUi((s) => s.resultsTab);
     const setResultsTab = useUi((s) => s.setResultsTab);
-    const [shape, setShape] = useShape(last);
+    const [shape, setShape] = useShape(lastRun);
     return (
         <Tabs value={resultsTab} onValueChange={(v) => setResultsTab(v as ResultsTab)} className="h-full gap-0 bg-surface">
-            <div className="relative flex h-10 flex-none items-center gap-4 border-b border-border-soft pr-4 text-xs text-fg3">
-                <TabsList variant="line" className="h-full flex-none justify-start gap-4 rounded-none px-4 py-0">
-                    <TabsTrigger value="results" className={tab}>
-                        Results
-                    </TabsTrigger>
-                    <TabsTrigger value="messages" className={tab}>
-                        Messages
-                    </TabsTrigger>
-                    <TabsTrigger value="plan" className={tab}>
-                        Plan
-                    </TabsTrigger>
-                </TabsList>
+            <PanelHeader>
                 <div className="ml-auto min-w-0 truncate">
                     <Status />
                 </div>
                 {running && <RunningBar />}
-            </div>
+            </PanelHeader>
             <TabsContent value="results" className="min-h-0">
                 <ResultsView shape={shape} setShape={setShape} />
             </TabsContent>
@@ -563,7 +662,7 @@ export function ResultsPanel() {
                 <MessagesView />
             </TabsContent>
             <TabsContent value="plan" className="min-h-0">
-                <PlanView />
+                <QueryPlanView />
             </TabsContent>
             <QueryStatusBar shape={shape} setShape={setShape} />
         </Tabs>
