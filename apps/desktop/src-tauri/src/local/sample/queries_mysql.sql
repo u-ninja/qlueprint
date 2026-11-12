@@ -1,4 +1,4 @@
--- QueryCraft sample queries (MySQL and MariaDB) for the querycraft_demo sample data.
+-- QluePrint sample queries (MySQL and MariaDB) for the qlueprint_demo sample data.
 -- Select one query and run it to see its result. Running the whole script shows only the last one.
 
 -- All customers

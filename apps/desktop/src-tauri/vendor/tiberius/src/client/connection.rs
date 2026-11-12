@@ -9,13 +9,14 @@ use crate::{
     tds::{
         codec::{
             self,
+            ActivityId, // qlueprint
             Encode,
             LoginMessage,
             Packet,
             PacketCodec,
             PacketHeader,
             PacketStatus,
-            PacketType, // querycraft
+            PacketType, // qlueprint
             PreloginMessage,
             TokenDone,
             FED_AUTH_ADAL_WORKFLOW_INTERACTIVE,
@@ -186,7 +187,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin + Send> Connection<S> {
             command_desync: Arc::new(AtomicBool::new(false)),
         };
 
-        // querycraft: AADInteractive is federated authentication too
+        // qlueprint: AADInteractive is federated authentication too
         let fed_auth_required = matches!(
             config.auth,
             AuthMethod::AADToken(_) | AuthMethod::AADInteractive(_)
@@ -216,7 +217,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin + Send> Connection<S> {
                 config.auth,
                 encryption,
                 config.database,
-                config.host,
+                config.login_server_name.or(config.host), // qlueprint: a routed `host\name`
                 config.application_name,
                 config.client_name,
                 config.readonly,
@@ -547,6 +548,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin + Send> Connection<S> {
         msg.encryption = encryption;
         msg.fed_auth_required = fed_auth_required;
         msg.instance_name = instance_name.clone();
+        msg.activity_id = Some(ActivityId::random()); // qlueprint
 
         let id = self.context.next_packet_id();
         self.send(PacketHeader::pre_login(id), msg).await?;
@@ -847,7 +849,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin + Send> Connection<S> {
                     .await?;
                 self = self.post_login_encryption(encryption);
             }
-            // querycraft: the ADAL workflow. The token travels in its own
+            // qlueprint: the ADAL workflow. The token travels in its own
             // message after LOGIN7, which login-only encryption would leave in
             // the clear, so it needs encryption for the whole connection.
             AuthMethod::AADInteractive(callback) => {

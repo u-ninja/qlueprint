@@ -254,7 +254,7 @@ pub use tds::{
         MetaDataColumn,
         TokenAltMetaData,
         TokenAltRow,
-        TokenFedAuthInfo, // querycraft: what AuthMethod::aad_interactive's callback gets
+        TokenFedAuthInfo, // qlueprint: what AuthMethod::aad_interactive's callback gets
         TokenRow,
         TypeInfo,
         TypeLength,

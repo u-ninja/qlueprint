@@ -308,6 +308,8 @@ features = ["log"]
 
 [dependencies.uuid]
 version = "1.0"
+# qlueprint: random connection and activity ids for PRELOGIN's TRACEID
+features = ["v4"]
 
 [dependencies.webpki-roots]
 version = "1"

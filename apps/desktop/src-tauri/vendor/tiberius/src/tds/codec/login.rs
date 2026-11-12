@@ -129,10 +129,10 @@ pub enum LoginTypeFlag {
 pub(crate) const FEA_EXT_FEDAUTH: u8 = 0x02u8;
 pub(crate) const FEA_EXT_TERMINATOR: u8 = 0xFFu8;
 pub(crate) const FED_AUTH_LIBRARYSECURITYTOKEN: u8 = 0x01;
-// querycraft: bFedAuthLibrary ADAL, where the server names the token authority
+// qlueprint: bFedAuthLibrary ADAL, where the server names the token authority
 // in FEDAUTHINFO and the token follows the login (MS-TDS LOGIN7 FeatureExt)
 pub(crate) const FED_AUTH_LIBRARYADAL: u8 = 0x02;
-// querycraft: the ADAL Workflow byte Microsoft's JDBC driver sends for
+// qlueprint: the ADAL Workflow byte Microsoft's JDBC driver sends for
 // ActiveDirectoryInteractive (MS-TDS documents only 0x01 password and 0x02 integrated)
 pub(crate) const FED_AUTH_ADAL_WORKFLOW_INTERACTIVE: u8 = 0x03;
 
@@ -142,7 +142,7 @@ struct FedAuthExt {
     fed_auth_echo: bool,
     fed_auth_token: SecretString,
     nonce: Option<[u8; 32]>,
-    // querycraft: Some(workflow) for the ADAL library, which carries no token
+    // qlueprint: Some(workflow) for the ADAL library, which carries no token
     adal_workflow: Option<u8>,
 }
 
@@ -153,7 +153,7 @@ impl PartialEq for FedAuthExt {
     fn eq(&self, other: &Self) -> bool {
         self.fed_auth_echo == other.fed_auth_echo
             && self.nonce == other.nonce
-            && self.adal_workflow == other.adal_workflow // querycraft
+            && self.adal_workflow == other.adal_workflow // qlueprint
             && self.fed_auth_token.expose_secret() == other.fed_auth_token.expose_secret()
     }
 }
@@ -171,7 +171,7 @@ impl std::fmt::Debug for FedAuthExt {
             .field("fed_auth_echo", &self.fed_auth_echo)
             .field("fed_auth_token", &self.fed_auth_token)
             .field("nonce", &self.nonce.map(|_| "<present>"))
-            .field("adal_workflow", &self.adal_workflow) // querycraft
+            .field("adal_workflow", &self.adal_workflow) // qlueprint
             .finish()
     }
 }
@@ -386,11 +386,11 @@ impl<'a> LoginMessage<'a> {
             fed_auth_echo,
             fed_auth_token: crate::client::auth::secret_from_string(token.into()),
             nonce,
-            adal_workflow: None, // querycraft
+            adal_workflow: None, // qlueprint
         })
     }
 
-    /// querycraft: announces federated authentication through the ADAL
+    /// qlueprint: announces federated authentication through the ADAL
     /// library; the token is sent after the server's FEDAUTHINFO, in a
     /// Federated Authentication Token message (`encode_fed_auth_token`).
     pub fn aad_adal(&mut self, workflow: u8, fed_auth_echo: bool) {
@@ -456,7 +456,7 @@ impl<'a> LoginMessage<'a> {
             ..
         }) = self.fed_auth_ext
         {
-            // querycraft: 4 (FeatureExt data offset) + 1 (FEA_EXT_FEDAUTH) + 4
+            // qlueprint: 4 (FeatureExt data offset) + 1 (FEA_EXT_FEDAUTH) + 4
             // (feature ext length) + 1 (options) + 1 (workflow) + 1 (terminator)
             len += 12;
         } else if let Some(ref ext) = self.fed_auth_ext {
@@ -614,7 +614,7 @@ impl<'a> LoginMessage<'a> {
 
             cursor.write_u8(FEA_EXT_FEDAUTH)?;
 
-            // querycraft: ADAL's FeatureData is Options then Workflow, no token
+            // qlueprint: ADAL's FeatureData is Options then Workflow, no token
             if let Some(workflow) = fed_auth_ext.adal_workflow {
                 cursor.write_u32::<LittleEndian>(2)?;
                 let echo = u8::from(fed_auth_ext.fed_auth_echo);
@@ -669,7 +669,7 @@ impl<'a> LoginMessage<'a> {
                 }
 
                 cursor.write_u8(FEA_EXT_TERMINATOR)?;
-            } // querycraft: end of the security-token branch
+            } // qlueprint: end of the security-token branch
         }
 
         cursor.set_position(0);
@@ -695,7 +695,7 @@ impl<'a> LoginMessage<'a> {
     }
 }
 
-/// querycraft: the Federated Authentication Token message body (MS-TDS,
+/// qlueprint: the Federated Authentication Token message body (MS-TDS,
 /// packet type 0x08) for the ADAL library: DataLen, the token as an
 /// L_VARBYTE of UTF-16LE, and the prelogin nonce when the server sent one.
 /// Sized up front and zeroized on drop like the LOGIN7 buffer, since the
@@ -858,7 +858,7 @@ mod tests {
                         let mut options = cursor.read_u8()?;
                         let fed_auth_echo = (options & 1) == 1;
                         options >>= 1;
-                        // querycraft
+                        // qlueprint
                         if options == FED_AUTH_LIBRARYADAL {
                             assert_eq!(fea_ext_len, 2);
                             ret.fed_auth_ext = Some(FedAuthExt {
@@ -890,7 +890,7 @@ mod tests {
                             fed_auth_echo,
                             fed_auth_token: token.into(),
                             nonce,
-                            adal_workflow: None, // querycraft
+                            adal_workflow: None, // qlueprint
                         };
                         ret.fed_auth_ext = Some(fed_auth_ext);
                     } else {
@@ -976,7 +976,7 @@ mod tests {
                 fed_auth_echo: true,
                 fed_auth_token: token.into(),
                 nonce: Some(nonce),
-                adal_workflow: None, // querycraft
+                adal_workflow: None, // qlueprint
             }
         )
     }
@@ -1161,7 +1161,7 @@ mod tests {
         assert_eq!(decoded.integrated_security, Some(vec![9, 8, 7, 6, 5]));
     }
 
-    // querycraft: the ADAL FeatureExt is the last 8 bytes of LOGIN7, laid out
+    // qlueprint: the ADAL FeatureExt is the last 8 bytes of LOGIN7, laid out
     // as go-mssqldb's featureExtFedAuth.toBytes and mssql-jdbc's
     // writeFedAuthFeatureRequest write it: FeatureId, FeatureDataLen = 2,
     // Options = (bFedAuthLibrary 0x02 << 1) | fFedAuthEcho, Workflow, terminator.
@@ -1201,7 +1201,7 @@ mod tests {
         }
     }
 
-    // querycraft: MS-TDS's Federated Authentication Token for ADAL, as mssql-jdbc's sendFedAuthToken and
+    // qlueprint: MS-TDS's Federated Authentication Token for ADAL, as mssql-jdbc's sendFedAuthToken and
     // go-mssqldb's sendFedAuthInfo write it: DataLen (token bytes + 4 [+ 32]),
     // the token's byte length, the token as UTF-16LE, the nonce if any.
     #[test]

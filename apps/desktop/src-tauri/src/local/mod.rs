@@ -168,14 +168,10 @@ pub fn local_database_templates() -> Vec<Template> {
 
 // --- Planning --------------------------------------------------------------------------------
 
-/// Names QueryCraft gives a container and its volume when the user leaves them empty.
+/// Names QluePrint gives a container and its volume when the user leaves them empty.
 fn container_name(request: &LocalRequest) -> String {
     if request.container_name.is_empty() {
-        format!(
-            "querycraft-{}-{}",
-            engine_slug(request.engine),
-            request.port
-        )
+        format!("qlueprint-{}-{}", engine_slug(request.engine), request.port)
     } else {
         request.container_name.clone()
     }
@@ -1122,7 +1118,7 @@ pub fn cancel_provisioning(provisioning_id: String, local: State<'_, Local>) {
 
 // --- Lifecycle -------------------------------------------------------------------------------
 
-/// The instance's container, refused unless it carries this instance's QueryCraft labels.
+/// The instance's container, refused unless it carries this instance's QluePrint labels.
 async fn managed_container(
     docker: &Docker,
     instance: &LocalInstance,
@@ -1135,7 +1131,7 @@ async fn managed_container(
     let inspect = docker.inspect(id).await?.ok_or_else(|| {
         CommandError::new(
             ErrorCode::ContainerStopped,
-            "The container is gone: it was removed outside QueryCraft.",
+            "The container is gone: it was removed outside QluePrint.",
         )
     })?;
     docker::check_managed(inspect.config.labels.as_ref(), &instance.id, "container")?;
@@ -1276,17 +1272,17 @@ macro_rules! lifecycle_command {
 lifecycle_command!(
     start_local_database,
     Lifecycle::Start,
-    "Starts a QueryCraft-managed instance."
+    "Starts a QluePrint-managed instance."
 );
 lifecycle_command!(
     stop_local_database,
     Lifecycle::Stop,
-    "Stops a QueryCraft-managed instance."
+    "Stops a QluePrint-managed instance."
 );
 lifecycle_command!(
     restart_local_database,
     Lifecycle::Restart,
-    "Restarts a QueryCraft-managed instance."
+    "Restarts a QluePrint-managed instance."
 );
 
 /// The last `lines` lines of the server's log, passwords masked.
@@ -1306,7 +1302,7 @@ pub async fn local_database_logs(
         }
         Provider::Native => Err(CommandError::new(
             ErrorCode::NativeUnsupported,
-            "QueryCraft doesn’t read a natively installed server’s logs; see your OS service manager.",
+            "QluePrint doesn’t read a natively installed server’s logs; see your OS service manager.",
         )),
         Provider::File => Err(invalid("A SQLite database has no server log.")),
     }
@@ -1368,11 +1364,11 @@ pub(crate) async fn delete_data(
                 .as_deref()
                 .map(PathBuf::from)
                 .unwrap_or_default();
-            // Only files QueryCraft made, in its own databases folder
+            // Only files QluePrint made, in its own databases folder
             if path.parent() != Some(deps.local.sqlite_dir().as_path()) {
                 return Err(CommandError::new(
                     ErrorCode::NotManaged,
-                    "That file isn’t in QueryCraft’s databases folder, so it wasn’t deleted.",
+                    "That file isn’t in QluePrint’s databases folder, so it wasn’t deleted.",
                 ));
             }
             if let Some(saved_id) = &instance.saved_connection_id
@@ -1396,7 +1392,7 @@ pub(crate) async fn delete_data(
         Provider::Native => {
             return Err(CommandError::new(
                 ErrorCode::NativeUnsupported,
-                "QueryCraft doesn’t delete a native server’s data. Uninstall it with your package manager.",
+                "QluePrint doesn’t delete a native server’s data. Uninstall it with your package manager.",
             ));
         }
     }
@@ -1528,7 +1524,7 @@ async fn resolve(
             }
             let port = found.host_port.ok_or_else(|| {
                 invalid(format!(
-                    "{} doesn’t publish its port to this machine, so QueryCraft can’t reach it.",
+                    "{} doesn’t publish its port to this machine, so QluePrint can’t reach it.",
                     found.name
                 ))
             })?;
@@ -1574,7 +1570,7 @@ async fn resolve(
 }
 
 const NEEDS_CREDENTIALS: &str =
-    "QueryCraft couldn’t recover this server’s password. Enter the user and password to connect.";
+    "QluePrint couldn’t recover this server’s password. Enter the user and password to connect.";
 
 /// Tries to sign in to an existing local database without saving anything.
 #[tauri::command]
@@ -1619,7 +1615,7 @@ pub async fn test_local_database(
 }
 
 /// Saves a connection to an existing local database (a discovered container or native server,
-/// or a QueryCraft instance whose connection was removed). Validated by connecting first.
+/// or a QluePrint instance whose connection was removed). Validated by connecting first.
 #[tauri::command]
 #[specta::specta]
 pub async fn connect_local_database(

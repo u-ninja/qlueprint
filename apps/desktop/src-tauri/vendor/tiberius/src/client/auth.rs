@@ -1,15 +1,15 @@
 use secrecy::{ExposeSecret, SecretString};
 use zeroize::Zeroize;
 
-// querycraft: the ADAL/MSAL federated-authentication workflow (see AuthMethod::AADInteractive)
+// qlueprint: the ADAL/MSAL federated-authentication workflow (see AuthMethod::AADInteractive)
 use crate::tds::codec::TokenFedAuthInfo;
 use futures_util::future::BoxFuture;
 use std::sync::Arc;
 
-/// querycraft: the future [`FedAuthCallback`] returns: the access token.
+/// qlueprint: the future [`FedAuthCallback`] returns: the access token.
 pub type FedAuthToken = BoxFuture<'static, crate::Result<String>>;
 
-/// querycraft: asked for an access token once the server has said, in its
+/// qlueprint: asked for an access token once the server has said, in its
 /// `FEDAUTHINFO` token, which security token service (STS URL, with the tenant)
 /// and which resource (SPN) the token must be for.
 #[derive(Clone)]
@@ -111,7 +111,7 @@ pub enum AuthMethod {
     /// Authenticate with an AAD token. The token should encode an AAD user/service principal
     /// which has access to SQL Server.
     AADToken(SecretString),
-    /// querycraft: federated authentication where the server names the token
+    /// qlueprint: federated authentication where the server names the token
     /// authority. The login announces the ADAL library (MS-TDS FEDAUTH
     /// FeatureExt, `bFedAuthLibrary` 0x02), the server answers with `FEDAUTHINFO`
     /// (STS URL and SPN), the callback returns a token for them, and it is sent in
@@ -139,7 +139,7 @@ impl PartialEq for AuthMethod {
             ))]
             (Self::Integrated, Self::Integrated) => true,
             (Self::AADToken(a), Self::AADToken(b)) => a.expose_secret() == b.expose_secret(),
-            // querycraft
+            // qlueprint
             (Self::AADInteractive(a), Self::AADInteractive(b)) => Arc::ptr_eq(&a.0, &b.0),
             (Self::None, Self::None) => true,
             _ => false,
@@ -182,7 +182,7 @@ impl AuthMethod {
         Self::AADToken(secret_from_string(token.to_string()))
     }
 
-    /// querycraft: federated authentication with a token for the authority the
+    /// qlueprint: federated authentication with a token for the authority the
     /// server names; see [`AuthMethod::AADInteractive`].
     pub fn aad_interactive(
         callback: impl Fn(TokenFedAuthInfo) -> FedAuthToken + Send + Sync + 'static,

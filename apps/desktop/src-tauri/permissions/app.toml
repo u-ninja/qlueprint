@@ -2,8 +2,8 @@
 # localhost one in src/lib.rs) grant the same list without repeating it.
 [[set]]
 identifier = "app-commands"
-description = "Allows every QueryCraft command."
-permissions = ["allow-list-databases", "allow-connection-databases", "allow-disconnect", "allow-list-schemas", "allow-list-columns", "allow-table-details", "allow-lookup-rows", "allow-run-query", "allow-apply-edits", "allow-explain-query", "allow-entra-sign-in", "allow-entra-cancel-sign-in",
+description = "Allows every QluePrint command."
+permissions = ["allow-list-databases", "allow-connection-databases", "allow-disconnect", "allow-list-schemas", "allow-list-columns", "allow-table-details", "allow-routine-definition", "allow-lookup-rows", "allow-run-query", "allow-apply-edits", "allow-explain-query", "allow-entra-sign-in", "allow-entra-cancel-sign-in",
   "allow-list-saved", "allow-connect-and-save", "allow-connect-saved", "allow-forget-saved", "allow-rename-saved", "allow-update-saved", "allow-test-connection",
   "allow-list-audit-events", "allow-verify-audit-log", "allow-export-audit-log",
   "allow-docker-status", "allow-discover-local-databases", "allow-local-database-templates",

@@ -115,6 +115,33 @@ fn incoming((schema, table, column, references_column): IncomingRow) -> Incoming
     }
 }
 
+/// SQL Server's index rows, one per key column in order, as one row per index with its columns
+/// joined like the other engines'. O(rows).
+fn mssql_indexes(rows: Vec<Vec<Option<String>>>) -> Vec<IndexInfo> {
+    let mut merged: Vec<IndexRow> = Vec::new();
+    for mut r in rows {
+        let (name, column) = (mssql::text(&mut r[0]), r[1].take());
+        match merged.last_mut() {
+            Some((last, columns, ..)) if *last == name => {
+                if let Some(column) = column {
+                    let joined = columns.get_or_insert_with(String::new);
+                    if !joined.is_empty() {
+                        joined.push_str(", ");
+                    }
+                    joined.push_str(&column);
+                }
+            }
+            _ => merged.push((
+                name,
+                column,
+                mssql::int(&mut r[2]).unwrap_or(0),
+                mssql::int(&mut r[3]).unwrap_or(0),
+            )),
+        }
+    }
+    merged.into_iter().map(index).collect()
+}
+
 fn index((name, columns, unique, primary): IndexRow) -> IndexInfo {
     IndexInfo {
         name,
@@ -257,8 +284,9 @@ const SQLITE_INDEXES: &str = r#"
 const SQLITE_TABLE: &str = "SELECT type = 'view', sql FROM sqlite_schema WHERE name = ?1";
 
 // SQL Server: four result sets in one round trip, each shaped like the other engines' rows:
-// columns, indexes, single-column foreign keys pointing here, then the table itself.
-// FOR XML PATH, not STRING_AGG, so SQL Server 2016 works too.
+// columns, indexes (one row per key column, joined in Rust: FOR XML PATH fails on Fabric and
+// Synapse, STRING_AGG on SQL Server 2016), single-column foreign keys pointing here, then the table.
+// Fabric and Synapse (EngineEdition 11, 6) keep data outside SQL Server's pages: size unknown there.
 const MSSQL_DETAILS: &str = concat!(
     "DECLARE @id int = OBJECT_ID(QUOTENAME(@P1) + '.' + QUOTENAME(@P2));
     SELECT c.name, ",
@@ -280,15 +308,13 @@ const MSSQL_DETAILS: &str = concat!(
     WHERE c.object_id = @id
     ORDER BY c.column_id;
 
-    SELECT i.name,
-           STUFF((SELECT ', ' + col.name FROM sys.index_columns ic
-                  JOIN sys.columns col ON col.object_id = ic.object_id AND col.column_id = ic.column_id
-                  WHERE ic.object_id = i.object_id AND ic.index_id = i.index_id AND ic.is_included_column = 0
-                  ORDER BY ic.key_ordinal FOR XML PATH(''), TYPE).value('.', 'nvarchar(max)'), 1, 2, ''),
-           CAST(i.is_unique AS int), CAST(i.is_primary_key AS int)
+    SELECT i.name, col.name, CAST(i.is_unique AS int), CAST(i.is_primary_key AS int)
     FROM sys.indexes i
+    LEFT JOIN sys.index_columns ic
+      ON ic.object_id = i.object_id AND ic.index_id = i.index_id AND ic.is_included_column = 0
+    LEFT JOIN sys.columns col ON col.object_id = ic.object_id AND col.column_id = ic.column_id
     WHERE i.object_id = @id AND i.type > 0
-    ORDER BY i.is_primary_key DESC, i.name;
+    ORDER BY i.is_primary_key DESC, i.name, ic.key_ordinal;
 
     SELECT SCHEMA_NAME(t.schema_id), t.name, pc.name, rc.name
     FROM sys.foreign_keys fk
@@ -302,12 +328,72 @@ const MSSQL_DETAILS: &str = concat!(
 
     -- Heap or clustered index rows only, so nonclustered indexes don't count a row twice
     SELECT (SELECT SUM(p.rows) FROM sys.partitions p WHERE p.object_id = o.object_id AND p.index_id IN (0, 1)),
+           CASE WHEN CAST(SERVERPROPERTY('EngineEdition') AS int) NOT IN (6, 11) THEN
            (SELECT SUM(a.total_pages) * 8192 FROM sys.partitions p
-            JOIN sys.allocation_units a ON a.container_id = p.partition_id WHERE p.object_id = o.object_id),
+            JOIN sys.allocation_units a ON a.container_id = p.partition_id WHERE p.object_id = o.object_id) END,
            CASE WHEN o.type = 'V' THEN 1 ELSE 0 END,
            CASE WHEN o.type = 'V' THEN OBJECT_DEFINITION(o.object_id) END
     FROM sys.objects o WHERE o.object_id = @id"
 );
+
+/// A stored procedure's or function's definition as the database writes it (Postgres: the overload
+/// `args` names), to open in a query tab. Metadata only, so it isn't audited.
+#[tauri::command]
+#[specta::specta]
+pub async fn routine_definition(
+    id: String,
+    database: Option<String>,
+    schema: String,
+    name: String,
+    procedure: bool,
+    args: Option<String>,
+    connections: State<'_, Connections>,
+) -> Result<String, CommandError> {
+    require(&name, "Name")?;
+    let open = connections.get(&id)?;
+    let definition = match open.pool_for(database.as_deref()).await? {
+        Pool::Postgres(pool) => sqlx::query_scalar::<_, Option<String>>(
+            "SELECT pg_get_functiondef(to_regprocedure(quote_ident($1) || '.' || quote_ident($2) || '(' || $3 || ')'))",
+        )
+        .bind(&schema)
+        .bind(&name)
+        .bind(args.as_deref().unwrap_or(""))
+        .fetch_one(&pool)
+        .await
+        .map_err(query_failed)?,
+        // SHOW CREATE has no placeholders: names are backquoted (a backquote inside doubled)
+        Pool::Mysql(pool) => {
+            let kind = if procedure { "PROCEDURE" } else { "FUNCTION" };
+            let sql = format!(
+                "SHOW CREATE {kind} {}.{}",
+                quote_ident(&schema, '`'),
+                quote_ident(&name, '`')
+            );
+            let row = sqlx::raw_sql(AssertSqlSafe(sql))
+                .fetch_one(&pool)
+                .await
+                .map_err(query_failed)?;
+            row.try_get::<Option<String>, _>(2).map_err(query_failed)?
+        }
+        Pool::Mssql(pool) => mssql::catalog_rows(
+            &pool,
+            "SELECT OBJECT_DEFINITION(OBJECT_ID(QUOTENAME(@P1) + '.' + QUOTENAME(@P2)))",
+            &[&schema, &name],
+        )
+        .await?
+        .into_iter()
+        .next()
+        .and_then(|mut r| r[0].take()),
+        Pool::Sqlite(_) => None,
+    };
+    // NULL: it's gone, or this login may run it but not read it
+    definition.ok_or_else(|| {
+        CommandError::new(
+            ErrorCode::QueryFailed,
+            format!("{schema}.{name}’s definition isn’t readable with this login."),
+        )
+    })
+}
 
 /// Everything the inspector shows about `schema.table` in `database` (Postgres and SQL Server:
 /// that database's pool; MySQL: the schema is the database; SQLite: "main"). Metadata only, so it
@@ -452,17 +538,7 @@ pub async fn table_details(
                         ))
                     })
                     .collect(),
-                indexes: indexes
-                    .into_iter()
-                    .map(|mut r| {
-                        index((
-                            text(&mut r[0]),
-                            r[1].take(),
-                            number(&mut r[2]).unwrap_or(0),
-                            number(&mut r[3]).unwrap_or(0),
-                        ))
-                    })
-                    .collect(),
+                indexes: mssql_indexes(indexes),
                 view,
                 estimated_rows: number(&mut object[0]).filter(|_| !view),
                 size_bytes: number(&mut object[1]).filter(|_| !view),
@@ -776,6 +852,37 @@ async fn sqlite_lookup(
 mod tests {
     use super::*;
     use sqlx::SqlitePool;
+
+    #[test]
+    fn joins_sql_server_index_columns_in_order() {
+        let row = |cells: [Option<&str>; 4]| cells.map(|c| c.map(str::to_owned)).to_vec();
+        let indexes = mssql_indexes(vec![
+            row([Some("PK_orders"), Some("id"), Some("1"), Some("1")]),
+            row([
+                Some("IX_customer_day"),
+                Some("customer_id"),
+                Some("0"),
+                Some("0"),
+            ]),
+            row([Some("IX_customer_day"), Some("day"), Some("0"), Some("0")]),
+            // An index with no key columns (a columnstore one): no column row joined in
+            row([Some("CCI_orders"), None, Some("0"), Some("0")]),
+        ]);
+        let info = |name: &str, columns: &str, unique, primary| IndexInfo {
+            name: name.into(),
+            columns: columns.into(),
+            unique,
+            primary,
+        };
+        assert_eq!(
+            indexes,
+            [
+                info("PK_orders", "id", true, true),
+                info("IX_customer_day", "customer_id, day", false, false),
+                info("CCI_orders", "", false, false),
+            ]
+        );
+    }
 
     #[tokio::test]
     async fn describes_sqlite_columns_keys_and_indexes() {

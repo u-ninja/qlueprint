@@ -13,18 +13,30 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct ActivityId {
+    // qlueprint: TRACEID starts with the client's connection id (GUID_CONNID)
+    connection: Uuid,
     id: Uuid,
     sequence: u32,
 }
 
 impl ActivityId {
-    /// Creates a new activity id (`TRACEID`, MS-TDS §2.2.6.5) from a client
-    /// activity [`Uuid`] and a monotonically increasing sequence number. The
-    /// value is emitted in the PRELOGIN packet so a server administrator can
-    /// correlate the connection in server-side traces.
-    #[cfg(test)]
-    pub fn new(id: Uuid, sequence: u32) -> Self {
-        Self { id, sequence }
+    /// Creates a new activity id (`TRACEID`, MS-TDS §2.2.6.5) from the client
+    /// connection [`Uuid`], an activity [`Uuid`] and a monotonically increasing
+    /// sequence number. The value is emitted in the PRELOGIN packet so a server
+    /// administrator can correlate the connection in server-side traces.
+    pub fn new(connection: Uuid, id: Uuid, sequence: u32) -> Self {
+        Self {
+            connection,
+            id,
+            sequence,
+        }
+    }
+
+    // qlueprint: a fresh one per connection. Microsoft Fabric refuses a login whose PRELOGIN has
+    // no TRACEID (18456 "Couldn't complete the operation due to a system update"), and Microsoft's
+    // drivers always send one
+    pub(crate) fn random() -> Self {
+        Self::new(Uuid::new_v4(), Uuid::new_v4(), 1)
     }
 }
 
@@ -184,11 +196,15 @@ impl Encode<BytesMut> for PreloginMessage {
         // activity id (TRACEID): a client GUID plus a sequence number, emitted
         // only when the client supplies one for server-side trace correlation.
         if let Some(activity_id) = self.activity_id.as_ref() {
-            fields.push((PRELOGIN_TRACEID, 0x14)); // 16-byte GUID + 4-byte sequence
+            // qlueprint: GUID_CONNID + ActivityId (GUID + sequence), 36 bytes as MS-TDS defines it;
+            // upstream sent only the 20-byte ActivityId
+            fields.push((PRELOGIN_TRACEID, 0x24));
 
-            let mut data = *activity_id.id.as_bytes();
-            reorder_bytes(&mut data);
-            data_cursor.write_all(&data)?;
+            for guid in [activity_id.connection, activity_id.id] {
+                let mut data = *guid.as_bytes();
+                reorder_bytes(&mut data);
+                data_cursor.write_all(&data)?;
+            }
             data_cursor.write_u32::<LittleEndian>(activity_id.sequence)?;
         }
 
@@ -288,17 +304,29 @@ impl Decode<BytesMut> for PreloginMessage {
                 }
                 // activity id
                 PRELOGIN_TRACEID => {
-                    // Data is a Guid, 16 bytes and ordered the wrong way around
-                    // than Uuid.
-                    let mut data = [0u8; 16];
-
-                    cursor.read_exact(&mut data)?;
-                    reorder_bytes(&mut data);
-
-                    ret.activity_id = Some(ActivityId {
-                        id: Uuid::from_bytes(data),
-                        sequence: cursor.read_u32::<LittleEndian>()?,
-                    });
+                    // Data is Guids, 16 bytes and ordered the wrong way around
+                    // than Uuid. qlueprint: read by the length the server gives. A client
+                    // TRACEID gets echoed shorter than the 36 bytes sent (Azure SQL), and nothing
+                    // here uses the server's copy, so any other length is skipped
+                    let mut read_guid = || -> Result<Uuid> {
+                        let mut data = [0u8; 16];
+                        cursor.read_exact(&mut data)?;
+                        reorder_bytes(&mut data);
+                        Ok(Uuid::from_bytes(data))
+                    };
+                    let connection = match length {
+                        36 => Some(read_guid()?),
+                        20 => Some(Uuid::nil()),
+                        _ => None,
+                    };
+                    if let Some(connection) = connection {
+                        let id = read_guid()?;
+                        ret.activity_id = Some(ActivityId {
+                            connection,
+                            id,
+                            sequence: cursor.read_u32::<LittleEndian>()?,
+                        });
+                    }
                 }
                 // fed auth
                 PRELOGIN_FEDAUTHREQUIRED => {
@@ -412,6 +440,7 @@ mod tests {
         let mut with = BytesMut::new();
         let mut prelogin = PreloginMessage::new();
         prelogin.activity_id = Some(ActivityId::new(
+            Uuid::parse_str("0a1b2c3d-4e5f-6071-8293-a4b5c6d7e8f9").unwrap(),
             Uuid::parse_str("6f9619ff-8b86-d011-b42d-00c04fc964ff").unwrap(),
             42,
         ));
@@ -421,14 +450,30 @@ mod tests {
             .expect("encode should succeed");
 
         assert!(option_tokens(&with).contains(&PRELOGIN_TRACEID));
-        // 16-byte GUID + 4-byte sequence.
+        // qlueprint: connection GUID + activity GUID + 4-byte sequence.
         assert_eq!(
             option_payload(&with, PRELOGIN_TRACEID).map(|p| p.len()),
-            Some(20)
+            Some(36)
         );
 
         let decoded = PreloginMessage::decode(&mut with).expect("decode should succeed");
         assert_eq!(decoded.activity_id, prelogin.activity_id);
+    }
+
+    // qlueprint: a server's TRACEID of another length than 36 doesn't fail the prelogin
+    #[test]
+    fn decode_accepts_any_traceid_length() {
+        for (length, data) in [(0u16, vec![]), (20, vec![7u8; 20]), (36, vec![7u8; 36])] {
+            let mut buf = BytesMut::new();
+            buf.put_u8(PRELOGIN_TRACEID);
+            buf.put_u16(6); // offset: one 5-byte entry + terminator
+            buf.put_u16(length);
+            buf.put_u8(PRELOGIN_TERMINATOR);
+            buf.extend_from_slice(&data);
+
+            let decoded = PreloginMessage::decode(&mut buf).expect("decode should succeed");
+            assert_eq!(decoded.activity_id.is_some(), length != 0, "length {length}");
+        }
     }
 
     #[test]

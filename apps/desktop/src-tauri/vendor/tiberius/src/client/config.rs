@@ -51,6 +51,8 @@ pub struct Config {
     pub(crate) port: Option<u16>,
     pub(crate) database: Option<String>,
     pub(crate) instance_name: Option<String>,
+    // qlueprint: the LOGIN7 ServerName when it isn't the host, e.g. a redirect's `host\name`
+    pub(crate) login_server_name: Option<String>,
     pub(crate) application_name: Option<String>,
     pub(crate) encryption: EncryptionLevel,
     pub(crate) trust: TrustConfig,
@@ -233,6 +235,7 @@ impl Default for Config {
             port: None,
             database: None,
             instance_name: None,
+            login_server_name: None, // qlueprint
             application_name: None,
             #[cfg(any(
                 feature = "rustls",
@@ -330,6 +333,17 @@ impl Config {
     pub fn instance_name(&mut self, name: impl ToString) {
         self.instance_name = Some(name.to_string());
     }
+
+    // qlueprint: start
+    /// The ServerName sent in LOGIN7, when it differs from the host connected to. A routing
+    /// ENVCHANGE can name `host\name` (Microsoft Fabric does): the client connects to `host` on the
+    /// routed port and logs in with the whole name, as go-mssqldb and Microsoft.Data.SqlClient do.
+    ///
+    /// - Defaults to the host.
+    pub fn login_server_name(&mut self, name: impl ToString) {
+        self.login_server_name = Some(name.to_string());
+    }
+    // qlueprint: end
 
     /// Sets the application name to the connection, queryable with the
     /// `APP_NAME()` command.

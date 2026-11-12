@@ -1,7 +1,7 @@
--- QueryCraft sample data (MySQL and MariaDB). Embedded in the app (src/local/sample.rs).
+-- QluePrint sample data (MySQL and MariaDB). Embedded in the app (src/local/sample.rs).
 -- Idempotent: tables are created only if missing and rows are keyed by id, so running it again
 -- changes nothing. The app refuses to run it when a table of the same name exists without the
--- QueryCraft marker (a table comment), so a user's own tables are never touched.
+-- QluePrint marker (a table comment), so a user's own tables are never touched.
 
 CREATE TABLE IF NOT EXISTS customers (
     id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS customers (
     city varchar(80),
     country varchar(80),
     created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='QueryCraft sample data';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='QluePrint sample data';
 CREATE TABLE IF NOT EXISTS products (
     id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name varchar(120) NOT NULL,
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS products (
     stock_quantity int NOT NULL DEFAULT 0 CHECK (stock_quantity >= 0),
     created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX products_category_idx (category)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='QueryCraft sample data';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='QluePrint sample data';
 CREATE TABLE IF NOT EXISTS orders (
     id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
     customer_id int NOT NULL,
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS orders (
     INDEX orders_customer_id_idx (customer_id),
     INDEX orders_order_date_idx (order_date),
     CONSTRAINT orders_customer_fk FOREIGN KEY (customer_id) REFERENCES customers (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='QueryCraft sample data';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='QluePrint sample data';
 CREATE TABLE IF NOT EXISTS order_items (
     id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
     order_id int NOT NULL,
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS order_items (
     INDEX order_items_product_id_idx (product_id),
     CONSTRAINT order_items_order_fk FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE,
     CONSTRAINT order_items_product_fk FOREIGN KEY (product_id) REFERENCES products (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='QueryCraft sample data';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='QluePrint sample data';
 CREATE TABLE IF NOT EXISTS employees (
     id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
     first_name varchar(50) NOT NULL,
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS employees (
     department varchar(50) NOT NULL,
     job_title varchar(80),
     salary decimal(10, 2) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='QueryCraft sample data';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='QluePrint sample data';
 
 INSERT IGNORE INTO customers (id, first_name, last_name, email, city, country, created_at) VALUES
     (1, 'Ana', 'Silva', 'ana.silva@example.com', 'Lisbon', 'Portugal', '2025-11-03 09:14:00'),

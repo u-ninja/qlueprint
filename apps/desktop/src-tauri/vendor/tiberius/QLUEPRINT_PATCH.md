@@ -1,10 +1,10 @@
-# QueryCraft's patch to tiberius 0.13.0
+# QluePrint's patch to tiberius 0.13.0
 
 This is tiberius 0.13.0 from crates.io (`.cargo_vcs_info.json` has the upstream commit), used through
 `[patch.crates-io]` in `../../Cargo.toml`. Left out of the copy: `.github`, `.envrc`, `.editorconfig`,
 `.gitleaks.toml`, `docs`, `flake.*`, `docker-compose.yml`, `rust-toolchain`. The manifest's example and
 test targets are kept, and so is `docker/certs`, which the unit tests read. Every changed line is marked
-`// querycraft:`.
+`// qlueprint:`.
 
 ## What it adds
 
@@ -76,3 +76,28 @@ routes to runs the handshake. `flush_fed_auth_info` returns `Error::Routing` in 
 When FEDAUTHINFO never arrives, its protocol error lists the tokens the server sent instead.
 Observed against a real Azure SQL server (westus1); tested in
 `flush_fed_auth_info_hands_back_the_gateway_redirect`.
+
+## PRELOGIN always sends TRACEID
+
+Every PRELOGIN carries a TRACEID: a random connection GUID, a random activity GUID and sequence 1,
+36 bytes as MS-TDS §2.2.6.5 defines it (upstream encoded only the 20-byte activity part and never
+sent it). Microsoft's drivers always send one. Microsoft Fabric's warehouse endpoint refuses a login
+without it with 18456 "Couldn't complete the operation due to a system update. Close out this
+connection, sign in again, and retry the operation.", whether the gateway served the session or
+routed it (both seen). Found by connecting to a real warehouse with each part of go-mssqldb's
+handshake in turn: only this one changed the outcome.
+
+- `Cargo.toml`: uuid's `v4` feature.
+- `src/tds/codec/pre_login.rs`: `ActivityId { connection, id, sequence }`, `ActivityId::random`, the
+  36-byte encode and decode. Test: `prelogin_emits_traceid_only_when_present`.
+- `src/client/connection.rs`: `prelogin` sets `activity_id`.
+
+## Routing to `host\name`
+
+A Fabric gateway can route to `<id>.pbidedicated.windows.net\<WAREHOUSE>-dw`. The part before the
+backslash is the host to connect to (and check TLS against) on the routed port; the whole name goes in
+LOGIN7's ServerName (connecting with the bare host there made the worker drop the connection).
+`Config::login_server_name` sets that ServerName apart from the host (`src/client/config.rs`, used in
+`src/client/connection.rs`); QluePrint splits the routed name. Same as go-mssqldb's `connect`
+(`tds.go`: "Need to handle case when routedServer is in host\instance format", LOGIN7 ServerName
+`p.Host + "\\" + p.Instance`).

@@ -8,6 +8,10 @@ use tauri::{AppHandle, Emitter, Runtime, WebviewWindowBuilder};
 /// Emitted to the UI with the clicked item's id as payload.
 pub const MENU_EVENT: &str = "menu";
 
+/// Where the macOS traffic lights sit: centred in the UI's 44px title bar, at its 14px left padding
+#[cfg(target_os = "macos")]
+const TRAFFIC_LIGHTS: (f64, f64) = (14.0, 15.0);
+
 /// Hides the OS title bar, keeping only the macOS window buttons.
 pub fn title_bar<'a, R: Runtime, M: tauri::Manager<R>>(
     window: WebviewWindowBuilder<'a, R, M>,
@@ -16,11 +20,65 @@ pub fn title_bar<'a, R: Runtime, M: tauri::Manager<R>>(
     let window = window
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .hidden_title(true)
-        // Centred in the UI's 44px title bar, at its 14px left padding
-        .traffic_light_position(tauri::LogicalPosition::new(14.0, 15.0));
+        .traffic_light_position(tauri::LogicalPosition::new(
+            TRAFFIC_LIGHTS.0,
+            TRAFFIC_LIGHTS.1,
+        ));
     #[cfg(not(target_os = "macos"))]
     let window = window.decorations(false);
     window
+}
+
+/// AppKit puts the traffic lights back at their default spot when the window's frame changes (a
+/// restored size, maximize, a resize), and tao only re-places them on its own redraws. Re-place
+/// them now and after every resize, the same way tao does.
+#[cfg(target_os = "macos")]
+pub fn keep_traffic_lights<R: Runtime>(window: &tauri::WebviewWindow<R>) {
+    let place = |w: &tauri::WebviewWindow<R>| {
+        if let Ok(ns_window) = w.ns_window() {
+            // SAFETY: Tauri's NSWindow for this live window, used on the main thread (setup and
+            // window events run there)
+            place_traffic_lights(unsafe { &*ns_window.cast::<objc2_app_kit::NSWindow>() });
+        }
+    };
+    place(window);
+    let handle = window.clone();
+    window.on_window_event(move |event| {
+        if let tauri::WindowEvent::Resized(_) = event {
+            place(&handle);
+        }
+    });
+}
+
+/// tao's `inset_traffic_lights`: a title bar tall enough for the offset, then the buttons at x
+#[cfg(target_os = "macos")]
+fn place_traffic_lights(window: &objc2_app_kit::NSWindow) {
+    use objc2_app_kit::NSWindowButton;
+    let (x, y) = TRAFFIC_LIGHTS;
+    let buttons = [
+        NSWindowButton::CloseButton,
+        NSWindowButton::MiniaturizeButton,
+        NSWindowButton::ZoomButton,
+    ]
+    .map(|b| window.standardWindowButton(b));
+    let [Some(close), Some(minimize), Some(zoom)] = buttons else {
+        return;
+    };
+    // SAFETY: AppKit's own button views, in the window that owns them
+    let Some(title_bar) = (unsafe { close.superview().and_then(|v| v.superview()) }) else {
+        return;
+    };
+    let close_rect = close.frame();
+    let mut bar = title_bar.frame();
+    bar.size.height = close_rect.size.height + y;
+    bar.origin.y = window.frame().size.height - bar.size.height;
+    title_bar.setFrame(bar);
+    let gap = minimize.frame().origin.x - close_rect.origin.x;
+    for (i, button) in [close, minimize, zoom].iter().enumerate() {
+        let mut origin = button.frame().origin;
+        origin.x = x + i as f64 * gap;
+        button.setFrameOrigin(origin);
+    }
 }
 
 /// One menu item. Ids are the UI's menu actions (src/components/shell/menu.ts); `None` for the
@@ -43,7 +101,7 @@ fn item<R: Runtime>(
 /// standard app and Window menus. Edit uses the native items so text shortcuts work everywhere.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
-    let app_menu = SubmenuBuilder::new(app, "QueryCraft")
+    let app_menu = SubmenuBuilder::new(app, "QluePrint")
         .about(None)
         .separator()
         .item(&item(

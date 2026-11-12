@@ -24,7 +24,7 @@ use crate::mssql::{MssqlAuth, MssqlServer};
 
 /// Microsoft's public client for its SQL Server drivers (the one DBeaver gets through the JDBC
 /// driver). It's pre-authorized for Azure SQL in every tenant, so no admin has to approve it.
-/// QueryCraft's own registration, 11c0b99a-802a-4e85-a4fa-1dc4546c2d92, needs admin consent per
+/// QluePrint's own registration, 11c0b99a-802a-4e85-a4fa-1dc4546c2d92, needs admin consent per
 /// organization until it's publisher-verified; it can be entered as the connection's client ID.
 pub(crate) const CLIENT_ID: &str = "7f98cb04-cd1e-40df-9140-3bf7e2cea4db";
 /// Any work or school account.
@@ -35,7 +35,7 @@ const HOST: &str = "https://login.microsoftonline.com";
 // rejects tokens whose audience lacks that trailing slash ("not configured to accept this token")
 const SCOPE: &str = "https://database.windows.net//.default offline_access";
 /// Entra's hosts in the public, US government and China clouds: a server's FEDAUTHINFO may only
-/// send QueryCraft's refresh token to these.
+/// send QluePrint's refresh token to these.
 const STS_HOSTS: [&str; 6] = [
     "login.microsoftonline.com",
     "login.windows.net",
@@ -58,7 +58,7 @@ const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(300);
 /// A token this close to expiry is replaced before a new connection uses it.
 const MARGIN: Duration = Duration::from_secs(300);
 const HTTP_TIMEOUT: Duration = Duration::from_secs(30);
-const SIGNED_IN_PAGE: &str = "<html><body style=\"font-family:system-ui;margin:3rem\"><p>You can close this tab and return to QueryCraft.</p></body></html>";
+const SIGNED_IN_PAGE: &str = "<html><body style=\"font-family:system-ui;margin:3rem\"><p>You can close this tab and return to QluePrint.</p></body></html>";
 
 /// Refresh tokens from interactive sign-ins this session, by `session_key`: the dialog's
 /// "Sign in with Microsoft" leaves one here for the connect that follows, and a refresh keeps
@@ -759,7 +759,7 @@ async fn managed_identity(client_id: &str) -> Result<Tokens, CommandError> {
     let not_on_azure = || {
         CommandError::new(
             ErrorCode::ConnectFailed,
-            "Managed identity only works when QueryCraft runs on an Azure VM or App Service.",
+            "Managed identity only works when QluePrint runs on an Azure VM or App Service.",
         )
     };
     let body = tokio::task::spawn_blocking(move || {

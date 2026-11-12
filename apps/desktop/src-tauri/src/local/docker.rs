@@ -3,7 +3,7 @@
 //! Why the CLI and not the `bollard` crate: the CLI already knows how to reach the daemon on
 //! every OS (Docker Desktop's named pipe and context on Windows/macOS, the socket and its group
 //! permissions on Linux, rootless and remote contexts), and the user can run the exact same
-//! commands to check what QueryCraft did. bollard would need its own context resolution and adds
+//! commands to check what QluePrint did. bollard would need its own context resolution and adds
 //! a large dependency tree. Every call is an argument vector (see process.rs).
 //!
 //! Safety: discovery reads every container, but only containers and volumes that carry
@@ -432,7 +432,7 @@ pub(crate) fn login_from_env(engine: Engine, env: &HashMap<String, String>) -> E
     }
 }
 
-/// A database container found on this machine, QueryCraft's or not.
+/// A database container found on this machine, QluePrint's or not.
 #[derive(Debug, Clone, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DiscoveredContainer {
@@ -506,7 +506,7 @@ pub(crate) fn parse_inspect(json: &str) -> Result<Vec<Inspect>, CommandError> {
     })
 }
 
-/// Refuses anything without QueryCraft's labels for this instance: the guard in front of every
+/// Refuses anything without QluePrint's labels for this instance: the guard in front of every
 /// start, stop, restart and removal.
 pub(crate) fn check_managed(
     labels: Option<&HashMap<String, String>>,
@@ -520,7 +520,7 @@ pub(crate) fn check_managed(
         Err(CommandError::new(
             ErrorCode::NotManaged,
             format!(
-                "The {what} isn’t one QueryCraft created for this instance, so it wasn’t touched."
+                "The {what} isn’t one QluePrint created for this instance, so it wasn’t touched."
             ),
         ))
     }
@@ -587,7 +587,7 @@ pub(crate) fn create_args(spec: &ContainerSpec) -> (Vec<String>, Vec<(String, St
             "mariadb-admin ping -h 127.0.0.1 --silent".to_owned(),
         ),
         Engine::Sqlite | Engine::Mssql => {
-            unreachable!("only server engines QueryCraft creates have a container")
+            unreachable!("only server engines QluePrint creates have a container")
         }
     };
     let env: Vec<(String, String)> = match spec.engine {
@@ -965,12 +965,12 @@ pub(crate) mod tests {
                  "Labels":{"com.docker.compose.project":"docker-services"}},
        "HostConfig":{"PortBindings":{"5432/tcp":[{"HostIp":"","HostPort":"5432"}]}},
        "Mounts":[{"Type":"volume","Name":"docker-services_postgres_data","Destination":"/var/lib/postgresql/data"}]},
-      {"Id":"aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233","Name":"/querycraft-mariadb-1a2b",
+      {"Id":"aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233","Name":"/qlueprint-mariadb-1a2b",
        "State":{"Status":"exited","Running":false,"Health":{"Status":"unhealthy"}},
-       "Config":{"Image":"docker.io/library/mariadb:11.4.13@sha256:abc","Env":["MARIADB_ROOT_PASSWORD=root-secret-2","MARIADB_USER=querycraft","MARIADB_PASSWORD=user-secret-3","MARIADB_DATABASE=querycraft_demo","MARIADB_VERSION=1:11.4.13+maria~ubu2404"],
-                 "Labels":{"com.querycraft.managed":"true","com.querycraft.instance-id":"1a2b","com.querycraft.database":"querycraft_demo"}},
+       "Config":{"Image":"docker.io/library/mariadb:11.4.13@sha256:abc","Env":["MARIADB_ROOT_PASSWORD=root-secret-2","MARIADB_USER=qlueprint","MARIADB_PASSWORD=user-secret-3","MARIADB_DATABASE=qlueprint_demo","MARIADB_VERSION=1:11.4.13+maria~ubu2404"],
+                 "Labels":{"com.querycraft.managed":"true","com.querycraft.instance-id":"1a2b","com.querycraft.database":"qlueprint_demo"}},
        "HostConfig":{"PortBindings":{"3306/tcp":[{"HostIp":"127.0.0.1","HostPort":"3307"}]}},
-       "Mounts":[{"Type":"volume","Name":"querycraft-1a2b","Destination":"/var/lib/mysql"}]},
+       "Mounts":[{"Type":"volume","Name":"qlueprint-1a2b","Destination":"/var/lib/mysql"}]},
       {"Id":"ffeeddccbbaa","Name":"/legacy-mysql",
        "State":{"Status":"created"},
        "Config":{"Image":"registry.example.com:5000/team/mysql","Env":["MYSQL_RANDOM_ROOT_PASSWORD=yes"],"Labels":null},
@@ -1117,7 +1117,7 @@ pub(crate) mod tests {
             ),
             (Some("11.4.13"), Some("127.0.0.1"), Some(3307))
         );
-        assert_eq!(maria.user.as_deref(), Some("querycraft"));
+        assert_eq!(maria.user.as_deref(), Some("qlueprint"));
         assert_eq!(maria.health.as_deref(), Some("unhealthy"));
 
         // A random root password can't be recovered: the UI asks for credentials
@@ -1144,7 +1144,7 @@ pub(crate) mod tests {
         );
         // No labels at all
         assert!(check_managed(all[2].config.labels.as_ref(), "1a2b", "container").is_err());
-        // QueryCraft's, but another instance's
+        // QluePrint's, but another instance's
         assert!(check_managed(all[1].config.labels.as_ref(), "other", "container").is_err());
         check_managed(all[1].config.labels.as_ref(), "1a2b", "container").unwrap();
         // A volume someone labelled managed=false
@@ -1162,11 +1162,11 @@ pub(crate) mod tests {
             instance_id: "1a2b",
             engine: Engine::Mysql,
             image: "mysql:8.4.13",
-            name: "querycraft-mysql-1a2b",
-            volume: "querycraft-1a2b",
+            name: "qlueprint-mysql-1a2b",
+            volume: "qlueprint-1a2b",
             port: 3310,
-            database: "querycraft_demo",
-            user: "querycraft",
+            database: "qlueprint_demo",
+            user: "qlueprint",
             password: "user-pass-123",
             root_password: "root-pass-456",
         };
@@ -1178,16 +1178,16 @@ pub(crate) mod tests {
             "--label com.querycraft.managed=true --label com.querycraft.instance-id=1a2b"
         ));
         assert!(joined.contains("--restart unless-stopped"));
-        assert!(joined.contains("--volume querycraft-1a2b:/var/lib/mysql"));
+        assert!(joined.contains("--volume qlueprint-1a2b:/var/lib/mysql"));
         assert!(joined.contains("-e MYSQL_ROOT_PASSWORD -e MYSQL_USER"));
         assert!(joined.ends_with("mysql:8.4.13"));
         assert!(!joined.contains("user-pass-123") && !joined.contains("root-pass-456"));
         assert!(env.contains(&("MYSQL_PASSWORD".into(), "user-pass-123".into())));
 
-        let volume = volume_args("1a2b", "querycraft_demo", "querycraft-1a2b").join(" ");
+        let volume = volume_args("1a2b", "qlueprint_demo", "qlueprint-1a2b").join(" ");
         assert_eq!(
             volume,
-            "volume create --label com.querycraft.managed=true --label com.querycraft.instance-id=1a2b --label com.querycraft.database=querycraft_demo querycraft-1a2b"
+            "volume create --label com.querycraft.managed=true --label com.querycraft.instance-id=1a2b --label com.querycraft.database=qlueprint_demo qlueprint-1a2b"
         );
     }
 

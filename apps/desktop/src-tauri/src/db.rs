@@ -82,6 +82,36 @@ const MYSQL_DATABASES: &str = concat!(
 // Template databases can't be queried, and datallowconn = false ones refuse connections.
 const PG_DATABASES: &str = "SELECT datname::text FROM pg_catalog.pg_database WHERE datallowconn AND NOT datistemplate ORDER BY 1";
 
+// Routines, listed with the schemas. Postgres: functions and procedures (PG 11+'s prokind), not
+// ones an extension installed. SQL Server: P/PC procedures, FN/IF/TF/FS/FT functions.
+const PG_ROUTINES: &str = r"
+    SELECT n.nspname::text, p.proname::text, p.prokind = 'p', pg_get_function_identity_arguments(p.oid)
+    FROM pg_catalog.pg_proc p
+    JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+    WHERE p.prokind IN ('f', 'p') AND n.nspname <> 'information_schema' AND n.nspname NOT LIKE 'pg\_%'
+      AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_depend d
+                      WHERE d.classid = 'pg_catalog.pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
+    ORDER BY 1, 2, 4";
+macro_rules! mysql_routines {
+    ($filter:expr) => {
+        concat!(
+            "SELECT ROUTINE_SCHEMA, ROUTINE_NAME, ROUTINE_TYPE = 'PROCEDURE', CAST(NULL AS CHAR)
+            FROM information_schema.ROUTINES WHERE ",
+            $filter,
+            " ORDER BY CAST(ROUTINE_SCHEMA AS BINARY), ROUTINE_NAME"
+        )
+    };
+}
+const MYSQL_ROUTINES: &str = mysql_routines!(
+    "ROUTINE_SCHEMA NOT IN ('mysql', 'sys', 'information_schema', 'performance_schema')"
+);
+const MYSQL_ROUTINES_IN: &str = mysql_routines!("ROUTINE_SCHEMA = ?");
+const MSSQL_ROUTINES: &str = r"
+    SELECT SCHEMA_NAME(o.schema_id), o.name, CASE WHEN o.type IN ('P', 'PC') THEN 1 ELSE 0 END, NULL
+    FROM sys.objects o
+    WHERE o.type IN ('P', 'PC', 'FN', 'IF', 'TF', 'FS', 'FT') AND o.is_ms_shipped = 0
+    ORDER BY 1, 2";
+
 // shortcut: only the "main" database, also list ATTACHed ones once the UI can attach.
 const SQLITE_TABLES: &str = r"
     SELECT name, type = 'view' FROM sqlite_schema
@@ -122,9 +152,11 @@ const SQLITE_COLUMNS: &str = r"
 // SQL Server: the db_* role schemas (ids from 16384), sys, INFORMATION_SCHEMA and guest are the
 // system's. Size is every partition of the table and its indexes, summed once per object rather
 // than per row; views have none. (sys.dm_db_partition_stats would need VIEW DATABASE STATE.)
+// Fabric and Synapse (EngineEdition 11, 6) keep table data outside those pages: size unknown there.
 const MSSQL_SCHEMAS: &str = r"
     SELECT s.name, o.name, CASE WHEN o.type = 'V' THEN 1 ELSE 0 END,
-           CASE WHEN o.type = 'U' THEN z.size_bytes END
+           CASE WHEN o.type = 'U' AND CAST(SERVERPROPERTY('EngineEdition') AS int) NOT IN (6, 11)
+                THEN z.size_bytes END
     FROM sys.schemas s
     LEFT JOIN sys.objects o ON o.schema_id = s.schema_id AND o.type IN ('U', 'V') AND o.is_ms_shipped = 0
     LEFT JOIN (SELECT p.object_id, SUM(a.total_pages) * 8192 AS size_bytes FROM sys.partitions p
@@ -424,7 +456,22 @@ impl Connections {
 pub struct Schema {
     name: String,
     tables: Vec<Table>,
+    /// Stored procedures and functions, by name; none on SQLite
+    routines: Vec<Routine>,
 }
+
+#[derive(Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct Routine {
+    name: String,
+    /// A stored procedure; otherwise a function
+    procedure: bool,
+    /// Postgres: its argument types, which tell overloads apart and find its definition
+    args: Option<String>,
+}
+
+/// schema, name, procedure, Postgres arguments
+type RoutineRow = (String, String, Option<bool>, Option<String>);
 
 #[derive(Serialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -496,12 +543,12 @@ pub enum ErrorCode {
     /// The server didn't pass its health check in time.
     StartupTimeout,
     InvalidCredentials,
-    /// The container exited while QueryCraft was waiting for it.
+    /// The container exited while QluePrint was waiting for it.
     ContainerStopped,
     SampleDataFailed,
     /// Provisioning was cancelled by the user.
     Cancelled,
-    /// The container or volume isn't one QueryCraft created, so it isn't touched.
+    /// The container or volume isn't one QluePrint created, so it isn't touched.
     NotManaged,
     /// Not possible on this OS or with this package manager; the message has the manual steps.
     NativeUnsupported,
@@ -607,7 +654,7 @@ pub(crate) async fn open(request: ConnectRequest) -> Result<Open, CommandError> 
                 .port(server.port)
                 .username(&server.user)
                 .password(&password)
-                .application_name("QueryCraft")
+                .application_name("QluePrint")
                 .ssl_mode(server.ssl_mode.postgres());
             if !server.ssl_ca.is_empty() {
                 options = options.ssl_root_cert(&server.ssl_ca);
@@ -790,29 +837,53 @@ pub async fn list_schemas(
     let open = connections.get(&id)?;
     match open.pool_for(database.as_deref()).await? {
         Pool::Postgres(pool) => {
-            let rows: Vec<SchemaRow> = sqlx::query_as(PG_SCHEMAS)
-                .fetch_all(&pool)
-                .await
-                .map_err(query_failed)?;
-            Ok(group_by_schema(rows))
+            let (rows, routines) = tokio::join!(
+                sqlx::query_as::<_, SchemaRow>(PG_SCHEMAS).fetch_all(&pool),
+                sqlx::query_as::<_, RoutineRow>(PG_ROUTINES).fetch_all(&pool),
+            );
+            let mut schemas = group_by_schema(rows.map_err(query_failed)?);
+            // Best effort: routines (PG 10 has no prokind) never keep the tables from showing
+            add_routines(&mut schemas, routines.unwrap_or_default());
+            Ok(schemas)
         }
         Pool::Mysql(pool) => {
             let query = match open.scope() {
                 Some(database) => sqlx::query_as(MYSQL_SCHEMA).bind(database),
                 None => sqlx::query_as(MYSQL_SCHEMAS),
             };
-            let rows: Vec<SchemaRow> = query.fetch_all(&pool).await.map_err(query_failed)?;
-            Ok(group_by_schema(rows))
+            let routines = match open.scope() {
+                Some(database) => sqlx::query_as(MYSQL_ROUTINES_IN).bind(database),
+                None => sqlx::query_as(MYSQL_ROUTINES),
+            };
+            let (rows, routines) = tokio::join!(query.fetch_all(&pool), routines.fetch_all(&pool));
+            let mut schemas = group_by_schema(rows.map_err(query_failed)?);
+            add_routines(&mut schemas, routines.unwrap_or_default());
+            Ok(schemas)
         }
         Pool::Mssql(pool) => {
-            let rows = mssql::catalog_rows(&pool, MSSQL_SCHEMAS, &[]).await?;
-            let rows = rows.into_iter().map(|mut r| {
+            // Both at once: the pool hands each its own connection
+            let (rows, routines) = tokio::join!(
+                mssql::catalog_rows(&pool, MSSQL_SCHEMAS, &[]),
+                mssql::catalog_rows(&pool, MSSQL_ROUTINES, &[]),
+            );
+            let rows = rows?.into_iter().map(|mut r| {
                 let size = mssql::int(&mut r[3]);
                 let view = mssql::flag(&mut r[2]);
                 let table = r[1].take();
                 (mssql::text(&mut r[0]), table, view, size)
             });
-            Ok(group_by_schema(rows.collect()))
+            let mut schemas = group_by_schema(rows.collect());
+            let routines = routines.unwrap_or_default().into_iter().map(|mut r| {
+                let procedure = mssql::flag(&mut r[2]);
+                (
+                    mssql::text(&mut r[0]),
+                    mssql::text(&mut r[1]),
+                    procedure,
+                    None,
+                )
+            });
+            add_routines(&mut schemas, routines.collect());
+            Ok(schemas)
         }
         Pool::Sqlite(pool) => {
             let tables: Vec<(String, bool)> = sqlx::query_as(SQLITE_TABLES)
@@ -830,6 +901,7 @@ pub async fn list_schemas(
             Ok(vec![Schema {
                 name: "main".into(),
                 tables,
+                routines: Vec::new(),
             }])
         }
     }
@@ -885,6 +957,24 @@ pub async fn list_columns(
 /// Folds rows already sorted by schema into nested schemas.
 /// O(n) time, no extra space beyond the output; each String is moved, never cloned.
 /// A row with no table is an empty schema (from the LEFT JOIN).
+/// Files each routine under its schema; one in a schema the list doesn't have is dropped. O(rows).
+fn add_routines(schemas: &mut [Schema], rows: Vec<RoutineRow>) {
+    let at: HashMap<String, usize> = schemas
+        .iter()
+        .enumerate()
+        .map(|(i, s)| (s.name.clone(), i))
+        .collect();
+    for (schema, name, procedure, args) in rows {
+        if let Some(&i) = at.get(&schema) {
+            schemas[i].routines.push(Routine {
+                name,
+                procedure: procedure.unwrap_or(false),
+                args,
+            });
+        }
+    }
+}
+
 fn group_by_schema(rows: Vec<SchemaRow>) -> Vec<Schema> {
     let mut schemas: Vec<Schema> = Vec::new();
     for (schema, table, view, size_bytes) in rows {
@@ -892,6 +982,7 @@ fn group_by_schema(rows: Vec<SchemaRow>) -> Vec<Schema> {
             schemas.push(Schema {
                 name: schema,
                 tables: Vec::new(),
+                routines: Vec::new(),
             });
         }
         if let Some(name) = table {
@@ -909,6 +1000,43 @@ fn group_by_schema(rows: Vec<SchemaRow>) -> Vec<Schema> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn files_routines_under_their_schemas() {
+        let row = |s: &str, t: &str| (s.to_string(), Some(t.to_string()), Some(false), None);
+        let mut schemas = group_by_schema(vec![row("dbo", "orders"), row("sales", "items")]);
+        let routine =
+            |s: &str, n: &str, p, a: Option<&str>| (s.into(), n.into(), p, a.map(String::from));
+        add_routines(
+            &mut schemas,
+            vec![
+                routine("dbo", "usp_load", Some(true), None),
+                routine("sales", "total", Some(false), Some("integer")),
+                routine("sales", "total", Some(false), Some("integer, date")),
+                // A schema the list doesn't have is dropped
+                routine("gone", "f", Some(false), None),
+            ],
+        );
+        let names = |i: usize| -> Vec<(String, bool, Option<String>)> {
+            schemas[i]
+                .routines
+                .iter()
+                .map(|r| (r.name.clone(), r.procedure, r.args.clone()))
+                .collect()
+        };
+        assert_eq!(names(0), [("usp_load".to_string(), true, None)]);
+        assert_eq!(
+            names(1),
+            [
+                ("total".to_string(), false, Some("integer".to_string())),
+                (
+                    "total".to_string(),
+                    false,
+                    Some("integer, date".to_string())
+                ),
+            ]
+        );
+    }
 
     #[test]
     fn groups_sorted_rows_and_keeps_empty_schemas() {

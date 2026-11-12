@@ -9,6 +9,7 @@ fn main() {
         "list_schemas",
         "list_columns",
         "table_details",
+        "routine_definition",
         "lookup_rows",
         "run_query",
         "apply_edits",

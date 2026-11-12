@@ -1,4 +1,4 @@
-//! `<app data>/local_instances.json`: the local databases QueryCraft created. No secrets: the
+//! `<app data>/local_instances.json`: the local databases QluePrint created. No secrets: the
 //! passwords live in the OS credential store under the saved connection's id.
 
 use std::fs;
@@ -50,7 +50,7 @@ impl Store {
             .ok_or_else(|| {
                 CommandError::new(
                     ErrorCode::InvalidInput,
-                    "QueryCraft has no local database with that id.",
+                    "QluePrint has no local database with that id.",
                 )
             })
     }
@@ -93,19 +93,19 @@ mod tests {
         let store = Store::load(&dir);
         let instance = LocalInstance {
             id: "1a2b".into(),
-            name: "querycraft_demo".into(),
+            name: "qlueprint_demo".into(),
             engine: Engine::Postgres,
             version: "17.11".into(),
             provider: Provider::Docker,
             container_id: Some("abc".into()),
-            container_name: Some("querycraft-postgres-1a2b".into()),
-            volume: Some("querycraft-1a2b".into()),
+            container_name: Some("qlueprint-postgres-1a2b".into()),
+            volume: Some("qlueprint-1a2b".into()),
             data_path: None,
             service: None,
             host: "127.0.0.1".into(),
             port: Some(5433),
-            database: "querycraft_demo".into(),
-            user: Some("querycraft".into()),
+            database: "qlueprint_demo".into(),
+            user: Some("qlueprint".into()),
             created_at: 1,
             status: InstanceStatus::Running,
             managed: true,

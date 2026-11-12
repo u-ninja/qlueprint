@@ -1,9 +1,9 @@
--- QueryCraft sample data (SQLite). Embedded in the app (src/local/sample.rs).
+-- QluePrint sample data (SQLite). Embedded in the app (src/local/sample.rs).
 -- Idempotent: tables are created only if missing and rows are keyed by id, so running it again
 -- changes nothing. The app refuses to run it when a table of the same name exists without the
--- QueryCraft marker (a comment inside each CREATE TABLE), so a user's own tables are never touched.
+-- QluePrint marker (a comment inside each CREATE TABLE), so a user's own tables are never touched.
 
-CREATE TABLE IF NOT EXISTS customers ( -- QueryCraft sample data
+CREATE TABLE IF NOT EXISTS customers ( -- QluePrint sample data
     id INTEGER PRIMARY KEY,
     first_name TEXT NOT NULL,
     last_name TEXT NOT NULL,
@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS customers ( -- QueryCraft sample data
     country TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-CREATE TABLE IF NOT EXISTS products ( -- QueryCraft sample data
+CREATE TABLE IF NOT EXISTS products ( -- QluePrint sample data
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
     category TEXT,
@@ -20,21 +20,21 @@ CREATE TABLE IF NOT EXISTS products ( -- QueryCraft sample data
     stock_quantity INTEGER NOT NULL DEFAULT 0 CHECK (stock_quantity >= 0),
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-CREATE TABLE IF NOT EXISTS orders ( -- QueryCraft sample data
+CREATE TABLE IF NOT EXISTS orders ( -- QluePrint sample data
     id INTEGER PRIMARY KEY,
     customer_id INTEGER NOT NULL REFERENCES customers (id),
     order_date TEXT NOT NULL,
     status TEXT NOT NULL CHECK (status IN ('pending', 'paid', 'shipped', 'delivered', 'cancelled')),
     total_amount NUMERIC NOT NULL
 );
-CREATE TABLE IF NOT EXISTS order_items ( -- QueryCraft sample data
+CREATE TABLE IF NOT EXISTS order_items ( -- QluePrint sample data
     id INTEGER PRIMARY KEY,
     order_id INTEGER NOT NULL REFERENCES orders (id) ON DELETE CASCADE,
     product_id INTEGER NOT NULL REFERENCES products (id),
     quantity INTEGER NOT NULL CHECK (quantity > 0),
     unit_price NUMERIC NOT NULL
 );
-CREATE TABLE IF NOT EXISTS employees ( -- QueryCraft sample data
+CREATE TABLE IF NOT EXISTS employees ( -- QluePrint sample data
     id INTEGER PRIMARY KEY,
     first_name TEXT NOT NULL,
     last_name TEXT NOT NULL,

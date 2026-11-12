@@ -281,7 +281,7 @@ mod tests {
 
     #[tokio::test]
     async fn reports_a_missing_program() {
-        let cmd = Cmd::new("querycraft-no-such-program", &[]);
+        let cmd = Cmd::new("qlueprint-no-such-program", &[]);
         assert_eq!(output(&cmd).await.unwrap_err(), RunError::NotFound);
     }
 

@@ -3,7 +3,7 @@
 //!
 //! The SQL lives in `sample/*.sql`, one file per dialect (MariaDB shares MySQL's). Every script is
 //! idempotent, and `load` refuses to run when a table of the same name exists without the
-//! QueryCraft marker, so it never changes a table the user made.
+//! QluePrint marker, so it never changes a table the user made.
 
 use crate::db::{CommandError, ErrorCode, Pool};
 
@@ -22,8 +22,9 @@ pub(crate) const TABLES: [&str; 5] = [
     "order_items",
     "employees",
 ];
-/// In each sample table's comment (Postgres, MySQL) or CREATE TABLE text (SQLite).
-const MARKER: &str = "QueryCraft sample data";
+/// In each sample table's comment (Postgres, MySQL) or CREATE TABLE text (SQLite). The sample SQL
+/// writes the first; tables loaded before the rename carry the second and are still the app's.
+const MARKERS: [&str; 2] = ["QluePrint sample data", "QueryCraft sample data"];
 
 const PG_EXISTING: &str = r"
     SELECT c.relname::text, obj_description(c.oid, 'pg_class')
@@ -56,7 +57,7 @@ fn failed(error: impl std::fmt::Display) -> CommandError {
     )
 }
 
-/// Tables named like a sample table that QueryCraft didn't create.
+/// Tables named like a sample table that QluePrint didn't create.
 async fn foreign_tables(pool: &Pool) -> Result<Vec<String>, CommandError> {
     let existing: Vec<(String, Option<String>)> = match pool {
         Pool::Postgres(p) => {
@@ -70,7 +71,11 @@ async fn foreign_tables(pool: &Pool) -> Result<Vec<String>, CommandError> {
     .map_err(failed)?;
     Ok(existing
         .into_iter()
-        .filter(|(_, marker)| !marker.as_deref().is_some_and(|m| m.contains(MARKER)))
+        .filter(|(_, marker)| {
+            !marker
+                .as_deref()
+                .is_some_and(|m| MARKERS.iter().any(|k| m.contains(k)))
+        })
         .map(|(name, _)| name)
         .collect())
 }
@@ -82,7 +87,7 @@ pub(crate) async fn load(pool: &Pool) -> Result<(), CommandError> {
         return Err(CommandError::new(
             ErrorCode::SampleDataFailed,
             format!(
-                "This database already has tables named {}, and QueryCraft didn’t create them. The sample data wasn’t loaded, so they are unchanged.",
+                "This database already has tables named {}, and QluePrint didn’t create them. The sample data wasn’t loaded, so they are unchanged.",
                 foreign.join(", ")
             ),
         ));

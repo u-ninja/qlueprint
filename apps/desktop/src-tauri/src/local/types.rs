@@ -11,7 +11,7 @@ use crate::db::{CommandError, invalid};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "lowercase")]
 pub enum Provider {
-    /// A container QueryCraft creates and labels.
+    /// A container QluePrint creates and labels.
     Docker,
     /// A server installed with the OS package manager, after the user approved the commands.
     Native,
@@ -83,7 +83,7 @@ pub fn templates() -> Vec<Template> {
             description: "General-purpose relational database with rich SQL and extensions.",
             versions: vec![v("17", "17.11"), v("16", "16.15")],
             default_port: Some(5432),
-            default_user: "querycraft",
+            default_user: "qlueprint",
             has_root_password: false,
         },
         Template {
@@ -92,7 +92,7 @@ pub fn templates() -> Vec<Template> {
             description: "The widely deployed open-source relational database.",
             versions: vec![v("8.4", "8.4.13"), v("8.0", "8.0.46")],
             default_port: Some(3306),
-            default_user: "querycraft",
+            default_user: "qlueprint",
             has_root_password: true,
         },
         Template {
@@ -102,7 +102,7 @@ pub fn templates() -> Vec<Template> {
             versions: vec![v("11.4", "11.4.13"), v("10.11", "10.11.19")],
             // 3307, so it can run next to a MySQL on 3306
             default_port: Some(3307),
-            default_user: "querycraft",
+            default_user: "qlueprint",
             has_root_password: true,
         },
         Template {
@@ -149,7 +149,7 @@ pub struct LocalRequest {
     /// MySQL/MariaDB root, or the native installer's admin password where one is needed.
     pub root_password: String,
     pub port: u16,
-    /// Docker only; empty picks `querycraft-<engine>-<id>`.
+    /// Docker only; empty picks `qlueprint-<engine>-<id>`.
     pub container_name: String,
     pub sample_data: bool,
     /// Native only: the `consentToken` of the plan whose commands the user approved.
@@ -193,7 +193,7 @@ pub struct NativePlan {
     pub setup_sql: String,
     /// True when a command asks for administrator rights (UAC, pkexec).
     pub elevated: bool,
-    /// False when QueryCraft can't run this safely here: `commands` are then manual steps.
+    /// False when QluePrint can't run this safely here: `commands` are then manual steps.
     pub supported: bool,
     /// Whether the admin password field applies (the installer sets it).
     pub needs_root_password: bool,
@@ -201,7 +201,7 @@ pub struct NativePlan {
     pub notes: Vec<String>,
     /// Sent back in `LocalRequest::consent`; ties the approval to these exact commands.
     pub consent_token: String,
-    /// What to run to uninstall it later (QueryCraft doesn't uninstall).
+    /// What to run to uninstall it later (QluePrint doesn't uninstall).
     pub uninstall: Option<String>,
 }
 
@@ -216,7 +216,7 @@ pub enum InstanceStatus {
     Failed,
     /// The container was removed; its data volume is kept.
     Removed,
-    /// The container or file is gone, and QueryCraft didn't remove it.
+    /// The container or file is gone, and QluePrint didn't remove it.
     Missing,
     /// Docker isn't reachable right now, so the state can't be read.
     Unknown,
@@ -230,7 +230,7 @@ pub enum SampleState {
     Failed,
 }
 
-/// A database QueryCraft created, tracked in `local_instances.json`. No secrets.
+/// A database QluePrint created, tracked in `local_instances.json`. No secrets.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalInstance {
@@ -254,7 +254,7 @@ pub struct LocalInstance {
     #[specta(type = specta_typescript::Number)]
     pub created_at: i64,
     pub status: InstanceStatus,
-    /// Docker instances carry QueryCraft's labels; only those are ever changed.
+    /// Docker instances carry QluePrint's labels; only those are ever changed.
     pub managed: bool,
     pub saved_connection_id: Option<String>,
     pub sample_data: SampleState,
@@ -465,8 +465,8 @@ pub(crate) mod tests {
                 .versions
                 .first()
                 .map_or(String::new(), |v| v.id.to_owned()),
-            database: "querycraft_demo".into(),
-            user: "querycraft".into(),
+            database: "qlueprint_demo".into(),
+            user: "qlueprint".into(),
             password: "Gq7-xR2_pL9.mZ".into(),
             root_password: "Rt5-aB8_cD1.eF".into(),
             port: 5544,

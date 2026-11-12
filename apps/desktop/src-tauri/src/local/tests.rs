@@ -1,6 +1,6 @@
 //! End-to-end tests of provisioning. SQLite runs everywhere; the Docker ones are `#[ignore]`d
 //! and run with `cargo test -- --ignored` on a machine with Docker running. They only touch
-//! containers and volumes they create (QueryCraft-labelled, `qc-test-*`), and remove them.
+//! containers and volumes they create (QluePrint-labelled, `qc-test-*`), and remove them.
 
 use super::*;
 use crate::audit::tests::temp_dir;
@@ -142,7 +142,7 @@ async fn plans_flag_a_taken_port_with_a_suggestion() {
     assert_eq!(plan.image.as_deref(), Some("postgres:17.11"));
     assert_eq!(
         plan.container_name.as_deref(),
-        Some(format!("querycraft-postgres-{}", req.port).as_str())
+        Some(format!("qlueprint-postgres-{}", req.port).as_str())
     );
     let _ = std::fs::remove_dir_all(env.dir);
 }
@@ -285,7 +285,7 @@ async fn docker_mariadb_round_trip() {
     docker_round_trip(Engine::Mariadb, 53406).await;
 }
 
-/// Never touches a container without QueryCraft's labels: stop and remove are refused.
+/// Never touches a container without QluePrint's labels: stop and remove are refused.
 #[tokio::test(flavor = "multi_thread")]
 #[ignore]
 async fn refuses_to_manage_an_unlabelled_container() {

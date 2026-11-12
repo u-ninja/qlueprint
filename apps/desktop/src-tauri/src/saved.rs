@@ -17,6 +17,7 @@ use crate::audit::{Audit, Details, Engine, EventKind};
 use crate::db::{self, CommandError, ConnectRequest, Connections, ErrorCode, Server, ServerLogin};
 use crate::mssql::{MssqlLogin, MssqlServer};
 
+// The name from before the rename to QluePrint: saved passwords are filed under it, so it stays
 const KEYRING_SERVICE: &str = "QueryCraft";
 const FILE: &str = "connections.json";
 

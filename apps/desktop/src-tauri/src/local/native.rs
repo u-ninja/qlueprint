@@ -283,7 +283,7 @@ fn windows(i: &Inputs) -> Recipe {
                 i.port,
                 i.version,
                 &[
-                    "MySQL’s Windows installer needs its interactive MySQL Configurator, so QueryCraft can’t set it up unattended. Docker is the reliable way; or install it yourself:",
+                    "MySQL’s Windows installer needs its interactive MySQL Configurator, so QluePrint can’t set it up unattended. Docker is the reliable way; or install it yourself:",
                 ],
                 &manual_mysql,
             );
@@ -309,7 +309,7 @@ fn windows(i: &Inputs) -> Recipe {
         notes: vec![
             "Windows asks for administrator approval while the installer runs.".into(),
             "The installer takes the admin password as an argument, so it is briefly visible to other programs on this machine.".into(),
-            "The service starts automatically at boot. QueryCraft can’t start or stop Windows services; use Services or `net start` as an administrator.".into(),
+            "The service starts automatically at boot. QluePrint can’t start or stop Windows services; use Services or `net start` as an administrator.".into(),
         ],
         uninstall: Some(uninstall),
         manual: Vec::new(),
@@ -332,7 +332,7 @@ fn macos(i: &Inputs) -> Recipe {
             port,
             i.version,
             &[
-                "Homebrew wasn’t found. QueryCraft doesn’t install Homebrew itself: get it from https://brew.sh, then check again. Docker is the other way.",
+                "Homebrew wasn’t found. QluePrint doesn’t install Homebrew itself: get it from https://brew.sh, then check again. Docker is the other way.",
             ],
             &[
                 &format!("brew install {formula}"),
@@ -479,7 +479,7 @@ fn linux(i: &Inputs) -> Recipe {
             port,
             &version,
             &[
-                "pkexec (polkit) wasn’t found, so QueryCraft can’t ask for administrator rights. Run these yourself, then use Connect existing:",
+                "pkexec (polkit) wasn’t found, so QluePrint can’t ask for administrator rights. Run these yourself, then use Connect existing:",
             ],
             &[],
         );
@@ -758,7 +758,7 @@ pub(crate) fn step_error(step: &Step, code: Option<i32>, output: &str) -> Comman
     )
 }
 
-/// The command that starts, stops or restarts a native service, or why QueryCraft can't.
+/// The command that starts, stops or restarts a native service, or why QluePrint can't.
 pub(crate) fn service_step(
     os: Os,
     brew_prefix: &str,
@@ -782,7 +782,7 @@ pub(crate) fn service_step(
             Err(CommandError::new(
                 ErrorCode::NativeUnsupported,
                 format!(
-                    "QueryCraft can’t control Windows services. In a terminal run as administrator: {manual}"
+                    "QluePrint can’t control Windows services. In a terminal run as administrator: {manual}"
                 ),
             ))
         }
@@ -813,7 +813,7 @@ mod tests {
     }
 
     fn commands(r: &Recipe) -> Vec<String> {
-        to_plan(r, Engine::Postgres, "querycraft_demo", "querycraft").commands
+        to_plan(r, Engine::Postgres, "qlueprint_demo", "qlueprint").commands
     }
 
     #[test]
@@ -1010,7 +1010,7 @@ mod tests {
         assert_eq!(my.matches("CREATE USER IF NOT EXISTS").count(), 3);
 
         let r = recipe(&inputs(Os::Linux, Some(Manager::Apt), Engine::Mysql, "8.4"));
-        let plan = to_plan(&r, Engine::Mysql, "querycraft_demo", "querycraft");
+        let plan = to_plan(&r, Engine::Mysql, "qlueprint_demo", "qlueprint");
         assert!(plan.setup_sql.contains("IDENTIFIED BY '********'"));
         assert!(!plan.setup_sql.contains("Root-pass-456"));
     }
@@ -1029,9 +1029,8 @@ mod tests {
             Engine::Postgres,
             "16",
         ));
-        let token = |r: &Recipe| {
-            to_plan(r, Engine::Postgres, "querycraft_demo", "querycraft").consent_token
-        };
+        let token =
+            |r: &Recipe| to_plan(r, Engine::Postgres, "qlueprint_demo", "qlueprint").consent_token;
         assert_eq!(token(&a), token(&a.clone()));
         assert_ne!(token(&a), token(&b));
     }

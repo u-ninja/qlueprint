@@ -73,7 +73,7 @@ pub struct MssqlServer {
     /// `organizations` (any work or school account) for an Entra password.
     #[serde(default)]
     pub tenant_id: String,
-    /// Entra app (client) ID instead of QueryCraft's own; for managed identity, a user-assigned
+    /// Entra app (client) ID instead of QluePrint's own; for managed identity, a user-assigned
     /// identity's client ID. Empty: the default.
     #[serde(default)]
     pub client_id: String,
@@ -120,16 +120,17 @@ struct Connector {
 impl Connector {
     fn new(server: &MssqlServer, secret: String) -> Self {
         let mut config = Config::new();
-        config.host(server.host.trim());
+        let (host, port) = address(&server.host, server.port);
+        config.host(host);
         // As in ADO.NET: a named instance on the default port is looked up through the SQL Server
         // Browser (UDP 1434); any other port is the instance's own and is used directly
         let instance = server.instance.trim();
-        if instance.is_empty() || server.port != 1433 {
-            config.port(server.port);
+        if instance.is_empty() || port != 1433 {
+            config.port(port);
         } else {
             config.instance_name(instance);
         }
-        config.application_name("QueryCraft");
+        config.application_name("QluePrint");
         if server.encrypt {
             config.encryption(EncryptionLevel::Required);
             if server.trust_server_certificate {
@@ -219,16 +220,61 @@ async fn connect(config: Config) -> Result<Tds, CommandError> {
         .map_err(|_| unreachable(&host))?
 }
 
+/// The host and port from the server field, which also takes the portal's `tcp:host,port` form
+fn address(host: &str, port: u16) -> (&str, u16) {
+    let host = host.trim();
+    let host = match host.get(..4) {
+        Some(p) if p.eq_ignore_ascii_case("tcp:") => &host[4..],
+        _ => host,
+    };
+    match host.split_once(',') {
+        Some((h, p)) => (h.trim(), p.trim().parse().unwrap_or(port)),
+        None => (host, port),
+    }
+}
+
+/// A name lookup that failed names the host, and after a redirect says the server sent it there:
+/// otherwise "failed to lookup address information" doesn't say which name, or why
+fn lookup_failed(e: tiberius::error::Error, host: &str, routed: bool) -> CommandError {
+    let tiberius::error::Error::Io { message, .. } = &e else {
+        return connect_failed(e);
+    };
+    // Tokio's lookup error on macOS and Linux, and Windows' own
+    if !(message.contains("lookup address") || message.contains("No such host")) {
+        return connect_failed(e);
+    }
+    let message = if routed {
+        format!(
+            "The server redirected the connection to {host}, and this computer can't find that name. Azure SQL does this under its Redirect connection policy: the network has to resolve that host too (a VPN or private DNS for a private endpoint), or the server's admin can switch it to the Proxy policy."
+        )
+    } else {
+        format!(
+            "This computer can't find a server named {host}. Check the server name (only the host, like myserver.database.windows.net) and that you're on the network or VPN it needs."
+        )
+    };
+    CommandError::new(ErrorCode::ConnectFailed, message)
+}
+
 async fn connect_routed(mut config: Config) -> Result<Tds, CommandError> {
-    for _ in 0..2 {
-        let tcp = TcpStream::connect_named(&config)
-            .await
-            .map_err(connect_failed)?;
+    for routed in [false, true] {
+        let tcp = TcpStream::connect_named(&config).await.map_err(|e| {
+            lookup_failed(
+                e,
+                config.get_addr().rsplit_once(':').map_or("", |(h, _)| h),
+                routed,
+            )
+        })?;
         let _ = tcp.set_nodelay(true);
         match Client::connect(config.clone(), tcp.compat_write()).await {
             Ok(client) => return Ok(client),
             Err(tiberius::error::Error::Routing { host, port }) => {
-                config.host(host);
+                // Fabric can route to `host\WAREHOUSE-dw`: connect to the host, log in with the whole name
+                if let Some((h, _)) = host.split_once('\\') {
+                    config.host(h);
+                    config.login_server_name(&host);
+                } else {
+                    config.host(&host);
+                }
                 config.port(port);
             }
             Err(e) => return Err(connect_failed(e)),
@@ -251,7 +297,7 @@ pub(crate) fn connect_failed(e: tiberius::error::Error) -> CommandError {
             CommandError::new(
                 ErrorCode::InvalidCredentials,
                 format!(
-                    "{} The token came from a different Microsoft Entra tenant than the server's. Under Advanced, check Tenant ID: for Microsoft Entra MFA leave it empty and QueryCraft asks the server for its tenant; otherwise enter the server's tenant (for a guest account, that tenant, not your home one).",
+                    "{} The token came from a different Microsoft Entra tenant than the server's. Under Advanced, check Tenant ID: for Microsoft Entra MFA leave it empty and QluePrint asks the server for its tenant; otherwise enter the server's tenant (for a guest account, that tenant, not your home one).",
                     t.message()
                 ),
             )
@@ -811,6 +857,37 @@ mod tests {
     use tiberius::time::{Date, DateTime, DateTime2, DateTimeOffset, SmallDateTime, Time};
 
     #[test]
+    fn reads_the_portal_server_form() {
+        assert_eq!(
+            address(" tcp:srv.database.windows.net,1433 ", 1),
+            ("srv.database.windows.net", 1433)
+        );
+        assert_eq!(address("TCP:srv,14330", 1433), ("srv", 14330));
+        assert_eq!(
+            address("srv.database.windows.net", 1433),
+            ("srv.database.windows.net", 1433)
+        );
+        // A bad port keeps the port field's
+        assert_eq!(address("srv,abc", 1500), ("srv", 1500));
+    }
+
+    #[tokio::test]
+    async fn names_a_host_that_does_not_resolve() {
+        // .invalid never resolves (RFC 2606), so this is the real lookup error on this OS
+        let mut config = Config::new();
+        config.host("qlueprint-test.invalid");
+        let Err(e) = connect_routed(config).await else {
+            panic!("connected")
+        };
+        assert!(
+            e.message()
+                .contains("can't find a server named qlueprint-test.invalid"),
+            "{}",
+            e.message()
+        );
+    }
+
+    #[test]
     fn splits_scripts_at_go_lines() {
         assert_eq!(
             batches("CREATE VIEW v AS SELECT 1\ngo\n  GO  \nSELECT * FROM v\r\nGO\r\n"),
@@ -927,11 +1004,11 @@ mod tests {
     }
 
     /// Needs a SQL Server, so it only runs when asked:
-    /// `QUERYCRAFT_MSSQL_URL='server=tcp:localhost,1433;user=sa;password=…;TrustServerCertificate=true' cargo test -- --ignored`
+    /// `QLUEPRINT_MSSQL_URL='server=tcp:localhost,1433;user=sa;password=…;TrustServerCertificate=true' cargo test -- --ignored`
     #[tokio::test]
     #[ignore]
     async fn runs_batches_against_sql_server() {
-        let url = std::env::var("QUERYCRAFT_MSSQL_URL").expect("QUERYCRAFT_MSSQL_URL");
+        let url = std::env::var("QLUEPRINT_MSSQL_URL").expect("QLUEPRINT_MSSQL_URL");
         let config = Config::from_ado_string(&url).unwrap();
         let mut client = connect(config).await.unwrap();
         let out = run_batches(

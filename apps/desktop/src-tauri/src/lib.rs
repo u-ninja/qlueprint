@@ -32,6 +32,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             db::list_schemas,
             db::list_columns,
             inspect::table_details,
+            inspect::routine_definition,
             inspect::lookup_rows,
             query::run_query,
             query::apply_edits,
@@ -130,13 +131,18 @@ pub fn run() {
                 WebviewUrl::External(url)
             };
 
-            chrome::title_bar(WebviewWindowBuilder::new(app, "main", url))
-                .title("querycraft")
+            let window = chrome::title_bar(WebviewWindowBuilder::new(app, "main", url))
+                .title("QluePrint")
                 // First launch only: after that the window-state plugin restores the last size
                 .inner_size(1280.0, 800.0)
                 .min_inner_size(960.0, 600.0)
                 .center()
+                // Off so the page's own drag and drop (reordering tabs) works on Windows; the app
+                // takes no file drops
+                .disable_drag_drop_handler()
                 .build()?;
+            #[cfg(target_os = "macos")]
+            chrome::keep_traffic_lights(&window);
 
             Ok(())
         })

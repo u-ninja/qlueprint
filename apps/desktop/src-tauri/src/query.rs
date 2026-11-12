@@ -699,11 +699,11 @@ mod tests {
     }
 
     /// Needs a MySQL server, so it only runs when asked:
-    /// `QUERYCRAFT_MYSQL_URL=mysql://user:pass@localhost:3306 cargo test -- --ignored`
+    /// `QLUEPRINT_MYSQL_URL=mysql://user:pass@localhost:3306 cargo test -- --ignored`
     #[tokio::test]
     #[ignore]
     async fn counts_mysql_select_rows_after_use() {
-        let url = std::env::var("QUERYCRAFT_MYSQL_URL").expect("QUERYCRAFT_MYSQL_URL");
+        let url = std::env::var("QLUEPRINT_MYSQL_URL").expect("QLUEPRINT_MYSQL_URL");
         let pool = sqlx::mysql::MySqlPool::connect(&url).await.unwrap();
         // Same batch shape as `execute`: USE first, then the user's SELECT.
         let sql = format!(

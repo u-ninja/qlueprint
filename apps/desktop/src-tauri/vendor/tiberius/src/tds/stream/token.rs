@@ -165,7 +165,7 @@ pub enum ReceivedToken {
     // Connection-resiliency state; parsed but recovery is not yet implemented.
     #[allow(dead_code)]
     SessionState(TokenSessionState),
-    // Federated-auth info, read by `flush_fed_auth_info` (querycraft).
+    // Federated-auth info, read by `flush_fed_auth_info` (qlueprint).
     FedAuthInfo(TokenFedAuthInfo),
     Error(TokenError),
 }
@@ -261,14 +261,14 @@ where
         }
     }
 
-    /// querycraft: reads the login response up to the server's FEDAUTHINFO
+    /// qlueprint: reads the login response up to the server's FEDAUTHINFO
     /// (the ADAL workflow); an error the server sends instead fails the login.
     pub(crate) async fn flush_fed_auth_info(self) -> crate::Result<TokenFedAuthInfo> {
         let mut stream = self.try_unfold();
         let mut last_error = None;
-        // querycraft: what came instead, so a failed handshake says what the server did
+        // qlueprint: what came instead, so a failed handshake says what the server did
         let mut seen: Vec<String> = Vec::new();
-        // querycraft: Azure's gateway logs in without auth and routes to a worker, which then asks
+        // qlueprint: Azure's gateway logs in without auth and routes to a worker, which then asks
         // for the token; hand the redirect back like `flush_done` so the caller reconnects there
         let mut routing = None;
 
@@ -724,7 +724,7 @@ mod tests {
         Connection::test_over(MockStream::new(packet_bytes(payload)), false)
     }
 
-    // querycraft: FEDAUTHINFO token (0xEE): TokenLength, CountOfInfoIDs, then
+    // qlueprint: FEDAUTHINFO token (0xEE): TokenLength, CountOfInfoIDs, then
     // one FedAuthInfoOpt (id, DataLen, DataOffset from CountOfInfoIDs) per
     // UTF-16LE value. STSURL is id 0x01, SPN 0x02 (MS-TDS 2.2.7.12).
     fn fed_auth_info_token(sts_url: &str, spn: &str) -> Vec<u8> {
@@ -778,7 +778,7 @@ mod tests {
         ));
     }
 
-    // querycraft: Azure's gateway answers [LOGINACK][ENVCHANGE Routing][DONE] with no
+    // qlueprint: Azure's gateway answers [LOGINACK][ENVCHANGE Routing][DONE] with no
     // FEDAUTHINFO; the handshake runs on the worker, so the caller must get the redirect
     #[tokio::test]
     async fn flush_fed_auth_info_hands_back_the_gateway_redirect() {
