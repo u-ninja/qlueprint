@@ -20,6 +20,8 @@ import { closedState, useConnections } from '@/stores/connections';
 import { useUi } from '@/stores/ui';
 import { clamp01, Enter, useSpring } from '@/lib/spring';
 import { cn } from '@/lib/utils';
+// The release this build is, as the updater compares it
+import { version } from '../package.json';
 
 type Side = 'sidebar' | 'inspector';
 const sides: Side[] = ['sidebar', 'inspector'];
@@ -246,7 +248,7 @@ function App() {
                         {failed} failed
                     </span>
                 )}
-                <span className="ml-auto flex-none">Local</span>
+                <span className="ml-auto flex-none">Local · v{version}</span>
             </footer>
             {/* Opened from the sidebar, the welcome screen and Local servers */}
             <CreateLocalDialog />
