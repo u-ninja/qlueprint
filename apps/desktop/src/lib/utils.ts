@@ -1,6 +1,8 @@
 import { isTauri as inTauri } from '@tauri-apps/api/core';
 
 export { cn } from 'cn';
+/** The release this build is, as the updater compares it */
+export { version } from '../../package.json';
 
 export const isMac = navigator.userAgent.includes('Mac');
 

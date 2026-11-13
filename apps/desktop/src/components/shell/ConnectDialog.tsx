@@ -5,7 +5,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, Di
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
+import { SwitchRow } from '@/components/ui/setting-row';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Facts } from '@/components/local/StepFrame';
 import { commands, type ConnectRequest, type Engine, type MssqlAuth, type SavedConnection, type SslMode } from '@/bindings';
@@ -350,24 +350,6 @@ function Understood({ parsed, password }: { parsed: Parsed; password: string }) 
     return (
         <div className="font-mono text-xs">
             <Facts rows={rows} />
-        </div>
-    );
-}
-
-/** A settings row: label and description on the left, a switch on the right */
-function SwitchRow({
-    id,
-    label,
-    description,
-    ...props
-}: { id: string; label: string; description: ReactNode } & Pick<ComponentProps<typeof Switch>, 'checked' | 'onCheckedChange' | 'disabled'>) {
-    return (
-        <div className="flex items-center justify-between gap-3">
-            <Label htmlFor={id} className="flex flex-col items-start gap-0.5 font-normal">
-                {label}
-                <span className="text-xs text-fg3">{description}</span>
-            </Label>
-            <Switch id={id} {...props} />
         </div>
     );
 }

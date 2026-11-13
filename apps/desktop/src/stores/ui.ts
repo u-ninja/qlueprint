@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import { motion, setMotion, type Motion } from '@/lib/spring';
 
 export type Theme = 'light' | 'dark' | 'system';
-export type View = 'workspace' | 'connections' | 'servers' | 'queries' | 'history' | 'audit';
+export type View = 'workspace' | 'connections' | 'servers' | 'queries' | 'history' | 'audit' | 'settings';
 
 /** The table the inspector shows: picked with a single click in the explorer */
 export type ResultsTab = 'results' | 'messages' | 'plan';
@@ -22,7 +22,14 @@ export const workspaceOf = (placement: Record<string, string>, savedId: string) 
 type UiState = {
     theme: Theme;
     motion: Motion;
+    /** Look for a newer release each time the app opens */
+    checkUpdates: boolean;
+    setCheckUpdates: (on: boolean) => void;
     view: View;
+    /** A Settings section (its id) to scroll to once the page shows it; it clears it. Not remembered */
+    settingsSection: string | null;
+    /** Shows Settings, scrolled to `section` when given */
+    showSettings: (section?: string) => void;
     sidebarOpen: boolean;
     inspectorOpen: boolean;
     inspected: Inspected | null;
@@ -68,6 +75,8 @@ export const useUi = create<UiState>()(
         (set) => ({
             theme: 'system',
             motion: 'spring',
+            checkUpdates: true,
+            setCheckUpdates: (checkUpdates) => set({ checkUpdates }),
             view: 'workspace',
             sidebarOpen: true,
             inspectorOpen: false,
@@ -85,6 +94,8 @@ export const useUi = create<UiState>()(
             setTheme: (theme) => set({ theme }),
             setMotion: (motion) => set({ motion }),
             setView: (view) => set({ view, sidebarOpen: true }),
+            settingsSection: null,
+            showSettings: (section) => set({ view: 'settings', sidebarOpen: true, settingsSection: section ?? null }),
             toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
             toggleInspector: () => set((s) => (s.changesOpen ? { changesOpen: false, inspectorOpen: true } : { inspectorOpen: !s.inspectorOpen })),
             setChangesOpen: (changesOpen) => set({ changesOpen }),
@@ -112,9 +123,10 @@ export const useUi = create<UiState>()(
         }),
         {
             name: 'qc-ui',
-            partialize: ({ theme, motion, view, sidebarOpen, inspectorOpen, workspaces, workspace, placement, lookupLabels }) => ({
+            partialize: ({ theme, motion, checkUpdates, view, sidebarOpen, inspectorOpen, workspaces, workspace, placement, lookupLabels }) => ({
                 theme,
                 motion,
+                checkUpdates,
                 view,
                 sidebarOpen,
                 inspectorOpen,

@@ -1,4 +1,4 @@
-import { Database, FileCode, History, LayoutGrid, PanelLeft, ScrollText, Server, type LucideIcon } from 'lucide-react';
+import { Database, FileCode, History, LayoutGrid, PanelLeft, ScrollText, Server, Settings, type LucideIcon } from 'lucide-react';
 import { useLayoutEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { useSpring } from '@/lib/spring';
@@ -12,6 +12,7 @@ export const views: { value: View; label: string; icon: LucideIcon }[] = [
     { value: 'queries', label: 'Queries', icon: FileCode },
     { value: 'history', label: 'History', icon: History },
     { value: 'audit', label: 'Audit log', icon: ScrollText },
+    { value: 'settings', label: 'Settings', icon: Settings },
 ];
 
 const railButton = 'text-fg3 hover:text-foreground';

@@ -7,6 +7,7 @@ import { useUi, type Theme } from '@/stores/ui';
 import type { Motion } from '@/lib/spring';
 import { isMac, isTauri } from '@/lib/utils';
 import { views } from './Rail';
+import { checkForUpdates } from '@/stores/updates';
 
 // The app menu, shared by the in-app menu bar (Windows, Linux) and the native macOS menu, which
 // is built in src-tauri/src/chrome.rs with the same item ids. Both run the actions below.
@@ -32,13 +33,13 @@ export type MenuState = Pick<ReturnType<typeof useUi.getState>, 'sidebarOpen' | 
 /** Item id → what it does. Items with no action are features that aren't built yet. */
 export type Actions = Partial<Record<string, () => void>>;
 
-const themes: { value: Theme; label: string }[] = [
+export const themes: { value: Theme; label: string }[] = [
     { value: 'light', label: 'Light' },
     { value: 'dark', label: 'Dark' },
     { value: 'system', label: 'Match system' },
 ];
 
-const motions: { value: Motion; label: string }[] = [
+export const motions: { value: Motion; label: string }[] = [
     { value: 'spring', label: 'Spring physics' },
     { value: 'subtle', label: 'Subtle' },
     { value: 'off', label: 'Reduced' },
@@ -78,7 +79,8 @@ export const menus: Menu[] = [
         entries: [
             { id: 'command-palette', label: 'Command palette…', keys: 'Ctrl+Shift+P' },
             'separator',
-            ...views.map(({ value, label }) => ({ id: `view-${value}`, label })),
+            // Settings has its own item (File, or the app menu on macOS)
+            ...views.filter(({ value }) => value !== 'settings').map(({ value, label }) => ({ id: `view-${value}`, label })),
             'separator',
             { id: 'toggle-sidebar', label: 'Sidebar', keys: 'Ctrl+B', checked: (s) => s.sidebarOpen },
             { id: 'toggle-inspector', label: 'Inspector', checked: (s) => s.inspectorOpen },
@@ -110,6 +112,7 @@ export const menus: Menu[] = [
         label: 'Help',
         entries: [
             { id: 'shortcuts', label: 'Keyboard shortcuts' },
+            { id: 'check-updates', label: 'Check for updates…' },
             { id: 'about', label: 'About QluePrint' },
         ],
     },
@@ -141,10 +144,12 @@ export function createActions(openConnect: () => void): Actions {
     const ui = useUi.getState;
     return {
         'new-connection': openConnect,
-        ...(isTauri && { exit: () => void getCurrentWindow().close() }),
+        ...(isTauri && { exit: () => void getCurrentWindow().close(), 'check-updates': () => void checkForUpdates(true) }),
         ...Object.fromEntries(Object.keys(editorCommands).map((id) => [id, () => void edit(id as keyof typeof editorCommands)])),
         ...Object.fromEntries(views.map(({ value }) => [`view-${value}`, () => ui().setView(value)])),
         'command-palette': () => ui().setPaletteOpen(!ui().paletteOpen),
+        settings: () => ui().showSettings(),
+        shortcuts: () => ui().showSettings('shortcuts'),
         'toggle-sidebar': () => ui().toggleSidebar(),
         'toggle-inspector': () => ui().toggleInspector(),
         ...Object.fromEntries(themes.map(({ value }) => [`theme-${value}`, () => ui().setTheme(value)])),
@@ -201,9 +206,13 @@ function matches(keys: string, event: KeyboardEvent) {
     );
 }
 
+/** A menu item with a keyboard shortcut */
+export const hasKeys = (entry: MenuEntry): entry is MenuItem & { keys: string } => entry !== 'separator' && 'keys' in entry && !!entry.keys;
+
 const boundItems = menus
     .flatMap((menu) => menu.entries)
-    .filter((entry): entry is MenuItem & { keys: string } => typeof entry === 'object' && 'id' in entry && !!entry.keys && !entry.typing);
+    .filter(hasKeys)
+    .filter((item) => !item.typing);
 
 /** The in-app menu's shortcuts, app-wide. macOS needs none: its native menu owns them. */
 export function useMenuShortcuts(actions: Actions) {

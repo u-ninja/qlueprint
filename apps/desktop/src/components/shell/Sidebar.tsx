@@ -8,6 +8,7 @@ import { views } from './Rail';
 import { LocalServers } from '@/components/local/LocalServers';
 import { useLocal } from '@/stores/local';
 import { cn } from '@/lib/utils';
+import { settingsSections } from '@/components/settings/SettingsPage';
 
 const emptyText: Record<View, string> = {
     workspace: 'No connections yet. Connect to a database or create a local one to see it here.',
@@ -15,6 +16,7 @@ const emptyText: Record<View, string> = {
     servers: '',
     queries: 'No saved queries.',
     history: 'No queries run yet.',
+    settings: '',
     audit: 'Every connection and query, recorded on this machine. Passwords and result rows are never written to it, and each entry is chained by hash, so an edited log fails the integrity check.',
 };
 
@@ -36,8 +38,26 @@ export function Sidebar() {
             </h2>
             {showExplorer && <Explorer />}
             {view === 'servers' && <LocalServers />}
+            {view === 'settings' && (
+                <nav aria-label="Settings sections" className="flex flex-col gap-0.5 px-2">
+                    {settingsSections.map((s) => (
+                        <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => useUi.getState().showSettings(s.id)}
+                            className="flex h-8 items-center rounded-md px-2 text-left text-fg2 transition-colors outline-none hover:bg-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+                        >
+                            {s.title}
+                        </button>
+                    ))}
+                </nav>
+            )}
             <div
-                className={cn('flex flex-col gap-3 px-3.5 py-3', showExplorer && 'mt-2 border-t border-border-soft', view === 'servers' && 'hidden')}
+                className={cn(
+                    'flex flex-col gap-3 px-3.5 py-3',
+                    showExplorer && 'mt-2 border-t border-border-soft',
+                    (view === 'servers' || view === 'settings') && 'hidden',
+                )}
             >
                 {!showExplorer && <p className="text-fg3">{emptyText[view]}</p>}
                 {listsConnections && (

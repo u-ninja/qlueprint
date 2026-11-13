@@ -103,13 +103,20 @@ fn item<R: Runtime>(
 pub fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let app_menu = SubmenuBuilder::new(app, "QluePrint")
         .about(None)
+        .item(&item(
+            app,
+            "check-updates",
+            "Check for Updates…",
+            None,
+            true,
+        )?)
         .separator()
         .item(&item(
             app,
             "settings",
             "Settings…",
             Some("CmdOrCtrl+,"),
-            false,
+            true,
         )?)
         .separator()
         .services()
@@ -238,7 +245,7 @@ pub fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .build()?;
 
     let help = SubmenuBuilder::new(app, "Help")
-        .item(&item(app, "shortcuts", "Keyboard Shortcuts", None, false)?)
+        .item(&item(app, "shortcuts", "Keyboard Shortcuts", None, true)?)
         .build()?;
 
     MenuBuilder::new(app)

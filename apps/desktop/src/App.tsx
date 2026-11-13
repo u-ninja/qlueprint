@@ -14,14 +14,13 @@ import { Sidebar } from '@/components/shell/Sidebar';
 import { TopBar } from '@/components/shell/TopBar';
 import { Workspace } from '@/components/shell/Workspace';
 import { AuditLog } from '@/components/audit/AuditLog';
+import { SettingsPage } from '@/components/settings/SettingsPage';
 import { StatusDot } from '@/components/shell/StatusDot';
 import { CreateLocalDialog } from '@/components/local/CreateLocalDialog';
 import { closedState, useConnections } from '@/stores/connections';
 import { useUi } from '@/stores/ui';
 import { clamp01, Enter, useSpring } from '@/lib/spring';
-import { cn } from '@/lib/utils';
-// The release this build is, as the updater compares it
-import { version } from '../package.json';
+import { cn, version } from '@/lib/utils';
 
 type Side = 'sidebar' | 'inspector';
 const sides: Side[] = ['sidebar', 'inspector'];
@@ -220,8 +219,8 @@ function App() {
                         <Sidebar />
                     </SidePanel>
                     <ResizablePanel id="main" elementRef={shared.main} minSize={360}>
-                        {/* The audit log needs the width for its columns and SQL; every other view keeps the editor here */}
-                        {view === 'audit' ? <AuditLog /> : <Workspace />}
+                        {/* The audit log and settings take the whole area; every other view keeps the editor here */}
+                        {view === 'audit' ? <AuditLog /> : view === 'settings' ? <SettingsPage /> : <Workspace />}
                     </ResizablePanel>
                     <SidePanel
                         id="inspector"
