@@ -62,6 +62,9 @@ jobs:
               id: tauri
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  # Signs the updater bundles; the app checks them against the pubkey in tauri.conf.json
+                  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+                  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
               with:
                   projectPath: apps/desktop
                   # Only a tag publishes; a manual run leaves the release fields empty and just builds

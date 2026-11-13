@@ -94,6 +94,9 @@ pub fn run() {
     builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_oauth::init())
+        // Checks GitHub's latest release (tauri.conf.json), installs it, then restarts the app
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         // Brings back the window's size, position, and maximized or full-screen state from the last run
         .plugin(tauri_plugin_window_state::Builder::default().build())
         // Serve the built app over http://localhost: Neon Auth rejects the tauri:// origin
@@ -126,7 +129,9 @@ pub fn run() {
                         .permission("oauth:allow-start")
                         .permission("oauth:allow-cancel")
                         .permission("app-commands")
-                        .permission("window-controls"),
+                        .permission("window-controls")
+                        .permission("updater:default")
+                        .permission("process:allow-restart"),
                 )?;
                 WebviewUrl::External(url)
             };

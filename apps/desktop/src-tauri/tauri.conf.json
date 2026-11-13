@@ -22,6 +22,13 @@
         "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
         "macOS": {
             "signingIdentity": "-"
+        },
+        "createUpdaterArtifacts": true
+    },
+    "plugins": {
+        "updater": {
+            "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY5NkEzOTYzRkQ5OTEyMzEKUldReEVwbjlZemxxK2FQYThKMXVycEdqUGUrQ3ZGckF2bGg3cmpqcXg5WkZyYlplQmF2MFVPcmQK",
+            "endpoints": ["https://github.com/u-ninja/qlueprint/releases/latest/download/latest.json"]
         }
     }
 }

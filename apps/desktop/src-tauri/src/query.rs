@@ -326,7 +326,8 @@ impl Ran {
     }
 }
 
-/// Saves the grid's edits: `UPDATE`s that each change one row by its primary key, all in one
+/// Saves the grid's edits: `DELETE`s and `UPDATE`s that each touch one row by its primary key, and
+/// one-row `INSERT`s, all in one
 /// transaction. A statement that matches no row (or more than one) rolls everything back, so a
 /// row someone else deleted or re-keyed can't leave half the edits saved.
 ///

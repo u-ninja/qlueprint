@@ -54,7 +54,8 @@ export const commands = {
 	 */
 	runQuery: (id: string, sql: string, database: string | null, allRows: boolean, firstRows: boolean) => __TAURI_INVOKE<QueryOutput>("run_query", { id, sql, database, allRows, firstRows }),
 	/**
-	 *  Saves the grid's edits: `UPDATE`s that each change one row by its primary key, all in one
+	 *  Saves the grid's edits: `DELETE`s and `UPDATE`s that each touch one row by its primary key, and
+	 *  one-row `INSERT`s, all in one
 	 *  transaction. A statement that matches no row (or more than one) rolls everything back, so a
 	 *  row someone else deleted or re-keyed can't leave half the edits saved.
 	 * 
@@ -1251,6 +1252,13 @@ export type TableDetails_Deserialize = {
 	ddl?: string | null,
 	/**  Single-column foreign keys in other tables that point at this one */
 	referencedBy: IncomingRef[],
+	/**
+	 *  Whether this login may add, change and remove rows. True when the database can't say, so
+	 *  the UI never hides what the database would allow; the database still checks on save
+	 */
+	canInsert: boolean,
+	canUpdate: boolean,
+	canDelete: boolean,
 };
 
 export type TableDetails_Serialize = {
@@ -1265,6 +1273,13 @@ export type TableDetails_Serialize = {
 	ddl: string | null,
 	/**  Single-column foreign keys in other tables that point at this one */
 	referencedBy: IncomingRef[],
+	/**
+	 *  Whether this login may add, change and remove rows. True when the database can't say, so
+	 *  the UI never hides what the database would allow; the database still checks on save
+	 */
+	canInsert: boolean,
+	canUpdate: boolean,
+	canDelete: boolean,
 };
 
 export type Table_Deserialize = {

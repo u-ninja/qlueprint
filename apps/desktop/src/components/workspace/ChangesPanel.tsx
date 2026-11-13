@@ -123,10 +123,13 @@ function ChangeLine({
                 {column}
             </button>
             <div className="min-w-0 text-xs leading-5">
-                <del title={from ?? 'NULL'} className="block truncate text-fg4 decoration-fg4/70">
-                    <span className="sr-only">was </span>
-                    <Value value={from} />
-                </del>
+                {/* A new row has no old value */}
+                {row.op !== 'insert' && (
+                    <del title={from ?? 'NULL'} className="block truncate text-fg4 decoration-fg4/70">
+                        <span className="sr-only">was </span>
+                        <Value value={from} />
+                    </del>
+                )}
                 {editing && field ? (
                     <CellEditor
                         value={to}
@@ -202,20 +205,18 @@ const RowCard = memo(function RowCard({
 }) {
     const ref = useRef<HTMLLIElement>(null);
     useEnter(ref, { x: 8, skip: still });
-    const columns = only ?? Object.keys(row.changes);
-    const key = row.pk.map(([c, v]) => `${c} ${v}`).join(' · ');
-    const revertRow = () =>
-        useQuery.getState().stageEdits(
-            tabId,
-            Object.entries(row.changes).map(([column, { from }]) => ({ pk: row.pk, column, from, to: from })),
-        );
+    // A deleted row's cell changes are dropped on save, so they aren't listed
+    const columns = row.op === 'delete' ? [] : (only ?? Object.keys(row.changes));
+    const pk = row.pk.map(([c, v]) => `${c} ${v}`).join(' · ');
+    const key = row.op === 'insert' ? 'New row' : row.op === 'delete' ? `Delete ${pk}` : pk;
+    const revertRow = () => useQuery.getState().revertRow(tabId, rowKey);
 
     return (
         <li ref={ref} className="border-t border-border-soft px-3 py-2">
             <div className="flex items-center gap-2">
                 <button
                     type="button"
-                    onClick={() => showTab(tabId, { row: rowKey, column: columns[0] })}
+                    onClick={() => showTab(tabId, { row: rowKey, column: columns[0] ?? '' })}
                     title="Show this row in the grid"
                     className="min-w-0 truncate rounded font-mono text-[11px] text-fg2 tabular-nums outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
@@ -252,7 +253,8 @@ function matching(tab: TableTab, q: string): Shown[] {
         const only = Object.entries(row.changes)
             .filter(([column, { from, to }]) => has(column) || has(from) || has(to))
             .map(([column]) => column);
-        const pk = row.pk.some(([, v]) => has(v));
+        // A new row's key is made up: nothing to find it by
+        const pk = row.op !== 'insert' && row.pk.some(([, v]) => has(v));
         return pk ? [{ key, row }] : only.length ? [{ key, row, only }] : [];
     });
 }

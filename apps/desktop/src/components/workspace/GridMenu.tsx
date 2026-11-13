@@ -14,13 +14,16 @@ import {
     ListFilter,
     PanelRightOpen,
     Pencil,
+    Plus,
     SquareDashed,
+    Trash2,
     Undo2,
     X,
 } from 'lucide-react';
 import type { IncomingRef, ResultColumn } from '@/bindings';
 import {
     ContextMenuContent,
+    ContextMenuDestructiveItem,
     ContextMenuItem,
     ContextMenuLabel,
     ContextMenuSeparator,
@@ -329,6 +332,7 @@ export function RowMenu({
     onCopyJson,
     onCopyInsert,
     onSelectAll,
+    rowOps,
 }: {
     rows: number;
     onCopy: () => void;
@@ -336,10 +340,30 @@ export function RowMenu({
     /** Only in a table tab, which knows the table to insert into */
     onCopyInsert?: () => void;
     onSelectAll: () => void;
+    /** An editable table tab's: each action only when the login may; `deleted` when every row is staged for deletion */
+    rowOps?: { onInsert?: () => void; onDuplicate?: () => void; onDelete?: () => void; deleted: boolean };
 }) {
     const what = rows === 1 ? 'row' : `${rows.toLocaleString()} rows`;
+    const { onInsert, onDuplicate, onDelete, deleted } = rowOps ?? {};
     return (
         <ContextMenuContent className="w-64">
+            {(onInsert || onDuplicate) && (
+                <>
+                    {onInsert && (
+                        <ContextMenuItem onSelect={onInsert}>
+                            <Plus aria-hidden />
+                            Add row
+                        </ContextMenuItem>
+                    )}
+                    {onDuplicate && (
+                        <ContextMenuItem onSelect={onDuplicate}>
+                            <Copy aria-hidden />
+                            Duplicate {what}
+                        </ContextMenuItem>
+                    )}
+                    <ContextMenuSeparator />
+                </>
+            )}
             <ContextMenuItem onSelect={onCopy}>
                 <Copy aria-hidden />
                 Copy {what}
@@ -361,6 +385,23 @@ export function RowMenu({
                 Select all rows
                 <ContextMenuShortcut>{selectAllKeys}</ContextMenuShortcut>
             </ContextMenuItem>
+            {onDelete && (
+                <>
+                    <ContextMenuSeparator />
+                    {deleted ? (
+                        <ContextMenuItem onSelect={onDelete}>
+                            <Undo2 aria-hidden />
+                            Restore {what}
+                        </ContextMenuItem>
+                    ) : (
+                        // Staged like any edit: nothing is deleted until Save
+                        <ContextMenuDestructiveItem onSelect={onDelete}>
+                            <Trash2 aria-hidden />
+                            Delete {what}
+                        </ContextMenuDestructiveItem>
+                    )}
+                </>
+            )}
         </ContextMenuContent>
     );
 }

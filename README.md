@@ -14,9 +14,11 @@ Connect to PostgreSQL, MySQL, MariaDB, SQL Server and SQLite, write and run SQL,
 
 </div>
 
-![QluePrint workspace](docs/assets/concept-local-servers.png)
+![Writing and running SQL in QluePrint](docs/assets/screenshot-query.png)
 
-<sub>Design concept. The shipping app follows the same design language; real screenshots are coming.</sub>
+![Editing a table: a changed cell, a row staged for deletion, a new row, and the Changes panel](docs/assets/screenshot-table-edits.png)
+
+<sub>Screenshots use a demo database with made-up data.</sub>
 
 ## Features
 
@@ -42,7 +44,7 @@ Connect to PostgreSQL, MySQL, MariaDB, SQL Server and SQLite, write and run SQL,
 **Results and data**
 
 - A fast, virtualized grid: sort, filter and find, with sorting done by the database when a result is cut off.
-- Edit cells in table tabs and in single-table query results. Changes are staged, undoable and saved in one transaction.
+- Edit cells in table tabs and in single-table query results, and add, duplicate or delete rows. Changes are staged, undoable and saved in one transaction. Actions your login isn’t granted are hidden.
 - Follow foreign keys to related rows; copy rows as CSV, JSON or INSERT statements.
 
 **Local servers**
@@ -53,6 +55,7 @@ Connect to PostgreSQL, MySQL, MariaDB, SQL Server and SQLite, write and run SQL,
 
 - A tamper-evident audit log of everything the app ran against your databases, kept on your machine.
 - Light and dark themes, full keyboard navigation and accessible contrast.
+- Updates itself: when a new release is out, install it from the top bar.
 
 Not built yet: MongoDB and Redis support, a saved query library, the query history view and team collaboration. See the [product spec](docs/product-spec.md) for what’s planned.
 

@@ -7,6 +7,7 @@ import { filterSql, type ColumnFilter } from '@/lib/column-filter';
 import { quoteName, sqlValue } from '@/lib/sql-quote';
 import { tableKey } from '@/lib/table-details';
 import { sourceTable } from '@/lib/columns';
+import { rowsAsInsert } from '@/lib/row-copy';
 import { markAccepted, splitStatements } from '@/lib/sql-lint';
 import { inShownWorkspace, useUi } from './ui';
 
@@ -22,19 +23,21 @@ export type Plan = {
     outcome: { ok: true; plan: QueryPlan } | { ok: false; error: string } | null;
 };
 
-/** One row's staged cell edits */
+/** One row's staged cell edits, or a row staged to be added or removed */
 export type RowEdit = {
-    /** Primary key column → value as loaded: the UPDATE finds the row by these, so editing the key itself is safe */
+    /** Primary key column → value as loaded: the UPDATE finds the row by these, so editing the key itself is safe.
+     * A new row's is a made-up id under '', never a real key */
     pk: [string, string][];
-    /** Changed column → its loaded value and the new one */
+    /** Changed column → its loaded value and the new one. A new row's columns are all `from: null`; one left out takes its default */
     changes: Record<string, { from: string | null; to: string | null }>;
+    op?: 'insert' | 'delete';
 };
 
 /** One cell's new value; `from` is its loaded value, and staging that unstages the cell */
 export type CellEdit = { pk: RowEdit['pk']; column: string; from: string | null; to: string | null };
 
-/** A cell one undo step changed: its staged value before and after (undefined: nothing staged) */
-type CellStep = Omit<CellEdit, 'to'> & { before: string | null | undefined; after: string | null | undefined };
+/** The rows (`rowKey`) one undo step changed: each one's staged state before and after (undefined: nothing staged) */
+type RowStep = { key: string; before: RowEdit | undefined; after: RowEdit | undefined }[];
 
 /** A query sheet: its own draft, its own connection and database, and its own last result */
 export type QueryTab = {
@@ -80,9 +83,9 @@ export type TableTab = {
     outcome: Outcome | null;
     /** Staged cell edits by row (`rowKey` of its primary key), saved together in one transaction */
     edits: Record<string, RowEdit>;
-    /** The cells each change touched, newest last, for undo; a fill or paste is one step */
-    undo: CellStep[][];
-    redo: CellStep[][];
+    /** The rows each change touched, newest last, for undo; a fill or paste is one step */
+    undo: RowStep[];
+    redo: RowStep[];
     /** Why the last save failed, or why a reload was held back; shown in the footer and the Changes panel */
     editsError: string | null;
     saving: boolean;
@@ -139,6 +142,12 @@ type QueryState = {
     /** Steps the staged edits back, or forward with `redo` */
     undoEdits: (id: string, redo?: boolean) => void;
     discardEdits: (id: string) => void;
+    /** Stages new rows (column → value; a column left out takes its default) as one undo step */
+    addRows: (id: string, rows: Record<string, string | null>[]) => void;
+    /** Stages rows to be deleted, or with `restore` takes that back; a new row is just dropped */
+    deleteRows: (id: string, pks: RowEdit['pk'][], restore?: boolean) => void;
+    /** Takes back everything staged on a row (its `rowKey`) */
+    revertRow: (id: string, key: string) => void;
     /** Shows a table tab, with one cell selected in its grid when given; null also clears it once the grid has taken it */
     focusCell: (id: string, cell: TableTab['focus']) => void;
     /** Saves a table tab's edits in one transaction and reloads it; false (error in the Changes panel, opened) when that failed */
@@ -352,11 +361,11 @@ export const rowKey = (pk: RowEdit['pk']) => JSON.stringify(pk.map(([, v]) => v)
 // Counted once per `edits` object: the tab strip, footer, top bar and Changes panel all ask on every store change
 const counts = new WeakMap<TableTab['edits'], number>();
 
-/** Cells changed across all rows */
+/** Cells changed across all rows; a row added or deleted counts once */
 export function editCount({ edits }: Pick<TableTab, 'edits'>) {
     let n = counts.get(edits);
     if (n === undefined) {
-        n = Object.values(edits).reduce((sum, r) => sum + Object.keys(r.changes).length, 0);
+        n = Object.values(edits).reduce((sum, r) => sum + (r.op ? 1 : Object.keys(r.changes).length), 0);
         counts.set(edits, n);
     }
     return n;
@@ -366,24 +375,38 @@ export function editCount({ edits }: Pick<TableTab, 'edits'>) {
 export const totalEdits = (s: Pick<QueryState, 'tables'>) => s.tables.reduce((n, t) => n + editCount(t), 0);
 
 /** Sets one cell in `edits`, a copy the caller owns, to `to`; undefined or the loaded value unstages it */
-function setCell(edits: TableTab['edits'], { pk, column, from }: Omit<CellEdit, 'to'>, to: string | null | undefined) {
+function setCell(edits: TableTab['edits'], { pk, column, from, to }: CellEdit) {
     const key = rowKey(pk);
     const changes = { ...edits[key]?.changes };
-    if (to === undefined || to === from) delete changes[column];
+    if (to === from) delete changes[column];
     else changes[column] = { from, to };
-    if (Object.keys(changes).length) edits[key] = { pk, changes };
+    const op = edits[key]?.op;
+    // An added or deleted row stays staged with no cell changes
+    if (Object.keys(changes).length || op) edits[key] = { pk, changes, ...(op && { op }) };
     else delete edits[key];
 }
 
-/** One UPDATE per edited row: `UPDATE t SET "a" = 'x', "b" = NULL WHERE <its loaded primary key>`. Numeric
- * columns stay the exact text the database sent */
+/** DELETEs, then one UPDATE per edited row (`UPDATE t SET "a" = 'x', "b" = NULL WHERE <its loaded primary key>`),
+ * then INSERTs, so a key deleted can be added again. Numeric columns stay the exact text the database sent */
 export function editStatements(kind: Connection['kind'], schema: string, table: string, columns: ResultColumn[], rows: RowEdit[]) {
     const numeric = new Set(columns.filter((c) => c.kind === 'number').map((c) => c.name));
     const assign = ([c, v]: [string, string | null]) => `${quoteName(kind, c)} = ${sqlValue(v, numeric.has(c), kind)}`;
-    return rows.map((r) => {
-        const set = Object.entries(r.changes).map(([c, { to }]) => assign([c, to]));
-        return `UPDATE ${qualifiedName(kind, schema, table)} SET ${set.join(', ')} WHERE ${r.pk.map(assign).join(' AND ')}`;
-    });
+    const name = qualifiedName(kind, schema, table);
+    const of = (op: RowEdit['op']) => rows.filter((r) => r.op === op);
+    return [
+        ...of('delete').map((r) => `DELETE FROM ${name} WHERE ${r.pk.map(assign).join(' AND ')}`),
+        ...of(undefined).map((r) => {
+            const set = Object.entries(r.changes).map(([c, { to }]) => assign([c, to]));
+            return `UPDATE ${name} SET ${set.join(', ')} WHERE ${r.pk.map(assign).join(' AND ')}`;
+        }),
+        ...of('insert').map((r) => {
+            const set = Object.entries(r.changes);
+            if (!set.length) return kind === 'mysql' ? `INSERT INTO ${name} () VALUES ()` : `INSERT INTO ${name} DEFAULT VALUES`;
+            const cols = set.map(([c]) => ({ name: c, kind: numeric.has(c) ? 'number' : 'text' }));
+            // The clipboard's INSERT, without its closing semicolon
+            return rowsAsInsert(kind, name, cols, [set.map(([, { to }]) => to)]).slice(0, -1);
+        }),
+    ];
 }
 
 /** The toolbar's choice if it's still open, otherwise the newest connection */
@@ -559,9 +582,16 @@ export const useQuery = create<QueryState>()(
             const updateTable = (id: string, patch: Partial<TableTab>) =>
                 set((s) => ({ tables: s.tables.map((t) => (t.id === id ? { ...t, ...patch } : t)) }));
 
-            /** Sets a table tab's staged edits, with the cells that changed as one undo step */
-            const setEdits = (tab: TableTab, edits: TableTab['edits'], step: CellStep[]) =>
-                updateTable(tab.id, { edits, undo: [...tab.undo.slice(-99), step], redo: [], editsError: null });
+            /** Changes a copy of a table tab's edits as one undo step; `change` returns the rows it touched (none: no step) */
+            const changeEdits = (id: string, change: (edits: TableTab['edits']) => string[]) => {
+                const tab = get().tables.find((t) => t.id === id);
+                if (!tab) return;
+                const edits = { ...tab.edits };
+                const touched = [...new Set(change(edits))];
+                if (!touched.length) return;
+                const step = touched.map((key) => ({ key, before: tab.edits[key], after: edits[key] }));
+                updateTable(id, { edits, undo: [...tab.undo.slice(-99), step], redo: [], editsError: null });
+            };
 
             /** True, with the reason in the footer, while a table tab has unsaved edits: new rows would drop them */
             const holdEdits = (id: string) => {
@@ -730,20 +760,17 @@ export const useQuery = create<QueryState>()(
                     await loadTable(id);
                 },
 
-                stageEdits: (id, cells) => {
-                    const tab = get().tables.find((t) => t.id === id);
-                    if (!tab) return;
-                    const edits = { ...tab.edits };
-                    const step: CellStep[] = [];
-                    for (const cell of cells) {
-                        const before = edits[rowKey(cell.pk)]?.changes[cell.column]?.to;
-                        if (cell.to === (before === undefined ? cell.from : before)) continue;
-                        step.push({ pk: cell.pk, column: cell.column, from: cell.from, before, after: cell.to === cell.from ? undefined : cell.to });
-                        setCell(edits, cell, cell.to);
-                    }
-                    // Nothing new (e.g. NULL set on NULLs): no empty undo step
-                    if (step.length) setEdits(tab, edits, step);
-                },
+                // Nothing new (e.g. NULL set on NULLs) touches no row: no empty undo step
+                stageEdits: (id, cells) =>
+                    changeEdits(id, (edits) =>
+                        cells.flatMap((cell) => {
+                            const key = rowKey(cell.pk);
+                            const before = edits[key]?.changes[cell.column]?.to;
+                            if (cell.to === (before === undefined ? cell.from : before)) return [];
+                            setCell(edits, cell);
+                            return [key];
+                        }),
+                    ),
                 undoEdits: (id, redo = false) => {
                     const tab = get().tables.find((t) => t.id === id);
                     const [take, give] = redo ? (['redo', 'undo'] as const) : (['undo', 'redo'] as const);
@@ -751,19 +778,54 @@ export const useQuery = create<QueryState>()(
                     if (!tab || !steps?.length) return;
                     const step = steps[steps.length - 1];
                     const edits = { ...tab.edits };
-                    // Backwards when undoing, so a cell a step touched twice ends where it started
-                    if (redo) for (const c of step) setCell(edits, c, c.after);
-                    else for (const c of [...step].reverse()) setCell(edits, c, c.before);
+                    for (const { key, before, after } of step) {
+                        const row = redo ? after : before;
+                        if (row) edits[key] = row;
+                        else delete edits[key];
+                    }
                     updateTable(id, { edits, [take]: steps.slice(0, -1), [give]: [...tab[give], step], editsError: null });
                 },
                 // Undoable from the grid like any other step
-                discardEdits: (id) => {
-                    const tab = get().tables.find((t) => t.id === id);
-                    const step = Object.values(tab?.edits ?? {}).flatMap(({ pk, changes }) =>
-                        Object.entries(changes).map(([column, { from, to }]) => ({ pk, column, from, before: to, after: undefined })),
+                discardEdits: (id) =>
+                    changeEdits(id, (edits) => {
+                        const keys = Object.keys(edits);
+                        for (const k of keys) delete edits[k];
+                        return keys;
+                    }),
+                addRows: (id, rows) => {
+                    let first: string | undefined;
+                    changeEdits(id, (edits) =>
+                        rows.map((row) => {
+                            const pk: RowEdit['pk'] = [['', crypto.randomUUID()]];
+                            const changes = Object.fromEntries(Object.entries(row).map(([c, to]) => [c, { from: null, to }]));
+                            const key = rowKey(pk);
+                            first ??= key;
+                            edits[key] = { pk, changes, op: 'insert' };
+                            return key;
+                        }),
                     );
-                    if (tab && step.length) setEdits(tab, {}, step);
+                    // The grid scrolls to the first new row
+                    if (first) updateTable(id, { focus: { row: first, column: '' } });
                 },
+                deleteRows: (id, pks, restore = false) =>
+                    changeEdits(id, (edits) =>
+                        pks.flatMap((pk) => {
+                            const key = rowKey(pk);
+                            const row = edits[key];
+                            // A new row is just dropped; restoring keeps the row's cell changes
+                            if (row?.op === 'insert' || (restore && row?.op === 'delete' && !Object.keys(row.changes).length)) delete edits[key];
+                            else if (restore && row?.op === 'delete') edits[key] = { pk, changes: row.changes };
+                            else if (!restore && !row?.op) edits[key] = { pk, changes: row?.changes ?? {}, op: 'delete' };
+                            else return [];
+                            return [key];
+                        }),
+                    ),
+                revertRow: (id, key) =>
+                    changeEdits(id, (edits) => {
+                        if (!(key in edits)) return [];
+                        delete edits[key];
+                        return [key];
+                    }),
                 focusCell: (id, focus) => {
                     updateTable(id, { focus });
                     get().setActiveTab(id);

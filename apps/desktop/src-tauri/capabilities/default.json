@@ -3,5 +3,14 @@
     "identifier": "default",
     "description": "Capability for the main window",
     "windows": ["main"],
-    "permissions": ["core:default", "opener:default", "oauth:allow-start", "oauth:allow-cancel", "app-commands", "window-controls"]
+    "permissions": [
+        "core:default",
+        "opener:default",
+        "oauth:allow-start",
+        "oauth:allow-cancel",
+        "app-commands",
+        "window-controls",
+        "updater:default",
+        "process:allow-restart"
+    ]
 }

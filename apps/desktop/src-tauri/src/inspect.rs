@@ -31,6 +31,11 @@ pub struct TableDetails {
     ddl: Option<String>,
     /// Single-column foreign keys in other tables that point at this one
     referenced_by: Vec<IncomingRef>,
+    /// Whether this login may add, change and remove rows. True when the database can't say, so
+    /// the UI never hides what the database would allow; the database still checks on save
+    can_insert: bool,
+    can_update: bool,
+    can_delete: bool,
 }
 
 #[derive(Serialize, Type, Debug, PartialEq)]
@@ -82,8 +87,16 @@ type ColumnRow = (
     Option<String>,
 );
 type IncomingRow = (String, String, String, String);
-/// rows estimate, size, is a view, view definition
-type PgTableRow = (Option<i64>, Option<i64>, i64, Option<String>);
+/// rows estimate, size, is a view, view definition, may insert, update, delete
+type PgTableRow = (
+    Option<i64>,
+    Option<i64>,
+    i64,
+    Option<String>,
+    bool,
+    bool,
+    bool,
+);
 /// rows estimate, size, is a view
 type MysqlTableRow = (Option<i64>, Option<i64>, i64);
 type IndexRow = (String, Option<String>, i64, i64);
@@ -214,7 +227,10 @@ const PG_TABLE: &str = r"
            CASE c.relkind WHEN 'p' THEN (SELECT sum(pg_total_relation_size(relid))::int8 FROM pg_partition_tree(c.oid))
                           ELSE pg_total_relation_size(c.oid) END,
            (c.relkind IN ('v', 'm'))::int8,
-           CASE WHEN c.relkind IN ('v', 'm') THEN pg_get_viewdef(c.oid, true) END
+           CASE WHEN c.relkind IN ('v', 'm') THEN pg_get_viewdef(c.oid, true) END,
+           -- Any column: a grant on some columns still lets a row be added or changed
+           has_any_column_privilege(c.oid, 'INSERT'), has_any_column_privilege(c.oid, 'UPDATE'),
+           has_table_privilege(c.oid, 'DELETE')
     FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = $1 AND c.relname = $2";
 
@@ -254,6 +270,23 @@ const MYSQL_TABLE: &str = r"
     SELECT CAST(TABLE_ROWS AS SIGNED), CAST(DATA_LENGTH + INDEX_LENGTH AS SIGNED), CAST(TABLE_TYPE = 'VIEW' AS SIGNED)
     FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?";
 
+// May insert, update, delete: the login's own grants, global, on the schema (a LIKE pattern),
+// the table or its columns.
+// shortcut: privileges that come through roles aren't resolved, so any active role allows
+// everything; walk the role graph if that hides a real restriction.
+const MYSQL_ACCESS: &str = r"
+    SELECT CAST(r.roles OR COALESCE(MAX(p.PRIVILEGE_TYPE = 'INSERT'), 0) AS SIGNED),
+           CAST(r.roles OR COALESCE(MAX(p.PRIVILEGE_TYPE = 'UPDATE'), 0) AS SIGNED),
+           CAST(r.roles OR COALESCE(MAX(p.PRIVILEGE_TYPE = 'DELETE'), 0) AS SIGNED)
+    FROM (SELECT COALESCE(CURRENT_ROLE(), 'NONE') <> 'NONE' AS roles) r
+    LEFT JOIN (
+        SELECT GRANTEE, PRIVILEGE_TYPE FROM information_schema.USER_PRIVILEGES
+        UNION ALL SELECT GRANTEE, PRIVILEGE_TYPE FROM information_schema.SCHEMA_PRIVILEGES WHERE ? LIKE TABLE_SCHEMA
+        UNION ALL SELECT GRANTEE, PRIVILEGE_TYPE FROM information_schema.TABLE_PRIVILEGES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+        UNION ALL SELECT GRANTEE, PRIVILEGE_TYPE FROM information_schema.COLUMN_PRIVILEGES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+    ) p ON p.GRANTEE = CONCAT('''', SUBSTRING_INDEX(CURRENT_USER(), '@', 1), '''@''', SUBSTRING_INDEX(CURRENT_USER(), '@', -1), '''')
+    GROUP BY r.roles";
+
 const SQLITE_COLUMNS: &str = r#"
     SELECT p.name, p.type, p."notnull" = 0, p.dflt_value, CASE WHEN p.pk > 0 THEN 'PK' END,
            CASE WHEN f."table" IS NOT NULL THEN 'main' END, f."table",
@@ -288,7 +321,8 @@ const SQLITE_TABLE: &str = "SELECT type = 'view', sql FROM sqlite_schema WHERE n
 // Synapse, STRING_AGG on SQL Server 2016), single-column foreign keys pointing here, then the table.
 // Fabric and Synapse (EngineEdition 11, 6) keep data outside SQL Server's pages: size unknown there.
 const MSSQL_DETAILS: &str = concat!(
-    "DECLARE @id int = OBJECT_ID(QUOTENAME(@P1) + '.' + QUOTENAME(@P2));
+    "DECLARE @name nvarchar(260) = QUOTENAME(@P1) + '.' + QUOTENAME(@P2);
+    DECLARE @id int = OBJECT_ID(@name);
     SELECT c.name, ",
     mssql_type!(),
     ", CAST(c.is_nullable AS int), OBJECT_DEFINITION(c.default_object_id),
@@ -332,7 +366,10 @@ const MSSQL_DETAILS: &str = concat!(
            (SELECT SUM(a.total_pages) * 8192 FROM sys.partitions p
             JOIN sys.allocation_units a ON a.container_id = p.partition_id WHERE p.object_id = o.object_id) END,
            CASE WHEN o.type = 'V' THEN 1 ELSE 0 END,
-           CASE WHEN o.type = 'V' THEN OBJECT_DEFINITION(o.object_id) END
+           CASE WHEN o.type = 'V' THEN OBJECT_DEFINITION(o.object_id) END,
+           HAS_PERMS_BY_NAME(@name, 'OBJECT', 'INSERT'),
+           HAS_PERMS_BY_NAME(@name, 'OBJECT', 'UPDATE'),
+           HAS_PERMS_BY_NAME(@name, 'OBJECT', 'DELETE')
     FROM sys.objects o WHERE o.object_id = @id"
 );
 
@@ -412,30 +449,35 @@ pub async fn table_details(
     match open.pool_for(database.as_deref()).await? {
         Pool::Postgres(pool) => {
             // Independent catalog reads: each takes its own pool connection, so they run at once
-            let (columns, enums, indexes, referenced_by, (rows, size, view, view_def)) =
-                tokio::try_join!(
-                    sqlx::query_as::<_, ColumnRow>(PG_COLUMNS)
-                        .bind(&schema)
-                        .bind(&table)
-                        .fetch_all(&pool),
-                    sqlx::query_as::<_, (String, Vec<String>)>(PG_ENUMS)
-                        .bind(&schema)
-                        .bind(&table)
-                        .fetch_all(&pool),
-                    sqlx::query_as::<_, IndexRow>(PG_INDEXES)
-                        .bind(&schema)
-                        .bind(&table)
-                        .fetch_all(&pool),
-                    sqlx::query_as::<_, IncomingRow>(PG_INCOMING)
-                        .bind(&schema)
-                        .bind(&table)
-                        .fetch_all(&pool),
-                    sqlx::query_as::<_, PgTableRow>(PG_TABLE)
-                        .bind(&schema)
-                        .bind(&table)
-                        .fetch_one(&pool),
-                )
-                .map_err(query_failed)?;
+            let (
+                columns,
+                enums,
+                indexes,
+                referenced_by,
+                (rows, size, view, view_def, can_insert, can_update, can_delete),
+            ) = tokio::try_join!(
+                sqlx::query_as::<_, ColumnRow>(PG_COLUMNS)
+                    .bind(&schema)
+                    .bind(&table)
+                    .fetch_all(&pool),
+                sqlx::query_as::<_, (String, Vec<String>)>(PG_ENUMS)
+                    .bind(&schema)
+                    .bind(&table)
+                    .fetch_all(&pool),
+                sqlx::query_as::<_, IndexRow>(PG_INDEXES)
+                    .bind(&schema)
+                    .bind(&table)
+                    .fetch_all(&pool),
+                sqlx::query_as::<_, IncomingRow>(PG_INCOMING)
+                    .bind(&schema)
+                    .bind(&table)
+                    .fetch_all(&pool),
+                sqlx::query_as::<_, PgTableRow>(PG_TABLE)
+                    .bind(&schema)
+                    .bind(&table)
+                    .fetch_one(&pool),
+            )
+            .map_err(query_failed)?;
             let mut enums: std::collections::HashMap<_, _> = enums.into_iter().collect();
             Ok(TableDetails {
                 columns: columns
@@ -459,6 +501,9 @@ pub async fn table_details(
                     )
                 }),
                 referenced_by: referenced_by.into_iter().map(incoming).collect(),
+                can_insert,
+                can_update,
+                can_delete,
             })
         }
         Pool::Mysql(pool) => {
@@ -477,26 +522,40 @@ pub async fn table_details(
                     .ok()
                     .and_then(|row| row.try_get::<String, _>(1).ok()))
             };
-            let (columns, indexes, referenced_by, (rows, size, view), ddl) = tokio::try_join!(
-                sqlx::query_as::<_, ColumnRow>(MYSQL_COLUMNS)
+            // Unreadable grants (e.g. MySQL 5.7 has no CURRENT_ROLE) leave everything allowed
+            let access = async {
+                Ok(sqlx::query_as::<_, (i64, i64, i64)>(MYSQL_ACCESS)
+                    .bind(&schema)
                     .bind(&schema)
                     .bind(&table)
-                    .fetch_all(&pool),
-                sqlx::query_as::<_, IndexRow>(MYSQL_INDEXES)
                     .bind(&schema)
                     .bind(&table)
-                    .fetch_all(&pool),
-                sqlx::query_as::<_, IncomingRow>(MYSQL_INCOMING)
-                    .bind(&schema)
-                    .bind(&table)
-                    .fetch_all(&pool),
-                sqlx::query_as::<_, MysqlTableRow>(MYSQL_TABLE)
-                    .bind(&schema)
-                    .bind(&table)
-                    .fetch_one(&pool),
-                ddl,
-            )
-            .map_err(query_failed)?;
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap_or((1, 1, 1)))
+            };
+            let (columns, indexes, referenced_by, (rows, size, view), ddl, access) =
+                tokio::try_join!(
+                    sqlx::query_as::<_, ColumnRow>(MYSQL_COLUMNS)
+                        .bind(&schema)
+                        .bind(&table)
+                        .fetch_all(&pool),
+                    sqlx::query_as::<_, IndexRow>(MYSQL_INDEXES)
+                        .bind(&schema)
+                        .bind(&table)
+                        .fetch_all(&pool),
+                    sqlx::query_as::<_, IncomingRow>(MYSQL_INCOMING)
+                        .bind(&schema)
+                        .bind(&table)
+                        .fetch_all(&pool),
+                    sqlx::query_as::<_, MysqlTableRow>(MYSQL_TABLE)
+                        .bind(&schema)
+                        .bind(&table)
+                        .fetch_one(&pool),
+                    ddl,
+                    access,
+                )
+                .map_err(query_failed)?;
             Ok(TableDetails {
                 columns: columns.into_iter().map(column).collect(),
                 indexes: indexes.into_iter().map(index).collect(),
@@ -506,6 +565,9 @@ pub async fn table_details(
                 size_bytes: size.filter(|_| view == 0),
                 ddl,
                 referenced_by: referenced_by.into_iter().map(incoming).collect(),
+                can_insert: access.0 != 0,
+                can_update: access.1 != 0,
+                can_delete: access.2 != 0,
             })
         }
         Pool::Mssql(pool) => {
@@ -544,6 +606,9 @@ pub async fn table_details(
                 size_bytes: number(&mut object[1]).filter(|_| !view),
                 // A view's own CREATE VIEW text; tables have none to give
                 ddl: object[3].take(),
+                can_insert: number(&mut object[4]) != Some(0),
+                can_update: number(&mut object[5]) != Some(0),
+                can_delete: number(&mut object[6]) != Some(0),
                 referenced_by: referenced_by
                     .into_iter()
                     .map(|mut r| {
@@ -586,6 +651,10 @@ pub async fn table_details(
                 size_bytes: None,
                 ddl,
                 referenced_by: referenced_by.into_iter().map(incoming).collect(),
+                // No grants in SQLite: whoever can open the file can write it
+                can_insert: true,
+                can_update: true,
+                can_delete: true,
             })
         }
     }

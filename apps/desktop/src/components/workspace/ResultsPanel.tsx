@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ComponentProps, type ReactNode } from 'react';
-import { CircleAlert, TriangleAlert } from 'lucide-react';
+import { CircleAlert, Plus, TriangleAlert } from 'lucide-react';
 import type { PlanNode, QueryPlan } from '@/bindings';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
@@ -13,6 +13,7 @@ import {
     currentQuery,
     newTableTab,
     rowKey,
+    type RowEdit,
     rerunnable,
     summary,
     resultSets,
@@ -490,11 +491,12 @@ function PanelHeader({ children }: { children: ReactNode }) {
 
 /**
  * Editing for a table tab: only a table (not a view) whose whole primary key is in the loaded
- * columns, so every UPDATE can name exactly one row. Otherwise `readOnly` says why. `fields` say
- * how each column is edited, and whether it can be: the grid and the Changes panel both read them
+ * columns, so every UPDATE can name exactly one row, and only what the login's grants allow.
+ * Otherwise `readOnly` says why. `fields` say how each column is edited, and whether it can be:
+ * the grid and the Changes panel both read them
  */
 export function useTableEditing(t: TableTab) {
-    const { stageEdits, undoEdits, focusCell, openTable } = useQuery.getState();
+    const { stageEdits, undoEdits, focusCell, openTable, addRows, deleteRows } = useQuery.getState();
     const engine = useConnections((s) => s.connections.find((c) => c.id === t.connectionId)?.kind);
     const details = useTableDetails(t);
     const columns = t.outcome?.ok ? t.outcome.output.columns : undefined;
@@ -509,16 +511,35 @@ export function useTableEditing(t: TableTab) {
         ? undefined
         : details.view
           ? 'Read-only: a view'
-          : !details.columns.some((c) => c.key === 'PK')
-            ? 'Read-only: no primary key'
-            : !pk
-              ? 'Read-only: the primary key isn’t in the loaded columns'
-              : undefined;
+          : !details.canInsert && !details.canUpdate && !details.canDelete
+            ? 'Read-only: you don’t have permission to change this table'
+            : !details.columns.some((c) => c.key === 'PK')
+              ? 'Read-only: no primary key'
+              : !pk
+                ? 'Read-only: the primary key isn’t in the loaded columns'
+                : undefined;
     const fields = useFields(columns, details, engine, t, readOnly);
+    // Rows staged to be added, as grid rows of NULLs (their staged values show over them), each with its made-up key.
+    // Rebuilt only when a row is added or dropped, so editing one doesn't reset the grid's selection
+    const insertKeys = useMemo(
+        () =>
+            Object.keys(t.edits)
+                .filter((k) => t.edits[k].op === 'insert')
+                .join('\n'),
+        [t.edits],
+    );
+    const added = useMemo(() => {
+        const pks = new Map<(string | null)[], RowEdit['pk']>();
+        // A new row's key is its made-up id under '' (see addRows)
+        for (const k of insertKeys ? insertKeys.split('\n') : []) pks.set(Array<null>(columns?.length ?? 0).fill(null), [['', JSON.parse(k)[0]]]);
+        return { rows: [...pks.keys()], pks };
+    }, [insertKeys, columns]);
 
-    if (!columns || !fields || !pk || readOnly) return { engine, details, fields, editor: undefined, readOnly };
+    if (!columns || !fields || !pk || !details || readOnly) return { engine, details, fields, editor: undefined, readOnly };
 
     const pkOf = (row: (string | null)[]) => {
+        const id = added.pks.get(row);
+        if (id) return id;
         const values = pk.map(([name, i]) => [name, row[i]] as const);
         return values.every(([, v]) => v !== null) ? (values as [string, string][]) : undefined;
     };
@@ -542,6 +563,28 @@ export function useTableEditing(t: TableTab) {
         undo: (redo) => undoEdits(t.id, redo),
         focus: t.focus,
         focused: () => focusCell(t.id, null),
+        added: added.rows,
+        locked: details.canUpdate ? undefined : 'Read-only: you don’t have permission to change existing rows',
+        insert: details.canInsert ? () => addRows(t.id, [{}]) : undefined,
+        // The key is left out, for the database to generate or for you to fill in
+        duplicate: details.canInsert
+            ? (rows) =>
+                  addRows(
+                      t.id,
+                      rows.map((row) => Object.fromEntries(columns.flatMap((c, i) => (pk.some(([, at]) => at === i) ? [] : [[c.name, row[i]]])))),
+                  )
+            : undefined,
+        remove: details.canDelete
+            ? (rows, restore) =>
+                  deleteRows(
+                      t.id,
+                      rows.flatMap((row) => {
+                          const values = pkOf(row);
+                          return values ? [values] : [];
+                      }),
+                      restore,
+                  )
+            : undefined,
     };
     return { engine, details, fields, editor, readOnly };
 }
@@ -612,7 +655,15 @@ export function TableResults({ tab: t }: { tab: TableTab }) {
                         </Button>
                     </span>
                 ) : (
-                    <WhereBar tab={t} />
+                    <>
+                        <WhereBar tab={t} />
+                        {editor?.insert && (
+                            <Button variant="ghost" size="sm" onClick={editor.insert} title="Staged until you save" className="flex-none">
+                                <Plus aria-hidden />
+                                Add row
+                            </Button>
+                        )}
+                    </>
                 )}
                 {t.runningSince !== null && (
                     <span role="status" className="flex flex-none items-baseline gap-2">

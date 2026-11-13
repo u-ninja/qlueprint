@@ -84,6 +84,14 @@ export type Editor = {
     /** A cell to select and scroll to (from the Changes panel); `focused` is called once it's taken */
     focus: { row: string; column: string } | null;
     focused: () => void;
+    /** Rows staged to be added; a table tab shows them after the loaded ones */
+    added: Row[];
+    /** Why a loaded row's cells can't be changed though new ones can (no UPDATE grant) */
+    locked?: string;
+    /** Each only when the login may: add a blank row, add copies of rows (as shown), delete rows or take that back */
+    insert?: () => void;
+    duplicate?: (rows: Row[]) => void;
+    remove?: (rows: Row[], restore?: boolean) => void;
 };
 
 type Props = {
@@ -148,8 +156,10 @@ export function ResultsGrid({
             const index = output.columns.findIndex((c) => c.name === sort.column);
             if (index >= 0) rows = sortRows(rows, index, output.columns[index].kind === 'number', sort.desc);
         }
-        return rows;
-    }, [output, server, filters, onlyMatches, query, sort]);
+        // New rows go after the loaded ones, in a table tab only (a query result is sorted and filtered here)
+        return server && editor?.added.length ? [...rows, ...editor.added] : rows;
+        // `added` is rebuilt only when a row is added or dropped
+    }, [output, server, filters, onlyMatches, query, sort, editor?.added]);
 
     // By column name: where each foreign key points, and the keys elsewhere that point at each column
     const links = useMemo(() => {
@@ -283,9 +293,16 @@ export function ResultsGrid({
         const change = staged(data[r], c);
         return change ? change.to : data[r][c];
     };
+    /** Whether a row is staged to be added or deleted; `key` is its row's, when already known */
+    const opOf = (row: Row, key = editor?.keyOf(row)) => (key === undefined ? undefined : editor?.edits[key]?.op);
     /** Why a cell can't be edited, or undefined when it can; `key` is its row's, when already known */
-    const lockedAt = (r: number, c: number, key = editor?.keyOf(data[r])) =>
-        !editor ? 'Read-only' : key === undefined ? 'Read-only: this row has no primary key value' : editor.field(c).readOnly;
+    const lockedAt = (r: number, c: number, key = editor?.keyOf(data[r])) => {
+        if (!editor) return 'Read-only';
+        if (key === undefined) return 'Read-only: this row has no primary key value';
+        const op = opOf(data[r], key);
+        if (op === 'delete') return 'Deleted: restore the row to edit it';
+        return (op !== 'insert' && editor.locked) || editor.field(c).readOnly;
+    };
     /** Edits the cell when it can be, otherwise shows its value */
     const open = (row: number, col: number) => {
         pick(row, col);
@@ -305,8 +322,12 @@ export function ResultsGrid({
     useEffect(() => {
         if (!focus || !editor) return;
         const r = data.findIndex((row) => editor.keyOf(row) === focus.row);
-        const c = output.columns.findIndex((col) => col.name === focus.column);
-        if (r >= 0 && c >= 0) {
+        // No column (a row just added): its first
+        const c = Math.max(
+            output.columns.findIndex((col) => col.name === focus.column),
+            0,
+        );
+        if (r >= 0) {
             selectFn.current(r, c);
             scrollRef.current?.focus({ preventScroll: true });
         }
@@ -540,6 +561,20 @@ export function ResultsGrid({
     const [target, setTarget] = useState<{ row: number | null; col: number; rows?: true } | null>(null);
     const targetMeta = target ? output.columns[target.col] : undefined;
     const anyEdits = !!editor && editCount(editor) > 0;
+    /** Add, duplicate, delete or restore the range's rows, as far as the login may */
+    const rowOps = ({ r0, r1 }: Pick<Rect, 'r0' | 'r1'>) => {
+        if (!editor) return undefined;
+        const { insert, duplicate, remove } = editor;
+        // Rendered while the menu is open: no scan of the range without staged edits
+        let deleted = anyEdits;
+        for (let r = r0; deleted && r <= r1; r++) deleted = opOf(data[r]) === 'delete';
+        return {
+            onInsert: insert,
+            onDuplicate: duplicate && (() => duplicate(selectedRows({ r0, r1 }))),
+            onDelete: remove && (() => remove(data.slice(r0, r1 + 1), deleted)),
+            deleted,
+        };
+    };
 
     const status = copied
         ? 'Copied'
@@ -699,13 +734,19 @@ export function ResultsGrid({
                                             // Once per row, not per cell; its staged changes only looked up when there are any
                                             const key = editor?.keyOf(row.original);
                                             const rowEdits = key !== undefined && anyEdits ? editor!.edits[key] : undefined;
+                                            const deleted = rowEdits?.op === 'delete';
+                                            const isNew = rowEdits?.op === 'insert';
                                             const rowSelected = !!range && wholeRows && item.index >= range.r0 && item.index <= range.r1;
                                             return (
                                                 <div
                                                     key={row.id}
                                                     role="row"
                                                     aria-rowindex={item.index + 2}
-                                                    className="group absolute left-0 flex w-full border-b border-border-soft hover:bg-hover"
+                                                    className={cn(
+                                                        'group absolute left-0 flex w-full border-b border-border-soft hover:bg-hover',
+                                                        deleted && 'bg-danger-soft text-fg3 line-through decoration-fg4',
+                                                        isNew && 'bg-success-soft',
+                                                    )}
                                                     // top, not transform: a transformed row gets its own layer, and WebKit paints those over the overlay scrollbar
                                                     style={{ height: ROW_HEIGHT, top: item.start }}
                                                 >
@@ -722,7 +763,12 @@ export function ResultsGrid({
                                                             rowSelected && 'bg-linear-to-r from-primary-soft to-primary-soft text-primary-text',
                                                         )}
                                                     >
-                                                        {item.index + 1}
+                                                        {isNew ? (
+                                                            <span title="New row, not saved yet">+</span>
+                                                        ) : (
+                                                            <span title={deleted ? 'Deleted, not saved yet' : undefined}>{item.index + 1}</span>
+                                                        )}
+                                                        {(isNew || deleted) && <span className="sr-only">{isNew ? ', new' : ', deleted'}</span>}
                                                     </div>
                                                     {row.getVisibleCells().map((cell) => {
                                                         const col = cell.column.getIndex();
@@ -787,7 +833,7 @@ export function ResultsGrid({
                                                                     numeric && 'justify-end tabular-nums',
                                                                     mono && 'font-mono text-xs',
                                                                     // NULL reads as a marker, not a value: small mono, muted, never italic
-                                                                    value === null && 'font-mono text-[11px] text-fg4',
+                                                                    (value === null || (isNew && !change)) && 'font-mono text-[11px] text-fg4',
                                                                     match && 'bg-warning-soft',
                                                                     isCurrent && 'ring-1 ring-warning ring-inset',
                                                                     change && 'relative bg-warning-soft',
@@ -810,7 +856,10 @@ export function ResultsGrid({
                                                                         }}
                                                                     />
                                                                 ) : (
-                                                                    <span className="truncate">{value ?? 'NULL'}</span>
+                                                                    // A new row's column left unset takes the table's default
+                                                                    <span className="truncate">
+                                                                        {isNew && !change ? 'DEFAULT' : (value ?? 'NULL')}
+                                                                    </span>
                                                                 )}
                                                                 {change && !isTyping && (
                                                                     // Changed, not saved: a dot in the corner, besides the tint
@@ -888,6 +937,7 @@ export function ResultsGrid({
                                         : undefined
                                 }
                                 onSelectAll={() => pickRows(0, data.length - 1)}
+                                rowOps={server ? rowOps(range) : undefined}
                             />
                         ) : (
                             targetMeta && (
