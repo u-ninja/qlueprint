@@ -24,6 +24,9 @@ type UiState = {
     motion: Motion;
     /** Look for a newer release each time the app opens */
     checkUpdates: boolean;
+    /** The version whose "What's new" was last shown, so each update shows it once */
+    seenVersion: string | null;
+    setSeenVersion: (version: string) => void;
     setCheckUpdates: (on: boolean) => void;
     view: View;
     /** A Settings section (its id) to scroll to once the page shows it; it clears it. Not remembered */
@@ -76,6 +79,8 @@ export const useUi = create<UiState>()(
             theme: 'system',
             motion: 'spring',
             checkUpdates: true,
+            seenVersion: null,
+            setSeenVersion: (seenVersion) => set({ seenVersion }),
             setCheckUpdates: (checkUpdates) => set({ checkUpdates }),
             view: 'workspace',
             sidebarOpen: true,
@@ -123,10 +128,23 @@ export const useUi = create<UiState>()(
         }),
         {
             name: 'qc-ui',
-            partialize: ({ theme, motion, checkUpdates, view, sidebarOpen, inspectorOpen, workspaces, workspace, placement, lookupLabels }) => ({
+            partialize: ({
                 theme,
                 motion,
                 checkUpdates,
+                seenVersion,
+                view,
+                sidebarOpen,
+                inspectorOpen,
+                workspaces,
+                workspace,
+                placement,
+                lookupLabels,
+            }) => ({
+                theme,
+                motion,
+                checkUpdates,
+                seenVersion,
                 view,
                 sidebarOpen,
                 inspectorOpen,

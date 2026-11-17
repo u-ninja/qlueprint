@@ -13,6 +13,7 @@ import { WindowControls } from './WindowControls';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { CommandPalette } from './CommandPalette';
 import { UpdateButton } from './UpdateButton';
+import { WhatsNew } from './WhatsNew';
 import mark from '@/assets/qlueprint-mark.svg';
 
 const themes: { value: Theme; label: string; icon: LucideIcon }[] = [
@@ -108,6 +109,7 @@ export function TopBar() {
 
             <div className={cn('flex flex-none items-center gap-2', ownControls && 'pr-1')}>
                 <UpdateButton />
+                <WhatsNew />
                 <ChangesButton />
                 {/* Toggle buttons, not radios: radios would need arrow-key roving focus */}
                 <div role="group" aria-label="Theme" className="relative flex rounded-md bg-muted p-0.5">
