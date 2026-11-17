@@ -23,11 +23,23 @@ type Props = {
 };
 
 /** A Select with a filter box: for lists too long to scan (every database on a server) */
-export function SearchSelect({ value, onValueChange, options, placeholder, heading, leading, disabled, className, contentClassName, ...rest }: Props) {
+export function SearchSelect({
+    value,
+    onValueChange,
+    options,
+    placeholder,
+    heading,
+    leading,
+    disabled,
+    className,
+    contentClassName,
+    ...rest
+}: Props) {
     const [open, setOpen] = React.useState(false);
     const [query, setQuery] = React.useState('');
     const [active, setActive] = React.useState(0);
     const listRef = React.useRef<HTMLDivElement>(null);
+    const id = React.useId();
 
     const shown = React.useMemo(() => {
         const q = query.trim().toLowerCase();
@@ -37,7 +49,12 @@ export function SearchSelect({ value, onValueChange, options, placeholder, headi
     const onOpenChange = (next: boolean) => {
         setOpen(next);
         setQuery('');
-        setActive(Math.max(0, options.findIndex((o) => o.value === value)));
+        setActive(
+            Math.max(
+                0,
+                options.findIndex((o) => o.value === value),
+            ),
+        );
     };
     const pick = (o: SearchSelectOption | undefined) => {
         if (!o) return;
@@ -60,13 +77,7 @@ export function SearchSelect({ value, onValueChange, options, placeholder, headi
     const current = options.find((o) => o.value === value);
     return (
         <Popover open={open} onOpenChange={onOpenChange}>
-            <PopoverTrigger
-                disabled={disabled}
-                data-slot="select-trigger"
-                data-size="sm"
-                className={cn(selectTriggerClass, className)}
-                {...rest}
-            >
+            <PopoverTrigger disabled={disabled} data-slot="select-trigger" data-size="sm" className={cn(selectTriggerClass, className)} {...rest}>
                 {leading}
                 <span className={cn('min-w-0 flex-1 truncate text-left', !current && 'text-muted-foreground')}>{current?.label ?? placeholder}</span>
                 <ChevronDownIcon className="size-4 text-muted-foreground transition-transform duration-300 group-data-[state=open]/select-trigger:rotate-180" />
@@ -76,6 +87,12 @@ export function SearchSelect({ value, onValueChange, options, placeholder, headi
                     <SearchIcon className="size-3.5 flex-none text-muted-foreground" aria-hidden />
                     <input
                         autoFocus
+                        role="combobox"
+                        aria-expanded
+                        aria-controls={`${id}-list`}
+                        aria-activedescendant={shown[active] ? `${id}-${active}` : undefined}
+                        autoComplete="off"
+                        spellCheck={false}
                         value={query}
                         onChange={(e) => {
                             setQuery(e.target.value);
@@ -87,10 +104,11 @@ export function SearchSelect({ value, onValueChange, options, placeholder, headi
                         className="h-9 w-full bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
                     />
                 </div>
-                <div ref={listRef} role="listbox" aria-label={heading} className="max-h-64 overflow-y-auto p-1">
+                <div ref={listRef} id={`${id}-list`} role="listbox" aria-label={heading} className="max-h-64 overflow-y-auto p-1">
                     {shown.map((o, i) => (
                         <div
                             key={o.value}
+                            id={`${id}-${i}`}
                             role="option"
                             aria-selected={o.value === value}
                             title={o.label}

@@ -7,7 +7,7 @@ import { describeFilter, type ColumnFilter } from '@/lib/column-filter';
 import { cn, count, saveShortcut } from '@/lib/utils';
 import { errorMessage, useConnections } from '@/stores/connections';
 import { useUi } from '@/stores/ui';
-import { ALL_ROWS, editCount, qualifiedName, ROW_CAP, whereClause, type Outcome, type Sort, type TableTab } from '@/stores/query';
+import { ALL_ROWS, editCount, qualifiedName, whereClause, type Outcome, type Sort, type TableTab } from '@/stores/query';
 
 // Segments keep their text on one line and never shrink; only the ones marked `fluid` give way, with an ellipsis
 const segment = 'flex h-full flex-none items-center gap-1.5 px-2 whitespace-nowrap';
@@ -176,7 +176,7 @@ export function TableStatusBar({
     readOnly,
 }: {
     tab: TableTab;
-    onChange: (change: Partial<Pick<TableTab, 'where' | 'sort' | 'filters' | 'all'>>) => void;
+    onChange: (change: Partial<Pick<TableTab, 'where' | 'sort' | 'filters' | 'limit'>>) => void;
     /** Why its rows can't be edited, when they can't */
     readOnly?: string;
 }) {
@@ -235,8 +235,8 @@ export function TableStatusBar({
             extra={
                 <>
                     {/* The first ROW_CAP rows came back: there may be more */}
-                    {!tab.all && tab.outcome?.ok && tab.outcome.output.rows.length >= ROW_CAP && (
-                        <LoadAllButton total={current?.state === 'done' ? current.rows : null} onClick={() => onChange({ all: true })} />
+                    {tab.limit < ALL_ROWS && tab.outcome?.ok && tab.outcome.output.rows.length >= tab.limit && (
+                        <LoadAllButton total={current?.state === 'done' ? current.rows : null} onClick={() => onChange({ limit: ALL_ROWS })} />
                     )}
                     {current?.state === 'done' ? (
                         <span className={cn(segment, 'tabular-nums')}>of {current.rows.toLocaleString()} total</span>

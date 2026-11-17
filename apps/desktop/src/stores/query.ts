@@ -77,8 +77,8 @@ export type TableTab = {
     filters: ColumnFilter[];
     /** Ordered by the database, so it holds for the whole table, not just the loaded rows */
     sort: Sort | null;
-    /** Load every row (up to ALL_ROWS) instead of the first ROW_CAP */
-    all: boolean;
+    /** Rows to load: ROW_CAP by default, up to ALL_ROWS */
+    limit: number;
     runningSince: number | null;
     outcome: Outcome | null;
     /** Staged cell edits by row (`rowKey` of its primary key), saved together in one transaction */
@@ -136,7 +136,7 @@ type QueryState = {
     /** Opens (or focuses and reloads) a tab with the table's first rows; `filters` replace the tab's filter and WHERE. `show` false opens it behind the current tab */
     openTable: (connectionId: string, database: string, schema: string, table: string, filters?: ColumnFilter[], show?: boolean) => Promise<void>;
     /** Changes a table tab's filter or order and reloads it */
-    queryTable: (id: string, change: Partial<Pick<TableTab, 'where' | 'sort' | 'filters' | 'all'>>) => Promise<void>;
+    queryTable: (id: string, change: Partial<Pick<TableTab, 'where' | 'sort' | 'filters' | 'limit'>>) => Promise<void>;
     /** Stages cells' new values (null for NULL) on a table tab as one undo step; back to the loaded value unstages a cell */
     stageEdits: (id: string, cells: CellEdit[]) => void;
     /** Steps the staged edits back, or forward with `redo` */
@@ -431,11 +431,10 @@ export function selectSql(
     where = '',
     sort: Sort | null = null,
     filters: ColumnFilter[] = [],
-    all = false,
+    limit = ROW_CAP,
 ) {
     const filter = whereClause(kind, where, filters);
     const order = sort ? ` ORDER BY ${quoteName(kind, sort.column)} ${sort.desc ? 'DESC' : 'ASC'}` : '';
-    const limit = all ? ALL_ROWS : ROW_CAP;
     const from = `* FROM ${qualifiedName(kind, schema, table)}${filter}${order}`;
     return kind === 'mssql' ? `SELECT TOP (${limit}) ${from}` : `SELECT ${from} LIMIT ${limit}`;
 }
@@ -560,7 +559,7 @@ export const newTableTab = (t: Pick<TableTab, 'connectionId' | 'database' | 'sch
     where: '',
     filters: [],
     sort: null,
-    all: false,
+    limit: ROW_CAP,
     runningSince: null,
     outcome: null,
     edits: {},
@@ -619,9 +618,9 @@ export const useQuery = create<QueryState>()(
                 const connection = useConnections.getState().connections.find((c) => c.id === tab?.connectionId);
                 if (!tab || !connection || tab.runningSince !== null) return;
                 updateTable(id, { runningSince: Date.now() });
-                const sql = selectSql(connection.kind, tab.schema, tab.table, tab.where, tab.sort, tab.filters, tab.all);
+                const sql = selectSql(connection.kind, tab.schema, tab.table, tab.where, tab.sort, tab.filters, tab.limit);
                 // New rows: an undo step could name rows that aren't there any more
-                const outcome = await execute(tab.connectionId, sql, tab.database, tab.all);
+                const outcome = await execute(tab.connectionId, sql, tab.database, tab.limit > ROW_CAP);
                 updateTable(id, { runningSince: null, outcome, undo: [], redo: [] });
             };
 
@@ -902,7 +901,7 @@ export const useQuery = create<QueryState>()(
                     const tab = get().tables.find((t) => t.id === id);
                     const connection = useConnections.getState().connections.find((c) => c.id === tab?.connectionId);
                     if (!tab || !connection || tab.plan?.runningSince != null) return;
-                    const sql = selectSql(connection.kind, tab.schema, tab.table, tab.where, tab.sort, tab.filters, tab.all);
+                    const sql = selectSql(connection.kind, tab.schema, tab.table, tab.where, tab.sort, tab.filters, tab.limit);
                     await runExplain(tab.plan, connection.id, sql, tab.database, analyze, ` ${tab.schema}.${tab.table}`, (plan) =>
                         updateTable(id, { plan }),
                     );

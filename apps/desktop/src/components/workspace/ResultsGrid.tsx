@@ -12,10 +12,11 @@ import { describeFilter, filterKindOf, filterRows, type ColumnFilter } from '@/l
 import { ColumnFilterForm } from './ColumnFilterForm';
 import { GridMenu, RowMenu, openClick, short } from './GridMenu';
 import { ValuePanel } from './ValuePanel';
+import { GridToolbar, type Limit } from './GridToolbar';
 import { CellEditor, type CellField } from './CellEditor';
 import { referenceOf, type Related } from '@/lib/table-details';
 import { fillTarget, fillValues, parseTsv, sameRect, toTsv, type Rect } from '@/lib/cell-range';
-import { rowsAsInsert, rowsAsJson } from '@/lib/row-copy';
+import { rowsAsCsv, rowsAsInsert, rowsAsJson } from '@/lib/row-copy';
 import { cn, count, isMac } from '@/lib/utils';
 
 type Row = (string | null)[];
@@ -110,6 +111,8 @@ type Props = {
     /** A table tab's table, so selected rows can be copied as INSERT statements. Its rows come sorted and
      * filtered by the database; a query result's are sorted and filtered here */
     table?: { schema: string; name: string };
+    /** The strip under the grid: reload, the row limit, and the name exports start with */
+    toolbar: { fileName: string; refresh?: { run: () => void; busy: boolean; blocked?: string }; limit?: Limit };
 };
 
 /** Virtualized, resizable, sortable, filterable grid for one result set, with find (Ctrl/Cmd+F) */
@@ -124,6 +127,7 @@ export function ResultsGrid({
     onOpenRelated,
     editor,
     table: source,
+    toolbar,
 }: Props) {
     const server = !!source;
     const filterOf = (column: string) => filters.find((f) => f.column === column);
@@ -576,6 +580,10 @@ export function ResultsGrid({
         };
     };
 
+    // Saved rows as the grid shows them (sorted, filtered), without the ones staged to be added
+    const exported = editor?.added.length ? data.slice(0, data.length - editor.added.length) : data;
+    const selectedOps = range ? rowOps(range) : undefined;
+
     const status = copied
         ? 'Copied'
         : notice ||
@@ -593,526 +601,563 @@ export function ResultsGrid({
 
     return (
         <Popover open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
-            <div className="flex h-full" onKeyDown={onGridKeyDown}>
-                <div className="relative h-full min-w-0 flex-1">
-                    {/* The menu's target clears as it closes, so its props (a scan for staged changes) aren't rebuilt on every render */}
-                    <ContextMenu onOpenChange={(open) => !open && setTarget(null)}>
-                        <ContextMenuTrigger asChild>
-                            <div
-                                ref={scrollRef}
-                                tabIndex={0}
-                                aria-label="Results. Ctrl or Command F to find"
-                                className="h-full overflow-auto text-[12.5px] outline-none select-text focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
-                                onMouseOver={onDragOver}
-                                // One handler for every row number: click selects the row, Shift extends from the anchor row, drag selects a block
-                                onMouseDown={(e) => {
-                                    const head = (e.target as HTMLElement).closest<HTMLElement>('[data-row-head]');
-                                    if (!head || e.button !== 0) return;
-                                    e.preventDefault();
-                                    scrollRef.current?.focus({ preventScroll: true });
-                                    const r = Number(head.dataset.row);
-                                    if (e.shiftKey && selected) setPicked({ ...selected, col: 0, toRow: r, toCol: lastCol });
-                                    else pickRows(r);
-                                    startDrag('rows');
-                                }}
-                                onContextMenu={(e) => {
-                                    const el = e.target as HTMLElement;
-                                    const rowHead = el.closest<HTMLElement>('[data-row-head]');
-                                    if (rowHead) {
-                                        const r = Number(rowHead.dataset.row);
-                                        // Inside selected rows the menu acts on all of them; elsewhere it selects the clicked row first
-                                        if (!(range && wholeRows && r >= range.r0 && r <= range.r1)) pickRows(r);
-                                        setTarget({ row: r, col: 0, rows: true });
-                                        return;
-                                    }
-                                    const cell = el.closest<HTMLElement>('[data-col]');
-                                    const head = el.closest<HTMLElement>('[data-header-col]');
-                                    const row = Number(cell?.dataset.row);
-                                    const col = Number(cell?.dataset.col);
-                                    // Inside the range the menu acts on all of it; elsewhere it selects the clicked cell first
-                                    if (cell && !(range && row >= range.r0 && row <= range.r1 && col >= range.c0 && col <= range.c1)) pick(row, col);
-                                    setTarget(cell ? { row, col } : head ? { row: null, col: Number(head.dataset.headerCol) } : null);
-                                }}
-                            >
+            <div className="flex h-full flex-col">
+                <div className="flex min-h-0 flex-1" onKeyDown={onGridKeyDown}>
+                    <div className="relative h-full min-w-0 flex-1">
+                        {/* The menu's target clears as it closes, so its props (a scan for staged changes) aren't rebuilt on every render */}
+                        <ContextMenu onOpenChange={(open) => !open && setTarget(null)}>
+                            <ContextMenuTrigger asChild>
                                 <div
-                                    role="table"
-                                    aria-label="Query results"
-                                    aria-rowcount={rows.length + 1}
-                                    aria-colcount={columns.length}
-                                    style={{ width, minWidth: '100%' }}
+                                    ref={scrollRef}
+                                    tabIndex={0}
+                                    aria-label="Results. Ctrl or Command F to find"
+                                    className="h-full overflow-auto text-[12.5px] outline-none select-text focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+                                    onMouseOver={onDragOver}
+                                    // One handler for every row number: click selects the row, Shift extends from the anchor row, drag selects a block
+                                    onMouseDown={(e) => {
+                                        const head = (e.target as HTMLElement).closest<HTMLElement>('[data-row-head]');
+                                        if (!head || e.button !== 0) return;
+                                        e.preventDefault();
+                                        scrollRef.current?.focus({ preventScroll: true });
+                                        const r = Number(head.dataset.row);
+                                        if (e.shiftKey && selected) setPicked({ ...selected, col: 0, toRow: r, toCol: lastCol });
+                                        else pickRows(r);
+                                        startDrag('rows');
+                                    }}
+                                    onContextMenu={(e) => {
+                                        const el = e.target as HTMLElement;
+                                        const rowHead = el.closest<HTMLElement>('[data-row-head]');
+                                        if (rowHead) {
+                                            const r = Number(rowHead.dataset.row);
+                                            // Inside selected rows the menu acts on all of them; elsewhere it selects the clicked row first
+                                            if (!(range && wholeRows && r >= range.r0 && r <= range.r1)) pickRows(r);
+                                            setTarget({ row: r, col: 0, rows: true });
+                                            return;
+                                        }
+                                        const cell = el.closest<HTMLElement>('[data-col]');
+                                        const head = el.closest<HTMLElement>('[data-header-col]');
+                                        const row = Number(cell?.dataset.row);
+                                        const col = Number(cell?.dataset.col);
+                                        // Inside the range the menu acts on all of it; elsewhere it selects the clicked cell first
+                                        if (cell && !(range && row >= range.r0 && row <= range.r1 && col >= range.c0 && col <= range.c1))
+                                            pick(row, col);
+                                        setTarget(cell ? { row, col } : head ? { row: null, col: Number(head.dataset.headerCol) } : null);
+                                    }}
                                 >
-                                    <div role="row" aria-rowindex={1} className="sticky top-0 z-20 flex h-7.5 border-b border-border-soft bg-header">
-                                        <div role="columnheader" aria-label="Row number" className={cn(gutter, 'z-30 justify-center bg-header pr-0')}>
-                                            <button
-                                                onClick={openFind}
-                                                aria-label="Find in results"
-                                                title="Find in results (Ctrl/Cmd+F)"
-                                                className={findButton}
+                                    <div
+                                        role="table"
+                                        aria-label="Query results"
+                                        aria-rowcount={rows.length + 1}
+                                        aria-colcount={columns.length}
+                                        style={{ width, minWidth: '100%' }}
+                                    >
+                                        <div
+                                            role="row"
+                                            aria-rowindex={1}
+                                            className="sticky top-0 z-20 flex h-7.5 border-b border-border-soft bg-header"
+                                        >
+                                            <div
+                                                role="columnheader"
+                                                aria-label="Row number"
+                                                className={cn(gutter, 'z-30 justify-center bg-header pr-0')}
                                             >
-                                                <Search className="size-3.5" aria-hidden />
-                                            </button>
-                                        </div>
-                                        {table.getHeaderGroups()[0].headers.map((header) => {
-                                            const column = output.columns[header.index];
-                                            const numeric = column.kind === 'number';
-                                            const sorted = sort?.column === column.name ? (sort.desc ? 'descending' : 'ascending') : undefined;
-                                            const Arrow = sorted === 'descending' ? ArrowDown : ArrowUp;
-                                            const filtered = filterOf(column.name);
-                                            const ref = links.refs.get(column.name);
-                                            const cell = (
-                                                <div
-                                                    key={header.id}
-                                                    role="columnheader"
-                                                    aria-sort={sorted ?? 'none'}
-                                                    data-header-col={header.index}
-                                                    style={{ width: header.getSize() }}
-                                                    className="relative flex flex-none border-r border-border-soft"
+                                                <button
+                                                    onClick={openFind}
+                                                    aria-label="Find in results"
+                                                    title="Find in results (Ctrl/Cmd+F)"
+                                                    className={findButton}
                                                 >
-                                                    {/* The whole header is the sort target: a big, familiar click target */}
-                                                    <button
-                                                        onClick={() => setSort(nextSort(sort, column.name))}
-                                                        title={`Sort by ${column.name}${server ? '' : ' (loaded rows)'}${ref ? `\nreferences ${ref.label}` : ''}`}
-                                                        className={cn(
-                                                            // Inset ring: an outline would be clipped by the sticky header and its neighbours
-                                                            'group/sort flex min-w-0 flex-1 items-center gap-1.5 px-2.5 text-left outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset',
-                                                            numeric && 'justify-end',
-                                                        )}
+                                                    <Search className="size-3.5" aria-hidden />
+                                                </button>
+                                            </div>
+                                            {table.getHeaderGroups()[0].headers.map((header) => {
+                                                const column = output.columns[header.index];
+                                                const numeric = column.kind === 'number';
+                                                const sorted = sort?.column === column.name ? (sort.desc ? 'descending' : 'ascending') : undefined;
+                                                const Arrow = sorted === 'descending' ? ArrowDown : ArrowUp;
+                                                const filtered = filterOf(column.name);
+                                                const ref = links.refs.get(column.name);
+                                                const cell = (
+                                                    <div
+                                                        key={header.id}
+                                                        role="columnheader"
+                                                        aria-sort={sorted ?? 'none'}
+                                                        data-header-col={header.index}
+                                                        style={{ width: header.getSize() }}
+                                                        className="relative flex flex-none border-r border-border-soft"
                                                     >
-                                                        <span className="truncate font-medium">
-                                                            {flexRender(header.column.columnDef.header, header.getContext())}
-                                                        </span>
-                                                        <span className="flex-none font-mono text-[10.5px] text-fg4">
-                                                            {column.typeName.toLowerCase()}
-                                                        </span>
-                                                        {ref && (
-                                                            <ArrowUpRight
-                                                                aria-label={`references ${ref.label}`}
-                                                                className="size-3 flex-none text-fg3"
+                                                        {/* The whole header is the sort target: a big, familiar click target */}
+                                                        <button
+                                                            onClick={() => setSort(nextSort(sort, column.name))}
+                                                            title={`Sort by ${column.name}${server ? '' : ' (loaded rows)'}${ref ? `\nreferences ${ref.label}` : ''}`}
+                                                            className={cn(
+                                                                // Inset ring: an outline would be clipped by the sticky header and its neighbours
+                                                                'group/sort flex min-w-0 flex-1 items-center gap-1.5 px-2.5 text-left outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset',
+                                                                numeric && 'justify-end',
+                                                            )}
+                                                        >
+                                                            <span className="truncate font-medium">
+                                                                {flexRender(header.column.columnDef.header, header.getContext())}
+                                                            </span>
+                                                            <span className="flex-none font-mono text-[10.5px] text-fg4">
+                                                                {column.typeName.toLowerCase()}
+                                                            </span>
+                                                            {ref && (
+                                                                <ArrowUpRight
+                                                                    aria-label={`references ${ref.label}`}
+                                                                    className="size-3 flex-none text-fg3"
+                                                                />
+                                                            )}
+                                                            {filtered && (
+                                                                <Filter
+                                                                    aria-label={`Filtered: ${describeFilter(filtered)}`}
+                                                                    className="size-3 flex-none text-primary-text"
+                                                                />
+                                                            )}
+                                                            <Arrow
+                                                                aria-hidden
+                                                                className={cn(
+                                                                    'size-3 flex-none',
+                                                                    sorted ? 'text-primary-text' : 'text-fg4 opacity-0 group-hover/sort:opacity-100',
+                                                                )}
                                                             />
-                                                        )}
-                                                        {filtered && (
-                                                            <Filter
-                                                                aria-label={`Filtered: ${describeFilter(filtered)}`}
-                                                                className="size-3 flex-none text-primary-text"
-                                                            />
-                                                        )}
-                                                        <Arrow
+                                                        </button>
+                                                        {/* Drag to resize, double-click to reset */}
+                                                        <div
+                                                            onMouseDown={header.getResizeHandler()}
+                                                            onTouchStart={header.getResizeHandler()}
+                                                            onDoubleClick={() => header.column.resetSize()}
                                                             aria-hidden
                                                             className={cn(
-                                                                'size-3 flex-none',
-                                                                sorted ? 'text-primary-text' : 'text-fg4 opacity-0 group-hover/sort:opacity-100',
+                                                                'absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none select-none hover:bg-primary/40',
+                                                                header.column.getIsResizing() && 'bg-primary/60',
                                                             )}
                                                         />
-                                                    </button>
-                                                    {/* Drag to resize, double-click to reset */}
-                                                    <div
-                                                        onMouseDown={header.getResizeHandler()}
-                                                        onTouchStart={header.getResizeHandler()}
-                                                        onDoubleClick={() => header.column.resetSize()}
-                                                        aria-hidden
-                                                        className={cn(
-                                                            'absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none select-none hover:bg-primary/40',
-                                                            header.column.getIsResizing() && 'bg-primary/60',
-                                                        )}
-                                                    />
-                                                </div>
-                                            );
-                                            // The open filter form points at its column's header
-                                            return editing === column.name ? (
-                                                <PopoverAnchor asChild key={header.id}>
-                                                    {cell}
-                                                </PopoverAnchor>
-                                            ) : (
-                                                cell
-                                            );
-                                        })}
-                                    </div>
-
-                                    <div className="relative" style={{ height: virtualizer.getTotalSize() }}>
-                                        {virtualizer.getVirtualItems().map((item) => {
-                                            const row = rows[item.index];
-                                            // Once per row, not per cell; its staged changes only looked up when there are any
-                                            const key = editor?.keyOf(row.original);
-                                            const rowEdits = key !== undefined && anyEdits ? editor!.edits[key] : undefined;
-                                            const deleted = rowEdits?.op === 'delete';
-                                            const isNew = rowEdits?.op === 'insert';
-                                            const rowSelected = !!range && wholeRows && item.index >= range.r0 && item.index <= range.r1;
-                                            return (
-                                                <div
-                                                    key={row.id}
-                                                    role="row"
-                                                    aria-rowindex={item.index + 2}
-                                                    className={cn(
-                                                        'group absolute left-0 flex w-full border-b border-border-soft hover:bg-hover',
-                                                        deleted && 'bg-danger-soft text-fg3 line-through decoration-fg4',
-                                                        isNew && 'bg-success-soft',
-                                                    )}
-                                                    // top, not transform: a transformed row gets its own layer, and WebKit paints those over the overlay scrollbar
-                                                    style={{ height: ROW_HEIGHT, top: item.start }}
-                                                >
-                                                    <div
-                                                        role="rowheader"
-                                                        data-row={item.index}
-                                                        data-row-head=""
-                                                        aria-selected={rowSelected}
-                                                        title="Click to select the row, drag or Shift-click for more"
-                                                        className={cn(
-                                                            gutter,
-                                                            'cursor-default bg-surface font-mono text-[11px] text-fg4 tabular-nums select-none',
-                                                            // The gutter is sticky over the cells, so the translucent tint goes on top of an opaque surface
-                                                            rowSelected && 'bg-linear-to-r from-primary-soft to-primary-soft text-primary-text',
-                                                        )}
-                                                    >
-                                                        {isNew ? (
-                                                            <span title="New row, not saved yet">+</span>
-                                                        ) : (
-                                                            <span title={deleted ? 'Deleted, not saved yet' : undefined}>{item.index + 1}</span>
-                                                        )}
-                                                        {(isNew || deleted) && <span className="sr-only">{isNew ? ', new' : ', deleted'}</span>}
                                                     </div>
-                                                    {row.getVisibleCells().map((cell) => {
-                                                        const col = cell.column.getIndex();
-                                                        const change = rowEdits?.changes[output.columns[col].name];
-                                                        const value = change ? change.to : cell.getValue<string | null>();
-                                                        const isTyping = input?.row === item.index && input.col === col;
-                                                        const locked = editor && lockedAt(item.index, col, key);
-                                                        const { kind } = output.columns[col];
-                                                        const numeric = kind === 'number';
-                                                        // Values compared character by character (figures, times, ids, JSON, bytes) are set in mono
-                                                        const mono = kind !== 'text';
-                                                        // Only visible cells render, so checking each one beats keeping a set of every match
-                                                        const match = !!query && matchesQuery(value, query);
-                                                        const isCurrent = match && matches[at]?.[0] === item.index && matches[at]?.[1] === col;
-                                                        const isSelected = selected?.row === item.index && selected.col === col;
-                                                        const inRange =
-                                                            !!range &&
-                                                            multi &&
-                                                            item.index >= range.r0 &&
-                                                            item.index <= range.r1 &&
-                                                            col >= range.c0 &&
-                                                            col <= range.c1;
-                                                        // Follows the loaded value: a staged one isn't in the database yet
-                                                        const loaded = cell.getValue<string | null>();
-                                                        const ref = loaded !== null ? links.refs.get(output.columns[col].name) : undefined;
-                                                        return (
-                                                            <div
-                                                                key={cell.id}
-                                                                role="cell"
-                                                                data-row={item.index}
-                                                                data-col={col}
-                                                                onMouseDown={(e) => {
-                                                                    // ⌘-click on a link is left to onClick
-                                                                    if (e.button !== 0 || (ref && loaded !== null && (isMac ? e.metaKey : e.ctrlKey)))
-                                                                        return;
-                                                                    // Dragging selects cells, not text (and a double-click doesn't select a word)
-                                                                    e.preventDefault();
-                                                                    scrollRef.current?.focus({ preventScroll: true });
-                                                                    pick(item.index, col, e.shiftKey);
-                                                                    startDrag('select');
-                                                                }}
-                                                                onClick={(e) => {
-                                                                    if (ref && loaded !== null && (isMac ? e.metaKey : e.ctrlKey))
-                                                                        openRelated(ref, output.columns[col], loaded);
-                                                                }}
-                                                                onDoubleClick={() => open(item.index, col)}
-                                                                aria-selected={isSelected || inRange}
-                                                                title={
-                                                                    ref
-                                                                        ? `${openClick} to open ${ref.table} where ${ref.column} = ${short(loaded)}`
-                                                                        : change
-                                                                          ? `Was ${short(change.from)}, not saved yet`
-                                                                          : value !== null && value.length > 40
-                                                                            ? value
-                                                                            : editor && !locked
-                                                                              ? 'Double-click to edit'
-                                                                              : (locked ?? 'Double-click to see the whole value')
-                                                                }
-                                                                style={{ width: cell.column.getSize() }}
-                                                                className={cn(
-                                                                    'flex flex-none items-center overflow-hidden px-2.5 whitespace-nowrap',
-                                                                    numeric && 'justify-end tabular-nums',
-                                                                    mono && 'font-mono text-xs',
-                                                                    // NULL reads as a marker, not a value: small mono, muted, never italic
-                                                                    (value === null || (isNew && !change)) && 'font-mono text-[11px] text-fg4',
-                                                                    match && 'bg-warning-soft',
-                                                                    isCurrent && 'ring-1 ring-warning ring-inset',
-                                                                    change && 'relative bg-warning-soft',
-                                                                    inRange && 'bg-primary-soft',
-                                                                    isSelected && 'bg-primary-soft ring-1 ring-primary ring-inset',
-                                                                    ref && 'decoration-fg4 decoration-dotted underline-offset-2 hover:underline',
-                                                                    ref && linking && 'cursor-pointer underline decoration-solid',
-                                                                    isTyping && 'p-0',
-                                                                )}
-                                                            >
-                                                                {isTyping ? (
-                                                                    <CellEditor
-                                                                        value={value}
-                                                                        field={editor!.field(col)}
-                                                                        className="h-full w-full min-w-0 bg-elev px-2.5 text-foreground ring-1 ring-primary outline-none ring-inset"
-                                                                        onDone={(to, refocus) => {
-                                                                            setTyping(null);
-                                                                            if (to !== undefined) editor?.stage([{ row: row.original, col, to }]);
-                                                                            if (refocus) scrollRef.current?.focus();
-                                                                        }}
-                                                                    />
-                                                                ) : (
-                                                                    // A new row's column left unset takes the table's default
-                                                                    <span className="truncate">
-                                                                        {isNew && !change ? 'DEFAULT' : (value ?? 'NULL')}
-                                                                    </span>
-                                                                )}
-                                                                {change && !isTyping && (
-                                                                    // Changed, not saved: a dot in the corner, besides the tint
-                                                                    <>
-                                                                        <span
-                                                                            aria-hidden
-                                                                            className="absolute top-1 right-1 size-1.5 rounded-full bg-warning"
-                                                                        />
-                                                                        <span className="sr-only">, changed</span>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            );
-                                        })}
-                                        {range && (multi || editor) && (
-                                            // One outline over the range, not a border per cell; the fill handle sits on its corner
-                                            <div
-                                                aria-hidden
-                                                className={cn('pointer-events-none absolute z-[5]', multi && 'ring-1 ring-primary ring-inset')}
-                                                style={rectStyle(range)}
-                                            >
-                                                {editor && (
+                                                );
+                                                // The open filter form points at its column's header
+                                                return editing === column.name ? (
+                                                    <PopoverAnchor asChild key={header.id}>
+                                                        {cell}
+                                                    </PopoverAnchor>
+                                                ) : (
+                                                    cell
+                                                );
+                                            })}
+                                        </div>
+
+                                        <div className="relative" style={{ height: virtualizer.getTotalSize() }}>
+                                            {virtualizer.getVirtualItems().map((item) => {
+                                                const row = rows[item.index];
+                                                // Once per row, not per cell; its staged changes only looked up when there are any
+                                                const key = editor?.keyOf(row.original);
+                                                const rowEdits = key !== undefined && anyEdits ? editor!.edits[key] : undefined;
+                                                const deleted = rowEdits?.op === 'delete';
+                                                const isNew = rowEdits?.op === 'insert';
+                                                const rowSelected = !!range && wholeRows && item.index >= range.r0 && item.index <= range.r1;
+                                                return (
                                                     <div
-                                                        title="Drag to fill, double-click to fill down"
-                                                        onMouseDown={(e) => {
-                                                            if (e.button !== 0) return;
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            scrollRef.current?.focus({ preventScroll: true });
-                                                            startDrag('fill');
-                                                        }}
-                                                        onDoubleClick={() =>
-                                                            range.r1 < data.length - 1 && fill(range, { ...range, r1: data.length - 1 })
-                                                        }
-                                                        className="pointer-events-auto absolute -right-[3px] -bottom-[3px] size-[7px] cursor-crosshair border border-surface bg-primary"
-                                                    />
-                                                )}
-                                            </div>
-                                        )}
-                                        {fillTo && (
-                                            <div
-                                                aria-hidden
-                                                className="pointer-events-none absolute z-[5] border border-dashed border-primary"
-                                                style={rectStyle(fillTo)}
-                                            />
-                                        )}
+                                                        key={row.id}
+                                                        role="row"
+                                                        aria-rowindex={item.index + 2}
+                                                        className={cn(
+                                                            'group absolute left-0 flex w-full border-b border-border-soft hover:bg-hover',
+                                                            deleted && 'bg-danger-soft text-fg3 line-through decoration-fg4',
+                                                            isNew && 'bg-success-soft',
+                                                        )}
+                                                        // top, not transform: a transformed row gets its own layer, and WebKit paints those over the overlay scrollbar
+                                                        style={{ height: ROW_HEIGHT, top: item.start }}
+                                                    >
+                                                        <div
+                                                            role="rowheader"
+                                                            data-row={item.index}
+                                                            data-row-head=""
+                                                            aria-selected={rowSelected}
+                                                            title="Click to select the row, drag or Shift-click for more"
+                                                            className={cn(
+                                                                gutter,
+                                                                'cursor-default bg-surface font-mono text-[11px] text-fg4 tabular-nums select-none',
+                                                                // The gutter is sticky over the cells, so the translucent tint goes on top of an opaque surface
+                                                                rowSelected && 'bg-linear-to-r from-primary-soft to-primary-soft text-primary-text',
+                                                            )}
+                                                        >
+                                                            {isNew ? (
+                                                                <span title="New row, not saved yet">+</span>
+                                                            ) : (
+                                                                <span title={deleted ? 'Deleted, not saved yet' : undefined}>{item.index + 1}</span>
+                                                            )}
+                                                            {(isNew || deleted) && <span className="sr-only">{isNew ? ', new' : ', deleted'}</span>}
+                                                        </div>
+                                                        {row.getVisibleCells().map((cell) => {
+                                                            const col = cell.column.getIndex();
+                                                            const change = rowEdits?.changes[output.columns[col].name];
+                                                            const value = change ? change.to : cell.getValue<string | null>();
+                                                            const isTyping = input?.row === item.index && input.col === col;
+                                                            const locked = editor && lockedAt(item.index, col, key);
+                                                            const { kind } = output.columns[col];
+                                                            const numeric = kind === 'number';
+                                                            // Values compared character by character (figures, times, ids, JSON, bytes) are set in mono
+                                                            const mono = kind !== 'text';
+                                                            // Only visible cells render, so checking each one beats keeping a set of every match
+                                                            const match = !!query && matchesQuery(value, query);
+                                                            const isCurrent = match && matches[at]?.[0] === item.index && matches[at]?.[1] === col;
+                                                            const isSelected = selected?.row === item.index && selected.col === col;
+                                                            const inRange =
+                                                                !!range &&
+                                                                multi &&
+                                                                item.index >= range.r0 &&
+                                                                item.index <= range.r1 &&
+                                                                col >= range.c0 &&
+                                                                col <= range.c1;
+                                                            // Follows the loaded value: a staged one isn't in the database yet
+                                                            const loaded = cell.getValue<string | null>();
+                                                            const ref = loaded !== null ? links.refs.get(output.columns[col].name) : undefined;
+                                                            return (
+                                                                <div
+                                                                    key={cell.id}
+                                                                    role="cell"
+                                                                    data-row={item.index}
+                                                                    data-col={col}
+                                                                    onMouseDown={(e) => {
+                                                                        // ⌘-click on a link is left to onClick
+                                                                        if (
+                                                                            e.button !== 0 ||
+                                                                            (ref && loaded !== null && (isMac ? e.metaKey : e.ctrlKey))
+                                                                        )
+                                                                            return;
+                                                                        // Dragging selects cells, not text (and a double-click doesn't select a word)
+                                                                        e.preventDefault();
+                                                                        scrollRef.current?.focus({ preventScroll: true });
+                                                                        pick(item.index, col, e.shiftKey);
+                                                                        startDrag('select');
+                                                                    }}
+                                                                    onClick={(e) => {
+                                                                        if (ref && loaded !== null && (isMac ? e.metaKey : e.ctrlKey))
+                                                                            openRelated(ref, output.columns[col], loaded);
+                                                                    }}
+                                                                    onDoubleClick={() => open(item.index, col)}
+                                                                    aria-selected={isSelected || inRange}
+                                                                    title={
+                                                                        ref
+                                                                            ? `${openClick} to open ${ref.table} where ${ref.column} = ${short(loaded)}`
+                                                                            : change
+                                                                              ? `Was ${short(change.from)}, not saved yet`
+                                                                              : value !== null && value.length > 40
+                                                                                ? value
+                                                                                : editor && !locked
+                                                                                  ? 'Double-click to edit'
+                                                                                  : (locked ?? 'Double-click to see the whole value')
+                                                                    }
+                                                                    style={{ width: cell.column.getSize() }}
+                                                                    className={cn(
+                                                                        'flex flex-none items-center overflow-hidden px-2.5 whitespace-nowrap',
+                                                                        numeric && 'justify-end tabular-nums',
+                                                                        mono && 'font-mono text-xs',
+                                                                        // NULL reads as a marker, not a value: small mono, muted, never italic
+                                                                        (value === null || (isNew && !change)) && 'font-mono text-[11px] text-fg4',
+                                                                        match && 'bg-warning-soft',
+                                                                        isCurrent && 'ring-1 ring-warning ring-inset',
+                                                                        change && 'relative bg-warning-soft',
+                                                                        inRange && 'bg-primary-soft',
+                                                                        isSelected && 'bg-primary-soft ring-1 ring-primary ring-inset',
+                                                                        ref && 'decoration-fg4 decoration-dotted underline-offset-2 hover:underline',
+                                                                        ref && linking && 'cursor-pointer underline decoration-solid',
+                                                                        isTyping && 'p-0',
+                                                                    )}
+                                                                >
+                                                                    {isTyping ? (
+                                                                        <CellEditor
+                                                                            value={value}
+                                                                            field={editor!.field(col)}
+                                                                            className="h-full w-full min-w-0 bg-elev px-2.5 text-foreground ring-1 ring-primary outline-none ring-inset"
+                                                                            onDone={(to, refocus) => {
+                                                                                setTyping(null);
+                                                                                if (to !== undefined) editor?.stage([{ row: row.original, col, to }]);
+                                                                                if (refocus) scrollRef.current?.focus();
+                                                                            }}
+                                                                        />
+                                                                    ) : (
+                                                                        // A new row's column left unset takes the table's default
+                                                                        <span className="truncate">
+                                                                            {isNew && !change ? 'DEFAULT' : (value ?? 'NULL')}
+                                                                        </span>
+                                                                    )}
+                                                                    {change && !isTyping && (
+                                                                        // Changed, not saved: a dot in the corner, besides the tint
+                                                                        <>
+                                                                            <span
+                                                                                aria-hidden
+                                                                                className="absolute top-1 right-1 size-1.5 rounded-full bg-warning"
+                                                                            />
+                                                                            <span className="sr-only">, changed</span>
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                );
+                                            })}
+                                            {range && (multi || editor) && (
+                                                // One outline over the range, not a border per cell; the fill handle sits on its corner
+                                                <div
+                                                    aria-hidden
+                                                    className={cn('pointer-events-none absolute z-[5]', multi && 'ring-1 ring-primary ring-inset')}
+                                                    style={rectStyle(range)}
+                                                >
+                                                    {editor && (
+                                                        <div
+                                                            title="Drag to fill, double-click to fill down"
+                                                            onMouseDown={(e) => {
+                                                                if (e.button !== 0) return;
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                scrollRef.current?.focus({ preventScroll: true });
+                                                                startDrag('fill');
+                                                            }}
+                                                            onDoubleClick={() =>
+                                                                range.r1 < data.length - 1 && fill(range, { ...range, r1: data.length - 1 })
+                                                            }
+                                                            className="pointer-events-auto absolute -right-[3px] -bottom-[3px] size-[7px] cursor-crosshair border border-surface bg-primary"
+                                                        />
+                                                    )}
+                                                </div>
+                                            )}
+                                            {fillTo && (
+                                                <div
+                                                    aria-hidden
+                                                    className="pointer-events-none absolute z-[5] border border-dashed border-primary"
+                                                    style={rectStyle(fillTo)}
+                                                />
+                                            )}
+                                        </div>
                                     </div>
+                                    {rows.length === 0 && (
+                                        <p className="sticky left-0 px-4 py-6 text-center text-fg3">
+                                            {(onlyMatches && query) || filters.length ? 'No rows match' : 'No rows'}
+                                        </p>
+                                    )}
                                 </div>
-                                {rows.length === 0 && (
-                                    <p className="sticky left-0 px-4 py-6 text-center text-fg3">
-                                        {(onlyMatches && query) || filters.length ? 'No rows match' : 'No rows'}
-                                    </p>
-                                )}
-                            </div>
-                        </ContextMenuTrigger>
-                        {target?.rows && range ? (
-                            <RowMenu
-                                rows={range.r1 - range.r0 + 1}
-                                onCopy={() => copyRange({ ...range, c0: 0, c1: lastCol })}
-                                onCopyJson={() => copy(rowsAsJson(output.columns, selectedRows(range)))}
-                                onCopyInsert={
-                                    source && engine
-                                        ? () =>
-                                              copy(
-                                                  rowsAsInsert(
-                                                      engine,
-                                                      qualifiedName(engine, source.schema, source.name),
-                                                      output.columns,
-                                                      selectedRows(range),
-                                                  ),
-                                              )
-                                        : undefined
-                                }
-                                onSelectAll={() => pickRows(0, data.length - 1)}
-                                rowOps={server ? rowOps(range) : undefined}
-                            />
-                        ) : (
-                            targetMeta && (
-                                <GridMenu
-                                    column={targetMeta}
-                                    cell={
-                                        target && target.row !== null && data[target.row]
-                                            ? {
-                                                  value: valueAt(target.row, target.col),
-                                                  onCopyRowJson: () =>
-                                                      copy(rowsAsJson(output.columns, selectedRows({ r0: target.row!, r1: target.row! }))),
-                                                  onCopyRowTsv: () => copy(toTsv(selectedRows({ r0: target.row!, r1: target.row! }))),
-                                              }
+                            </ContextMenuTrigger>
+                            {target?.rows && range ? (
+                                <RowMenu
+                                    rows={range.r1 - range.r0 + 1}
+                                    onCopy={() => copyRange({ ...range, c0: 0, c1: lastCol })}
+                                    onCopyJson={() => copy(rowsAsJson(output.columns, selectedRows(range)))}
+                                    onCopyInsert={
+                                        source && engine
+                                            ? () =>
+                                                  copy(
+                                                      rowsAsInsert(
+                                                          engine,
+                                                          qualifiedName(engine, source.schema, source.name),
+                                                          output.columns,
+                                                          selectedRows(range),
+                                                      ),
+                                                  )
                                             : undefined
                                     }
-                                    range={
-                                        multi && range
-                                            ? { cells: (range.r1 - range.r0 + 1) * (range.c1 - range.c0 + 1), onCopy: () => copyRange(range) }
-                                            : undefined
-                                    }
-                                    edit={
-                                        editor && range && target && target.row !== null && data[target.row] && !lockedAt(target.row, target.col)
-                                            ? {
-                                                  onEdit: () => setTimeout(() => open(target.row!, target.col)),
-                                                  // Not offered when every column in the range is NOT NULL
-                                                  onSetNull: output.columns.some((_, c) => c >= range.c0 && c <= range.c1 && editor.field(c).nullable)
-                                                      ? () => stageRect(range, () => null)
-                                                      : undefined,
-                                                  onRevert:
-                                                      anyEdits &&
-                                                      data
-                                                          .slice(range.r0, range.r1 + 1)
-                                                          .some((row) =>
-                                                              output.columns.slice(range.c0, range.c1 + 1).some((_, i) => staged(row, range.c0 + i)),
-                                                          )
-                                                          ? () => stageRect(range, (r, c) => data[r][c])
-                                                          : undefined,
-                                                  onPaste: () => void pasteFromClipboard(range),
-                                                  onFillDown:
-                                                      range.r1 > range.r0
-                                                          ? () => stageRect({ ...range, r0: range.r0 + 1 }, (_, c) => valueAt(range.r0, c))
-                                                          : undefined,
-                                              }
-                                            : undefined
-                                    }
-                                    engine={engine}
-                                    reference={links.refs.get(targetMeta.name)}
-                                    referencedBy={links.incoming.get(targetMeta.name)}
-                                    onOpenRelated={(r, value) => openRelated(r, targetMeta, value)}
-                                    sort={sort}
-                                    filters={filters}
-                                    onSort={setSort}
-                                    setFilter={setFilter}
-                                    onClearFilters={() => onFiltersChange([])}
-                                    onEditFilter={setEditing}
-                                    onShowValue={() => {
-                                        if (target?.row == null) return;
-                                        pick(target.row, target.col);
-                                        setPreviewing(true);
-                                    }}
-                                    copy={copy}
+                                    onSelectAll={() => pickRows(0, data.length - 1)}
+                                    rowOps={server ? rowOps(range) : undefined}
                                 />
-                            )
-                        )}
-                    </ContextMenu>
-                    {editing && (
-                        <PopoverContent onOpenAutoFocus={(e) => e.preventDefault()} className="w-64 p-2.5">
-                            <ColumnFilterForm
-                                // A fresh form per column, starting from its current filter
-                                key={editing}
-                                column={editing}
-                                kind={editingColumn ? filterKindOf(editingColumn.kind, editingColumn.typeName) : 'text'}
-                                initial={filterOf(editing)}
-                                onApply={(f) => {
-                                    setFilter(editing, f);
-                                    setEditing(null);
-                                }}
-                                onClear={
-                                    filterOf(editing)
-                                        ? () => {
-                                              setFilter(editing, null);
-                                              setEditing(null);
-                                          }
-                                        : undefined
-                                }
-                            />
-                        </PopoverContent>
-                    )}
-
-                    {findOpen && (
-                        // Top right, like a browser's or the editor's find: where people already look for it
-                        <div
-                            role="search"
-                            className="absolute top-9 right-3 z-40 flex items-center gap-1 rounded-lg bg-elev p-1 pl-2 text-xs shadow-md ring-1 ring-border has-[input:focus-visible]:ring-ring/60"
-                        >
-                            <Search className="size-3.5 flex-none text-fg3" aria-hidden />
-                            <input
-                                ref={findRef}
-                                autoFocus
-                                value={needle}
-                                onChange={(e) => {
-                                    setNeedle(e.target.value);
-                                    setCurrent(0);
-                                }}
-                                onKeyDown={onFindKeyDown}
-                                placeholder="Find in results…"
-                                autoComplete="off"
-                                aria-label="Find in results"
-                                spellCheck={false}
-                                className="w-44 bg-transparent py-1 text-[13px] outline-none placeholder:text-fg4"
-                            />
-                            <span role="status" className="min-w-[7ch] flex-none text-right font-mono text-[11px] text-fg3 tabular-nums">
-                                {query ? (matches.length ? `${at + 1} of ${matches.length.toLocaleString()}` : 'No results') : ''}
-                            </span>
-                            <button
-                                onClick={() => step(-1)}
-                                disabled={!matches.length}
-                                aria-label="Previous match"
-                                title="Previous (Shift+Enter)"
-                                className={findButton}
-                            >
-                                <ChevronUp className="size-3.5" aria-hidden />
-                            </button>
-                            <button
-                                onClick={() => step(1)}
-                                disabled={!matches.length}
-                                aria-label="Next match"
-                                title="Next (Enter)"
-                                className={findButton}
-                            >
-                                <ChevronDown className="size-3.5" aria-hidden />
-                            </button>
-                            {!server && (
-                                <button
-                                    onClick={() => setOnlyMatches(!onlyMatches)}
-                                    aria-pressed={onlyMatches}
-                                    title="Show only rows with a match"
-                                    className={cn(findButton, 'w-auto gap-1 px-1.5', onlyMatches && 'bg-primary-soft text-primary-text')}
-                                >
-                                    <Filter className="size-3.5" aria-hidden />
-                                    Only matches
-                                </button>
+                            ) : (
+                                targetMeta && (
+                                    <GridMenu
+                                        column={targetMeta}
+                                        cell={
+                                            target && target.row !== null && data[target.row]
+                                                ? {
+                                                      value: valueAt(target.row, target.col),
+                                                      onCopyRowJson: () =>
+                                                          copy(rowsAsJson(output.columns, selectedRows({ r0: target.row!, r1: target.row! }))),
+                                                      onCopyRowTsv: () => copy(toTsv(selectedRows({ r0: target.row!, r1: target.row! }))),
+                                                  }
+                                                : undefined
+                                        }
+                                        range={
+                                            multi && range
+                                                ? { cells: (range.r1 - range.r0 + 1) * (range.c1 - range.c0 + 1), onCopy: () => copyRange(range) }
+                                                : undefined
+                                        }
+                                        edit={
+                                            editor && range && target && target.row !== null && data[target.row] && !lockedAt(target.row, target.col)
+                                                ? {
+                                                      onEdit: () => setTimeout(() => open(target.row!, target.col)),
+                                                      // Not offered when every column in the range is NOT NULL
+                                                      onSetNull: output.columns.some(
+                                                          (_, c) => c >= range.c0 && c <= range.c1 && editor.field(c).nullable,
+                                                      )
+                                                          ? () => stageRect(range, () => null)
+                                                          : undefined,
+                                                      onRevert:
+                                                          anyEdits &&
+                                                          data
+                                                              .slice(range.r0, range.r1 + 1)
+                                                              .some((row) =>
+                                                                  output.columns
+                                                                      .slice(range.c0, range.c1 + 1)
+                                                                      .some((_, i) => staged(row, range.c0 + i)),
+                                                              )
+                                                              ? () => stageRect(range, (r, c) => data[r][c])
+                                                              : undefined,
+                                                      onPaste: () => void pasteFromClipboard(range),
+                                                      onFillDown:
+                                                          range.r1 > range.r0
+                                                              ? () => stageRect({ ...range, r0: range.r0 + 1 }, (_, c) => valueAt(range.r0, c))
+                                                              : undefined,
+                                                  }
+                                                : undefined
+                                        }
+                                        engine={engine}
+                                        reference={links.refs.get(targetMeta.name)}
+                                        referencedBy={links.incoming.get(targetMeta.name)}
+                                        onOpenRelated={(r, value) => openRelated(r, targetMeta, value)}
+                                        sort={sort}
+                                        filters={filters}
+                                        onSort={setSort}
+                                        setFilter={setFilter}
+                                        onClearFilters={() => onFiltersChange([])}
+                                        onEditFilter={setEditing}
+                                        onShowValue={() => {
+                                            if (target?.row == null) return;
+                                            pick(target.row, target.col);
+                                            setPreviewing(true);
+                                        }}
+                                        copy={copy}
+                                    />
+                                )
                             )}
-                            <button onClick={closeFind} aria-label="Close find" title="Close (Esc)" className={findButton}>
-                                <X className="size-3.5" aria-hidden />
-                            </button>
-                        </div>
-                    )}
-
-                    {partial && (
-                        <span className="pointer-events-none absolute bottom-3 left-16 rounded-md bg-elev px-2.5 py-1 text-xs text-fg2 ring-1 ring-border">
-                            {filters.length || onlyMatches ? 'Filtered' : 'Sorted'} within the {output.rows.length.toLocaleString()} loaded rows
-                        </span>
-                    )}
-                    <span
-                        role="status"
-                        className={cn(
-                            'pointer-events-none absolute right-3 bottom-3 rounded-md bg-elev px-2.5 py-1 text-xs text-fg2 tabular-nums ring-1 ring-border transition-opacity',
-                            status ? 'opacity-100' : 'opacity-0',
+                        </ContextMenu>
+                        {editing && (
+                            <PopoverContent onOpenAutoFocus={(e) => e.preventDefault()} className="w-64 p-2.5">
+                                <ColumnFilterForm
+                                    // A fresh form per column, starting from its current filter
+                                    key={editing}
+                                    column={editing}
+                                    kind={editingColumn ? filterKindOf(editingColumn.kind, editingColumn.typeName) : 'text'}
+                                    initial={filterOf(editing)}
+                                    onApply={(f) => {
+                                        setFilter(editing, f);
+                                        setEditing(null);
+                                    }}
+                                    onClear={
+                                        filterOf(editing)
+                                            ? () => {
+                                                  setFilter(editing, null);
+                                                  setEditing(null);
+                                              }
+                                            : undefined
+                                    }
+                                />
+                            </PopoverContent>
                         )}
-                    >
-                        {status}
-                    </span>
+
+                        {findOpen && (
+                            // Top right, like a browser's or the editor's find: where people already look for it
+                            <div
+                                role="search"
+                                className="absolute top-9 right-3 z-40 flex items-center gap-1 rounded-lg bg-elev p-1 pl-2 text-xs shadow-md ring-1 ring-border has-[input:focus-visible]:ring-ring/60"
+                            >
+                                <Search className="size-3.5 flex-none text-fg3" aria-hidden />
+                                <input
+                                    ref={findRef}
+                                    autoFocus
+                                    value={needle}
+                                    onChange={(e) => {
+                                        setNeedle(e.target.value);
+                                        setCurrent(0);
+                                    }}
+                                    onKeyDown={onFindKeyDown}
+                                    placeholder="Find in results…"
+                                    autoComplete="off"
+                                    aria-label="Find in results"
+                                    spellCheck={false}
+                                    className="w-44 bg-transparent py-1 text-[13px] outline-none placeholder:text-fg4"
+                                />
+                                <span role="status" className="min-w-[7ch] flex-none text-right font-mono text-[11px] text-fg3 tabular-nums">
+                                    {query ? (matches.length ? `${at + 1} of ${matches.length.toLocaleString()}` : 'No results') : ''}
+                                </span>
+                                <button
+                                    onClick={() => step(-1)}
+                                    disabled={!matches.length}
+                                    aria-label="Previous match"
+                                    title="Previous (Shift+Enter)"
+                                    className={findButton}
+                                >
+                                    <ChevronUp className="size-3.5" aria-hidden />
+                                </button>
+                                <button
+                                    onClick={() => step(1)}
+                                    disabled={!matches.length}
+                                    aria-label="Next match"
+                                    title="Next (Enter)"
+                                    className={findButton}
+                                >
+                                    <ChevronDown className="size-3.5" aria-hidden />
+                                </button>
+                                {!server && (
+                                    <button
+                                        onClick={() => setOnlyMatches(!onlyMatches)}
+                                        aria-pressed={onlyMatches}
+                                        title="Show only rows with a match"
+                                        className={cn(
+                                            findButton,
+                                            'flex w-auto gap-1 px-1.5 whitespace-nowrap',
+                                            onlyMatches && 'bg-primary-soft text-primary-text',
+                                        )}
+                                    >
+                                        <Filter className="size-3.5" aria-hidden />
+                                        Only matches
+                                    </button>
+                                )}
+                                <button onClick={closeFind} aria-label="Close find" title="Close (Esc)" className={findButton}>
+                                    <X className="size-3.5" aria-hidden />
+                                </button>
+                            </div>
+                        )}
+
+                        {partial && (
+                            <span className="pointer-events-none absolute bottom-3 left-16 rounded-md bg-elev px-2.5 py-1 text-xs text-fg2 ring-1 ring-border">
+                                {filters.length || onlyMatches ? 'Filtered' : 'Sorted'} within the {output.rows.length.toLocaleString()} loaded rows
+                            </span>
+                        )}
+                        <span
+                            role="status"
+                            className={cn(
+                                'pointer-events-none absolute right-3 bottom-3 rounded-md bg-elev px-2.5 py-1 text-xs text-fg2 tabular-nums ring-1 ring-border transition-opacity',
+                                status ? 'opacity-100' : 'opacity-0',
+                            )}
+                        >
+                            {status}
+                        </span>
+                    </div>
+                    {previewing && selected && (
+                        <ValuePanel
+                            column={output.columns[selected.col]}
+                            row={selected.row + 1}
+                            value={valueAt(selected.row, selected.col)}
+                            onClose={() => {
+                                setPreviewing(false);
+                                scrollRef.current?.focus();
+                            }}
+                        />
+                    )}
                 </div>
-                {previewing && selected && (
-                    <ValuePanel
-                        column={output.columns[selected.col]}
-                        row={selected.row + 1}
-                        value={valueAt(selected.row, selected.col)}
-                        onClose={() => {
-                            setPreviewing(false);
-                            scrollRef.current?.focus();
-                        }}
-                    />
-                )}
+                <GridToolbar
+                    onInsert={editor?.insert}
+                    onDuplicate={selectedOps?.onDuplicate}
+                    onDelete={selectedOps?.onDelete}
+                    restore={selectedOps?.deleted}
+                    refresh={toolbar.refresh}
+                    limit={toolbar.limit}
+                    fileName={toolbar.fileName}
+                    scope={count(exported.length, 'row')}
+                    formats={[
+                        { id: 'csv', label: 'CSV', ext: 'csv', text: () => rowsAsCsv(output.columns, exported) },
+                        { id: 'json', label: 'JSON', ext: 'json', text: () => rowsAsJson(output.columns, exported) },
+                    ]}
+                    onError={setNotice}
+                />
             </div>
         </Popover>
     );

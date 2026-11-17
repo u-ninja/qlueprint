@@ -23,3 +23,9 @@ export function rowsAsInsert(kind: Connection['kind'], table: string, columns: C
         })
         .join('\n');
 }
+
+/** RFC 4180: a field with a comma, quote or line break is quoted; NULL is an empty field */
+export function rowsAsCsv(columns: Column[], rows: Row[]) {
+    const field = (v: string | null) => (v === null ? '' : /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+    return [columns.map((c) => c.name), ...rows].map((r) => r.map(field).join(',')).join('\r\n');
+}

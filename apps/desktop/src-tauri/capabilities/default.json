@@ -11,6 +11,8 @@
         "app-commands",
         "window-controls",
         "updater:default",
-        "process:allow-restart"
+        "process:allow-restart",
+        "dialog:allow-save",
+        "fs:allow-write-text-file"
     ]
 }

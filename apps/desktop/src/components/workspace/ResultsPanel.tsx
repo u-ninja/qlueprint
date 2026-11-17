@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ComponentProps, type ReactNode } from 'react';
-import { CircleAlert, Plus, TriangleAlert } from 'lucide-react';
+import { CircleAlert, TriangleAlert } from 'lucide-react';
 import type { PlanNode, QueryPlan } from '@/bindings';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
@@ -14,6 +14,8 @@ import {
     newTableTab,
     rowKey,
     type RowEdit,
+    ALL_ROWS,
+    ROW_CAP,
     rerunnable,
     summary,
     resultSets,
@@ -167,6 +169,9 @@ function ResultsView({ at: picked, setAt, shape, setShape }: ResultSetProps) {
     const connectionId = useQuery((s) => currentQuery(s).connectionId);
     const engine = useConnections((s) => activeConnection(s.connections, connectionId)?.kind);
     const { last, lastRun, sets, at, shown, statement } = useShownSet(picked);
+    const run = useQuery((s) => s.run);
+    const canRerun = !!statement && rerunnable(statement);
+    const loadAllRows = useQuery((s) => s.loadAllRows);
     const from = useMemo(
         () => (statement && engine && lastRun ? sourceTable(statement, engine, lastRun.database) : undefined),
         [statement, engine, lastRun],
@@ -180,6 +185,27 @@ function ResultsView({ at: picked, setAt, shape, setShape }: ResultSetProps) {
         onSort: (sort: Shape['sort']) => setShape({ sort }),
         filters: shape.filters,
         onFiltersChange: (filters: ColumnFilter[]) => setShape({ filters }),
+        toolbar: {
+            fileName: `result-${at + 1}`,
+            // Running it again would repeat what a write statement changed
+            refresh: {
+                run: () => void run(),
+                busy: runningSince !== null,
+                blocked: canRerun ? undefined : 'Only a single read statement (SELECT, WITH, SHOW…) can be run again',
+            },
+            // Only a cut-off result has anything to switch to
+            limit:
+                canRerun && shown.ok && (shown.output.truncated || shown.output.rows.length > ROW_CAP)
+                    ? {
+                          value: shown.output.rows.length > ROW_CAP ? ALL_ROWS : ROW_CAP,
+                          options: [
+                              { value: ROW_CAP, label: ROW_CAP.toLocaleString() },
+                              { value: ALL_ROWS, label: ALL_ROWS.toLocaleString() },
+                          ],
+                          onChange: (value: number) => void (value === ALL_ROWS ? loadAllRows(at) : run()),
+                      }
+                    : undefined,
+        },
     };
     return (
         // The previous result stays visible but dims until the new one returns; the tab strip says so.
@@ -610,6 +636,8 @@ function TableSkeleton({ name }: { name: string }) {
     );
 }
 
+const LIMITS = [100, 500, ROW_CAP, 10_000, ALL_ROWS];
+
 /** A table tab's whole body: a WHERE filter, the rows (sorted and filtered by the database), then its details. No editor */
 export function TableResults({ tab: t }: { tab: TableTab }) {
     // Its own, not the query panel's: switching here leaves the query tabs where they were
@@ -623,6 +651,15 @@ export function TableResults({ tab: t }: { tab: TableTab }) {
     const openTable = useQuery((s) => s.openTable);
     const name = `${t.schema}.${t.table}`;
     const change = (c: Parameters<typeof queryTable>[1]) => void queryTable(t.id, c);
+    const toolbar = {
+        fileName: t.table,
+        refresh: { run: () => change({}), busy: t.runningSince !== null },
+        limit: {
+            value: t.limit,
+            options: LIMITS.map((value) => ({ value, label: value.toLocaleString() })),
+            onChange: (limit: number) => change({ limit }),
+        },
+    };
 
     // Its keys, for links to related rows (without them the grid just has no links), and whether it can be edited
     const { engine, details: known, editor, readOnly } = useTableEditing(t);
@@ -657,12 +694,6 @@ export function TableResults({ tab: t }: { tab: TableTab }) {
                 ) : (
                     <>
                         <WhereBar tab={t} />
-                        {editor?.insert && (
-                            <Button variant="ghost" size="sm" onClick={editor.insert} title="Staged until you save" className="flex-none">
-                                <Plus aria-hidden />
-                                Add row
-                            </Button>
-                        )}
                     </>
                 )}
                 {t.runningSince !== null && (
@@ -704,6 +735,7 @@ export function TableResults({ tab: t }: { tab: TableTab }) {
                             details={known}
                             onOpenRelated={openRelated}
                             editor={editor}
+                            toolbar={toolbar}
                         />
                     </div>
                 ) : (
