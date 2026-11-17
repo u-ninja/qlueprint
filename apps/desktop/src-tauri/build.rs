@@ -42,6 +42,10 @@ fn main() {
         "remove_local_database",
         "delete_local_database_data",
         "list_local_instances",
+        "list_schedules",
+        "save_schedule",
+        "delete_schedule",
+        "run_schedule_now",
     ]);
 
     // Tauri embeds its Windows manifest (Common Controls v6) only into the app binary, so test

@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { FolderOpen } from 'lucide-react';
 import { appDataDir, join } from '@tauri-apps/api/path';
+import { disable, enable, isEnabled } from '@tauri-apps/plugin-autostart';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
@@ -15,6 +16,7 @@ import { isTauri, shortcutLabel, version } from '@/lib/utils';
 /** In page order; the sidebar lists them and Help › Keyboard shortcuts opens `shortcuts` */
 export const settingsSections = [
     { id: 'appearance', title: 'Appearance' },
+    { id: 'background', title: 'Background' },
     { id: 'updates', title: 'Updates' },
     { id: 'shortcuts', title: 'Keyboard shortcuts' },
     { id: 'data', title: 'Data & privacy' },
@@ -115,6 +117,16 @@ export function SettingsPage() {
             .then(([connections, audit]) => setPaths({ connections, audit }));
     }, []);
 
+    // Whether the OS starts QluePrint at login (hidden in the tray); null until it answers
+    const [atLogin, setAtLogin] = useState<boolean | null>(null);
+    useEffect(() => {
+        if (isTauri) void isEnabled().then(setAtLogin, () => setAtLogin(false));
+    }, []);
+    const toggleLogin = (on: boolean) => {
+        setAtLogin(on);
+        (on ? enable() : disable()).catch(() => setAtLogin(!on));
+    };
+
     const { setTheme, setMotion, setCheckUpdates } = useUi.getState();
     return (
         <main aria-label="Settings" className="h-full min-w-0 overflow-y-auto bg-editor">
@@ -136,6 +148,20 @@ export function SettingsPage() {
                         options={motions}
                         onChange={setMotion}
                     />
+                </Section>
+
+                <Section id="background">
+                    <SwitchRow
+                        id="settings-start-at-login"
+                        label="Start at login"
+                        description="Opens QluePrint hidden in the tray, so scheduled queries run without you launching it."
+                        checked={atLogin ?? false}
+                        disabled={!isTauri || atLogin === null}
+                        onCheckedChange={toggleLogin}
+                    />
+                    <p className="text-xs text-fg3">
+                        While any schedule is enabled, closing the window keeps QluePrint running in the tray. Quit from the tray menu to stop it.
+                    </p>
                 </Section>
 
                 <Section id="updates">

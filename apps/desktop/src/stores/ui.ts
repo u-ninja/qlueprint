@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import { motion, setMotion, type Motion } from '@/lib/spring';
 
 export type Theme = 'light' | 'dark' | 'system';
-export type View = 'workspace' | 'connections' | 'servers' | 'queries' | 'history' | 'audit' | 'settings';
+export type View = 'workspace' | 'connections' | 'servers' | 'queries' | 'history' | 'schedules' | 'audit' | 'settings';
 
 /** The table the inspector shows: picked with a single click in the explorer */
 export type ResultsTab = 'results' | 'messages' | 'plan';

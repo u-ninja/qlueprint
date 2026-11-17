@@ -17,6 +17,7 @@ const emptyText: Record<View, string> = {
     queries: 'No saved queries.',
     history: 'No queries run yet.',
     settings: '',
+    schedules: 'Queries that run on a timer while QluePrint is running. Each keeps its last runs.',
     audit: 'Every connection and query, recorded on this machine. Passwords and result rows are never written to it, and each entry is chained by hash, so an edited log fails the integrity check.',
 };
 

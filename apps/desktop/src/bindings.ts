@@ -133,6 +133,12 @@ export const commands = {
 	removeLocalDatabase: (id: string) => __TAURI_INVOKE<null>("remove_local_database", { id }),
 	deleteLocalDatabaseData: (id: string, confirm: string) => __TAURI_INVOKE<null>("delete_local_database_data", { id, confirm }),
 	listLocalInstances: () => __TAURI_INVOKE<LocalInstance_Serialize[]>("list_local_instances"),
+	listSchedules: () => __TAURI_INVOKE<Schedule_Serialize[]>("list_schedules"),
+	/**  Creates or changes a schedule and returns it. Changing the SQL or interval keeps its history. */
+	saveSchedule: (input: ScheduleInput_Deserialize) => __TAURI_INVOKE<Schedule_Serialize>("save_schedule", { input }),
+	deleteSchedule: (id: string) => __TAURI_INVOKE<null>("delete_schedule", { id }),
+	/**  Starts a run in the background and returns at once; the schedule shows `running` until it ends. */
+	runScheduleNow: (id: string) => __TAURI_INVOKE<null>("run_schedule_now", { id }),
 };
 
 /** Events */
@@ -1096,6 +1102,29 @@ export type Routine_Serialize = {
 	args: string | null,
 };
 
+/**  One run of a schedule. */
+export type Run = Run_Serialize | Run_Deserialize;
+
+/**  One run of a schedule. */
+export type Run_Deserialize = {
+	/**  When it started, milliseconds since the epoch. */
+	at: number,
+	ok: boolean,
+	rows: number,
+	durationMs: number,
+	error?: string | null,
+};
+
+/**  One run of a schedule. */
+export type Run_Serialize = {
+	/**  When it started, milliseconds since the epoch. */
+	at: number,
+	ok: boolean,
+	rows: number,
+	durationMs: number,
+	error: string | null,
+};
+
 export type SampleOutcome = SampleOutcome_Serialize | SampleOutcome_Deserialize;
 
 export type SampleOutcome_Deserialize = {
@@ -1143,6 +1172,61 @@ export type SavedConnection_Serialize = {
 	id: string,
 	label: string,
 	config: SavedConfig_Serialize,
+};
+
+export type Schedule = Schedule_Serialize | Schedule_Deserialize;
+
+/**  What the UI sends to create or change a schedule; `id` `None` creates one. */
+export type ScheduleInput = ScheduleInput_Serialize | ScheduleInput_Deserialize;
+
+/**  What the UI sends to create or change a schedule; `id` `None` creates one. */
+export type ScheduleInput_Deserialize = {
+	id?: string | null,
+	name: string,
+	connectionId: string,
+	database?: string | null,
+	sql: string,
+	everyMinutes: number,
+	enabled: boolean,
+};
+
+/**  What the UI sends to create or change a schedule; `id` `None` creates one. */
+export type ScheduleInput_Serialize = {
+	id: string | null,
+	name: string,
+	connectionId: string,
+	database: string | null,
+	sql: string,
+	everyMinutes: number,
+	enabled: boolean,
+};
+
+export type Schedule_Deserialize = {
+	id: string,
+	name: string,
+	connectionId: string,
+	/**  The toolbar's database, as for `run_query`; `None` is the connection's own. */
+	database?: string | null,
+	sql: string,
+	everyMinutes: number,
+	enabled: boolean,
+	history?: Run_Deserialize[],
+	/**  A run is in progress. Memory only: cleared on load. */
+	running?: boolean,
+};
+
+export type Schedule_Serialize = {
+	id: string,
+	name: string,
+	connectionId: string,
+	/**  The toolbar's database, as for `run_query`; `None` is the connection's own. */
+	database: string | null,
+	sql: string,
+	everyMinutes: number,
+	enabled: boolean,
+	history: Run_Serialize[],
+	/**  A run is in progress. Memory only: cleared on load. */
+	running: boolean,
 };
 
 export type Schema = Schema_Serialize | Schema_Deserialize;
