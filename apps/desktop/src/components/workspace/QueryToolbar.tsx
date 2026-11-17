@@ -2,7 +2,7 @@ import { useMemo, useRef, type PointerEvent } from 'react';
 import { AlignLeft, Gauge, ListTree, PanelRight, Play, Square } from 'lucide-react';
 import { formatEditor, formatShortcut } from '@/lib/format-editor';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SearchSelect } from '@/components/ui/search-select';
 import { PendingAction } from '@/components/shell/PendingAction';
 import { StatusDot } from '@/components/shell/StatusDot';
 import { useConnections } from '@/stores/connections';
@@ -12,10 +12,6 @@ import { engineName, hasDatabases } from '@/lib/engines';
 import { cn, explainAnalyzeShortcut, explainShortcut, runShortcut } from '@/lib/utils';
 import { motion, useSpring2 } from '@/lib/spring';
 
-// Fixed trigger widths so switching to a long label never shifts the toolbar; the menu may grow
-// past its trigger up to a cap, and long labels truncate (full text in `title`)
-const menu = 'max-w-80 min-w-(--radix-select-trigger-width)';
-
 function ConnectionPicker() {
     const inWorkspace = useInWorkspace();
     const connections = useConnections((s) => s.connections).filter((c) => inWorkspace(c.savedId));
@@ -24,26 +20,18 @@ function ConnectionPicker() {
     const active = activeConnection(connections, connectionId);
 
     return (
-        <Select value={active?.id ?? ''} onValueChange={setConnectionId} disabled={!active}>
-            <SelectTrigger size="sm" aria-label="Connection to run on" title={active?.label} className="w-56 min-w-28">
-                <StatusDot state={active ? 'open' : 'closed'} />
-                {/* Just the label: the default would copy the item's two-line content */}
-                <SelectValue placeholder="No connection">{active?.label}</SelectValue>
-            </SelectTrigger>
-            <SelectContent position="popper" align="end" className={menu}>
-                <SelectGroup>
-                    <SelectLabel>Run on</SelectLabel>
-                    {connections.map((c) => (
-                        <SelectItem key={c.id} value={c.id} title={c.label} className="py-1.5">
-                            <span className="flex min-w-0 flex-col gap-px">
-                                <span className="truncate">{c.label}</span>
-                                <span className="text-[11px] text-fg3">{engineName[c.kind]}</span>
-                            </span>
-                        </SelectItem>
-                    ))}
-                </SelectGroup>
-            </SelectContent>
-        </Select>
+        <SearchSelect
+            value={active?.id ?? ''}
+            onValueChange={setConnectionId}
+            disabled={!active}
+            aria-label="Connection to run on"
+            title={active?.label}
+            className="w-56 min-w-28"
+            leading={<StatusDot state={active ? 'open' : 'closed'} />}
+            placeholder="No connection"
+            heading="Run on"
+            options={connections.map((c) => ({ value: c.id, label: c.label, hint: engineName[c.kind] }))}
+        />
     );
 }
 
@@ -63,34 +51,23 @@ function DatabasePicker() {
     const database = activeDatabase(active, { connectionId, database: picked }) || undefined;
 
     return (
-        <Select value={database ?? ''} onValueChange={setDatabase} disabled={!switchable}>
-            <SelectTrigger
-                size="sm"
-                aria-label="Database to run in"
-                title={
-                    switchable
-                        ? database
-                        : hasDatabases(active.kind)
-                          ? 'Turn on “Show all databases” for this connection to switch'
-                          : `${engineName[active.kind]} has one database`
-                }
-                className="w-40 min-w-24"
-            >
-                {/* Explicit: Radix only shows a value that matches an item, and a disabled picker has none */}
-                <SelectValue placeholder={switchable ? 'No database' : 'Default database'}>{database}</SelectValue>
-            </SelectTrigger>
-            <SelectContent position="popper" align="end" className={menu}>
-                <SelectGroup>
-                    <SelectLabel>Database</SelectLabel>
-                    {switchable &&
-                        active.databases.map((name) => (
-                            <SelectItem key={name} value={name} title={name}>
-                                <span className="truncate">{name}</span>
-                            </SelectItem>
-                        ))}
-                </SelectGroup>
-            </SelectContent>
-        </Select>
+        <SearchSelect
+            value={database ?? ''}
+            onValueChange={setDatabase}
+            disabled={!switchable}
+            aria-label="Database to run in"
+            title={
+                switchable
+                    ? database
+                    : hasDatabases(active.kind)
+                      ? 'Turn on “Show all databases” for this connection to switch'
+                      : `${engineName[active.kind]} has one database`
+            }
+            className="w-40 min-w-24"
+            placeholder={switchable ? 'No database' : (database ?? 'Default database')}
+            heading="Database"
+            options={switchable ? active.databases.map((name) => ({ value: name, label: name })) : []}
+        />
     );
 }
 
