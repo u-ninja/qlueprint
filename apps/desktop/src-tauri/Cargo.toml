@@ -1,6 +1,6 @@
 [package]
 name = "desktop_app"
-version = "0.1.8"
+version = "0.1.9"
 description = "A local-first database workspace for the desktop"
 authors = ["u-ninja"]
 license = "PolyForm-Shield-1.0.0"
@@ -48,6 +48,8 @@ getrandom = "0.3"
 tauri-plugin-window-state = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
 
 # tiberius 0.13.0 plus the TDS federated-authentication (ADAL/MSAL) workflow, so an Entra sign-in
 # can ask the server which tenant it trusts. See vendor/tiberius/QLUEPRINT_PATCH.md
