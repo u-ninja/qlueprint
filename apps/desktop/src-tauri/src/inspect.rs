@@ -52,6 +52,8 @@ pub struct DetailColumn {
     references_schema: Option<String>,
     /// None when SQLite's key names no column and the target's primary key isn't a single column
     references_column: Option<String>,
+    /// The foreign key's constraint name, to drop it by. None on SQLite, whose keys have no names
+    reference_name: Option<String>,
     /// The allowed values of an enum column (MySQL `enum(...)`, a Postgres enum type), in order
     enum_values: Option<Vec<String>>,
 }
@@ -85,6 +87,7 @@ type ColumnRow = (
     Option<String>,
     Option<String>,
     Option<String>,
+    Option<String>,
 );
 type IncomingRow = (String, String, String, String);
 /// rows estimate, size, is a view, view definition, may insert, update, delete
@@ -102,7 +105,17 @@ type MysqlTableRow = (Option<i64>, Option<i64>, i64);
 type IndexRow = (String, Option<String>, i64, i64);
 
 fn column(
-    (name, type_name, nullable, default, key, references_schema, references, references_column): ColumnRow,
+    (
+        name,
+        type_name,
+        nullable,
+        default,
+        key,
+        references_schema,
+        references,
+        references_column,
+        reference_name,
+    ): ColumnRow,
 ) -> DetailColumn {
     // A foreign key column that isn't also part of the primary key or a unique one
     let key = key.or_else(|| references.as_ref().map(|_| "FK".to_owned()));
@@ -116,6 +129,7 @@ fn column(
         references,
         references_schema,
         references_column,
+        reference_name,
     }
 }
 
@@ -170,21 +184,21 @@ const PG_COLUMNS: &str = r"
            (SELECT CASE con.contype WHEN 'p' THEN 'PK' WHEN 'u' THEN 'UQ' END FROM pg_constraint con
              WHERE con.conrelid = c.oid AND a.attnum = ANY(con.conkey) AND con.contype IN ('p', 'u')
              ORDER BY con.contype = 'p' DESC LIMIT 1),
-           f.nspname, f.relname, f.attname
+           f.nspname, f.relname, f.attname, f.conname
     FROM pg_attribute a
     JOIN pg_class c ON c.oid = a.attrelid
     JOIN pg_namespace n ON n.oid = c.relnamespace
     LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
     -- The referenced column sits at the same position in confkey as this one in conkey
     LEFT JOIN LATERAL (
-        SELECT fn.nspname::text, fc.relname::text, fa.attname::text
+        SELECT fn.nspname::text, fc.relname::text, fa.attname::text, con.conname::text
         FROM pg_constraint con
         JOIN pg_class fc ON fc.oid = con.confrelid
         JOIN pg_namespace fn ON fn.oid = fc.relnamespace
         JOIN pg_attribute fa ON fa.attrelid = con.confrelid AND fa.attnum = con.confkey[array_position(con.conkey, a.attnum)]
         WHERE con.conrelid = c.oid AND con.contype = 'f' AND a.attnum = ANY(con.conkey)
         ORDER BY con.conname LIMIT 1
-    ) f(nspname, relname, attname) ON true
+    ) f(nspname, relname, attname, conname) ON true
     WHERE n.nspname = $1 AND c.relname = $2 AND a.attnum > 0 AND NOT a.attisdropped
     ORDER BY a.attnum";
 
@@ -237,7 +251,7 @@ const PG_TABLE: &str = r"
 const MYSQL_COLUMNS: &str = r"
     SELECT c.COLUMN_NAME, c.COLUMN_TYPE, CAST(c.IS_NULLABLE = 'YES' AS SIGNED), c.COLUMN_DEFAULT,
            CASE c.COLUMN_KEY WHEN 'PRI' THEN 'PK' WHEN 'UNI' THEN 'UQ' END,
-           k.REFERENCED_TABLE_SCHEMA, k.REFERENCED_TABLE_NAME, k.REFERENCED_COLUMN_NAME
+           k.REFERENCED_TABLE_SCHEMA, k.REFERENCED_TABLE_NAME, k.REFERENCED_COLUMN_NAME, k.CONSTRAINT_NAME
     FROM information_schema.COLUMNS c
     LEFT JOIN information_schema.KEY_COLUMN_USAGE k
       ON k.TABLE_SCHEMA = c.TABLE_SCHEMA AND k.TABLE_NAME = c.TABLE_NAME AND k.COLUMN_NAME = c.COLUMN_NAME
@@ -292,7 +306,8 @@ const SQLITE_COLUMNS: &str = r#"
            CASE WHEN f."table" IS NOT NULL THEN 'main' END, f."table",
            -- No "to" column means the target's primary key, usable only when it's a single column
            coalesce(f."to", (SELECT CASE WHEN count(*) = 1 THEN max(t.name) END
-                             FROM pragma_table_info(f."table") t WHERE t.pk > 0))
+                             FROM pragma_table_info(f."table") t WHERE t.pk > 0)),
+           CAST(NULL AS TEXT)
     FROM pragma_table_info(?1) p
     LEFT JOIN pragma_foreign_key_list(?1) f
       ON f."from" = p.name AND f.id = (SELECT min(g.id) FROM pragma_foreign_key_list(?1) g WHERE g."from" = p.name)
@@ -330,9 +345,9 @@ const MSSQL_DETAILS: &str = concat!(
              JOIN sys.index_columns ic ON ic.object_id = k.parent_object_id AND ic.index_id = k.unique_index_id
              WHERE k.parent_object_id = @id AND ic.column_id = c.column_id
              ORDER BY CASE k.type WHEN 'PK' THEN 0 ELSE 1 END),
-           f.ref_schema, f.ref_table, f.ref_column
+           f.ref_schema, f.ref_table, f.ref_column, f.fk_name
     FROM sys.columns c
-    OUTER APPLY (SELECT TOP (1) SCHEMA_NAME(rt.schema_id) AS ref_schema, rt.name AS ref_table, rc.name AS ref_column
+    OUTER APPLY (SELECT TOP (1) SCHEMA_NAME(rt.schema_id) AS ref_schema, rt.name AS ref_table, rc.name AS ref_column, fk.name AS fk_name
                  FROM sys.foreign_key_columns fkc
                  JOIN sys.foreign_keys fk ON fk.object_id = fkc.constraint_object_id
                  JOIN sys.objects rt ON rt.object_id = fkc.referenced_object_id
@@ -597,6 +612,7 @@ pub async fn table_details(
                             r[5].take(),
                             r[6].take(),
                             r[7].take(),
+                            r[8].take(),
                         ))
                     })
                     .collect(),

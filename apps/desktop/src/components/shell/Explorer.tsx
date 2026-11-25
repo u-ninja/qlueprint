@@ -7,6 +7,7 @@ import {
     Eye,
     Folder,
     FolderInput,
+    Network,
     PanelRight,
     Pencil,
     Plug,
@@ -48,6 +49,7 @@ import {
     ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { closedState, errorMessage, useConnections, type Closed, type Connection, type ConnectionState } from '@/stores/connections';
+import { useDiagram } from '@/stores/diagram';
 import { qualifiedName, selectSql, useQuery } from '@/stores/query';
 import { useInWorkspace, useUi } from '@/stores/ui';
 import { Input } from '@/components/ui/input';
@@ -97,7 +99,7 @@ function newQueryOn(connectionId: string, database?: string) {
 }
 
 /** Shift+F10 or the menu key opens the focused row’s menu under it (WebKit doesn’t do this itself) */
-function menuKey(e: KeyboardEvent<HTMLElement>) {
+export function menuKey(e: KeyboardEvent<HTMLElement>) {
     if (e.key !== 'ContextMenu' && !(e.shiftKey && e.key === 'F10')) return;
     e.preventDefault();
     const { left, bottom } = e.currentTarget.getBoundingClientRect();
@@ -578,7 +580,7 @@ function TableRow({ c, database, schema, table }: { c: Connection; database: str
 }
 
 /** The menu of a database or schema row. `database` is where its queries run (MySQL: the schema itself) */
-function ContainerMenu({ c, database, name }: { c: Connection; database: string; name: string }) {
+function ContainerMenu({ c, database, name, schema }: { c: Connection; database: string; name: string; schema?: string }) {
     const refresh = useConnections((s) => s.refresh);
     const [, copy] = useCopy();
     return (
@@ -587,6 +589,12 @@ function ContainerMenu({ c, database, name }: { c: Connection; database: string;
                 <SquarePen aria-hidden />
                 New query here
             </ContextMenuItem>
+            {schema !== undefined && (
+                <ContextMenuItem onSelect={() => useDiagram.getState().open({ connectionId: c.id, database, schema })}>
+                    <Network aria-hidden />
+                    Show diagram
+                </ContextMenuItem>
+            )}
             <ContextMenuItem onSelect={() => void refresh(c.id, database).catch(() => {})}>
                 <RefreshCw aria-hidden />
                 Refresh
@@ -622,7 +630,7 @@ function Schemas({ c, schemas, database }: { c: Connection; schemas: Schema[]; d
                 meta={tables.length || undefined}
                 defaultOpen={s.name === 'public' || s.name === database}
                 forceOpen={!!filter}
-                menu={<ContainerMenu c={c} database={c.kind === 'mysql' ? s.name : database} name={s.name} />}
+                menu={<ContainerMenu c={c} database={c.kind === 'mysql' ? s.name : database} name={s.name} schema={s.name} />}
             >
                 {tables.length === 0 && routines.length === 0 && <li className={cn(note, 'text-fg3')}>No tables</li>}
                 <Group label="Tables" icon={Table2} open count={plain.length}>

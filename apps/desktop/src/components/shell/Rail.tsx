@@ -1,4 +1,4 @@
-import { CalendarClock, Database, FileCode, History, LayoutGrid, PanelLeft, ScrollText, Server, Settings, type LucideIcon } from 'lucide-react';
+import { CalendarClock, Database, FileCode, History, LayoutGrid, Network, PanelLeft, ScrollText, Server, Settings, type LucideIcon } from 'lucide-react';
 import { useLayoutEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { useSpring } from '@/lib/spring';
@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 
 export const views: { value: View; label: string; icon: LucideIcon }[] = [
     { value: 'workspace', label: 'Workspace', icon: LayoutGrid },
+    { value: 'diagram', label: 'Diagram', icon: Network },
     { value: 'connections', label: 'Connections', icon: Database },
     { value: 'servers', label: 'Local servers', icon: Server },
     { value: 'queries', label: 'Queries', icon: FileCode },

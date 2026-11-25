@@ -302,6 +302,8 @@ export type DetailColumn_Deserialize = {
 	referencesSchema?: string | null,
 	/**  None when SQLite's key names no column and the target's primary key isn't a single column */
 	referencesColumn?: string | null,
+	/**  The foreign key's constraint name, to drop it by. None on SQLite, whose keys have no names */
+	referenceName?: string | null,
 	/**  The allowed values of an enum column (MySQL `enum(...)`, a Postgres enum type), in order */
 	enumValues?: string[] | null,
 };
@@ -318,6 +320,8 @@ export type DetailColumn_Serialize = {
 	referencesSchema: string | null,
 	/**  None when SQLite's key names no column and the target's primary key isn't a single column */
 	referencesColumn: string | null,
+	/**  The foreign key's constraint name, to drop it by. None on SQLite, whose keys have no names */
+	referenceName: string | null,
 	/**  The allowed values of an enum column (MySQL `enum(...)`, a Postgres enum type), in order */
 	enumValues: string[] | null,
 };

@@ -14,6 +14,7 @@ import { Sidebar } from '@/components/shell/Sidebar';
 import { TopBar } from '@/components/shell/TopBar';
 import { Workspace } from '@/components/shell/Workspace';
 import { SchedulesPage } from '@/components/schedules/SchedulesPage';
+import { DiagramPage } from '@/components/diagram/DiagramPage';
 import { AuditLog } from '@/components/audit/AuditLog';
 import { SettingsPage } from '@/components/settings/SettingsPage';
 import { StatusDot } from '@/components/shell/StatusDot';
@@ -220,9 +221,11 @@ function App() {
                         <Sidebar />
                     </SidePanel>
                     <ResizablePanel id="main" elementRef={shared.main} minSize={360}>
-                        {/* The audit log and settings take the whole area; every other view keeps the editor here */}
+                        {/* The audit log, diagram and settings take the whole area; every other view keeps the editor here */}
                         {view === 'audit' ? (
                             <AuditLog />
+                        ) : view === 'diagram' ? (
+                            <DiagramPage />
                         ) : view === 'schedules' ? (
                             <SchedulesPage />
                         ) : view === 'settings' ? (

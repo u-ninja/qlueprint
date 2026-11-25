@@ -497,3 +497,47 @@
         translate: 110% 0;
     }
 }
+
+/* The diagram's canvas (React Flow): its own colors pointed at the design tokens */
+.diagram.react-flow {
+    --xy-background-color: var(--editor-bg);
+    --xy-edge-stroke-default: var(--fg3);
+    --xy-controls-button-background-color-default: var(--elev);
+    --xy-controls-button-background-color-hover-default: var(--muted);
+    --xy-controls-button-color-default: var(--fg2);
+    --xy-controls-button-border-color-default: var(--border);
+    --xy-controls-box-shadow-default: none;
+    font-family: inherit;
+}
+.diagram .react-flow__node-table {
+    cursor: grab;
+}
+/* A column's link dot: quiet until the table or the dot is hovered, then big enough to hit */
+.diagram .diagram-handle.react-flow__handle {
+    width: 9px;
+    height: 9px;
+    min-width: 0;
+    border: 1.5px solid var(--fg3);
+    background: var(--surface);
+    opacity: 0;
+    transition: opacity 120ms;
+}
+.diagram .react-flow__node:hover .diagram-handle,
+.diagram .diagram-handle.connectingfrom,
+.diagram .diagram-handle.connectingto,
+.diagram .diagram-handle:hover {
+    opacity: 1;
+}
+.diagram .diagram-handle:hover,
+.diagram .diagram-handle.valid {
+    border-color: var(--primary);
+    background: var(--primary-soft);
+}
+.diagram .react-flow__edge.selected .react-flow__edge-path {
+    stroke: var(--primary);
+}
+@media (prefers-reduced-motion: reduce) {
+    .diagram .diagram-handle.react-flow__handle {
+        transition: none;
+    }
+}
