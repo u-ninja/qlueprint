@@ -2,6 +2,12 @@ AI# Changelog
 
 Shown in the "What's new" window after an update. One `## version` heading per release, one `- ` line per change.
 
+## 0.3.0
+
+- Table graph: right-click a table in the explorer and choose View graph to see it with the tables it references and the tables that reference it, in a tab; each table can show its own connections, and a schema's menu has Show schema graph
+- Edit a table's structure from the graph, the table inspector or a table's grid: add, rename and drop columns, add and drop indexes, link a column to another table, create and drop tables. Changes wait in the Changes panel as exact SQL until you apply them
+- Fixed table details failing on PostgreSQL with "cannot cast type boolean to bigint"
+
 ## 0.2.2
 
 - Date editor: pick a time zone for timestamp-with-time-zone columns; the value is saved in the column's zone
