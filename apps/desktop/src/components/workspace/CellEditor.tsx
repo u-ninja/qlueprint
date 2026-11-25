@@ -8,7 +8,7 @@ import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { errorMessage, type Connection } from '@/stores/connections';
 import { useUi, type Inspected } from '@/stores/ui';
 import { filterKindOf } from '@/lib/column-filter';
-import { dateParts, labelColumnOf, withDay, withTime } from '@/lib/cell-field';
+import { dateParts, isZoned, labelColumnOf, toColumnZone, withDay, withTime } from '@/lib/cell-field';
 import { detailsOf, tableKey } from '@/lib/table-details';
 import { cn } from '@/lib/utils';
 import { calendarClass, calendarClassNames, fromDay, toDay, withSeconds } from './ColumnFilterForm';
@@ -20,6 +20,8 @@ export type CellField = {
     /** False for NOT NULL: nothing stages NULL into it */
     nullable: boolean;
     type: 'text' | 'number' | 'date' | 'datetime' | 'choice' | 'ref';
+    /** A timestamp that stores an instant: the editor offers any time zone and writes the column's */
+    zoned?: boolean;
     /** Why the column can't be edited here, when it can't */
     readOnly?: string;
     /** A choice's values (an enum's labels; true and false as the database writes them) */
@@ -61,7 +63,8 @@ export function fieldOf(
             ],
         };
     }
-    return { nullable, type: filterKindOf(column.kind, column.typeName) };
+    const type = filterKindOf(column.kind, column.typeName);
+    return { nullable, type, zoned: type === 'datetime' && isZoned(column.typeName) };
 }
 
 /** Each result column's editor, from its table column's type, keys and allowed values; `locked` (the
@@ -184,11 +187,18 @@ function Shell({
     );
 }
 
+const ZONES = Intl.supportedValuesOf('timeZone');
+
 function DateEditor({ value, field, finish, className }: { value: string | null; field: CellField; finish: Done; className?: string }) {
     const timed = field.type === 'datetime';
     const [draft, setDraft] = useState(value ?? '');
     const parts = dateParts(draft);
-    const keep = (refocus: boolean) => finish(draft.trim() === '' && value === null ? undefined : draft.trim(), refocus);
+    // '' is the column's own zone: nothing to convert
+    const [tz, setTz] = useState('');
+    const keep = (refocus: boolean) => {
+        const text = draft.trim();
+        finish(text === '' && value === null ? undefined : tz ? toColumnZone(text, tz, value) : text, refocus);
+    };
     return (
         <Shell value={value} className={className} label="Edit date" onLeave={() => keep(false)} finish={finish}>
             <Input
@@ -216,6 +226,21 @@ function DateEditor({ value, field, finish, className }: { value: string | null;
                 className={calendarClass}
                 classNames={calendarClassNames}
             />
+            {field.zoned && (
+                <select
+                    aria-label="Time zone"
+                    value={tz}
+                    onChange={(e) => setTz(e.target.value)}
+                    className="h-7 rounded-md border border-border bg-transparent px-2 text-xs text-fg2"
+                >
+                    <option value="">Column’s time zone</option>
+                    {ZONES.map((z) => (
+                        <option key={z} value={z}>
+                            {z}
+                        </option>
+                    ))}
+                </select>
+            )}
             <div className="flex items-center gap-1.5">
                 {timed && (
                     <Input
