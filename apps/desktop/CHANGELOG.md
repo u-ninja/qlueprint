@@ -2,6 +2,10 @@ AI# Changelog
 
 Shown in the "What's new" window after an update. One `## version` heading per release, one `- ` line per change.
 
+## 0.2.1
+
+- Date editor: pick a time zone for timestamp-with-time-zone columns; the value is saved in the column's zone
+
 ## 0.2.0
 
 - Schedules: run a query on a timer, with each schedule's last runs shown (new Schedules view in the left rail)
