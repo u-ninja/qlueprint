@@ -178,8 +178,9 @@ fn index((name, columns, unique, primary): IndexRow) -> IndexInfo {
     }
 }
 
+// Postgres has no boolean-to-bigint cast: booleans go through int4
 const PG_COLUMNS: &str = r"
-    SELECT a.attname::text, format_type(a.atttypid, a.atttypmod), (NOT a.attnotnull)::int8,
+    SELECT a.attname::text, format_type(a.atttypid, a.atttypmod), (NOT a.attnotnull)::int4::int8,
            pg_get_expr(d.adbin, d.adrelid),
            (SELECT CASE con.contype WHEN 'p' THEN 'PK' WHEN 'u' THEN 'UQ' END FROM pg_constraint con
              WHERE con.conrelid = c.oid AND a.attnum = ANY(con.conkey) AND con.contype IN ('p', 'u')
@@ -226,7 +227,7 @@ const PG_INCOMING: &str = r"
     ORDER BY 1, 2, 3";
 
 const PG_INDEXES: &str = r"
-    SELECT i.relname::text, pg_get_indexdef(ix.indexrelid), ix.indisunique::int8, ix.indisprimary::int8
+    SELECT i.relname::text, pg_get_indexdef(ix.indexrelid), ix.indisunique::int4::int8, ix.indisprimary::int4::int8
     FROM pg_index ix
     JOIN pg_class i ON i.oid = ix.indexrelid
     JOIN pg_class c ON c.oid = ix.indrelid
@@ -240,7 +241,7 @@ const PG_TABLE: &str = r"
            -- A partitioned table stores nothing itself: its size is its partitions' (as the explorer shows)
            CASE c.relkind WHEN 'p' THEN (SELECT sum(pg_total_relation_size(relid))::int8 FROM pg_partition_tree(c.oid))
                           ELSE pg_total_relation_size(c.oid) END,
-           (c.relkind IN ('v', 'm'))::int8,
+           (c.relkind IN ('v', 'm'))::int4::int8,
            CASE WHEN c.relkind IN ('v', 'm') THEN pg_get_viewdef(c.oid, true) END,
            -- Any column: a grant on some columns still lets a row be added or changed
            has_any_column_privilege(c.oid, 'INSERT'), has_any_column_privilege(c.oid, 'UPDATE'),

@@ -23,6 +23,8 @@ import { foreignKeyName, supportsForeignKeyDdl } from '@/lib/schema-ddl';
 import { layout, loadGraph, NODE_WIDTH, targetKey, withChanges, type Graph, type Relation, type Target } from '@/lib/schema-graph';
 import { cn, count } from '@/lib/utils';
 import { schemasOf } from '@/components/shell/Explorer';
+import { hasDatabases } from '@/lib/engines';
+import type { Schema } from '@/bindings';
 import { EditDialog, type Edit } from './EditDialog';
 import { ReviewPanel } from './ReviewPanel';
 import { TableActionsContext, TableNode, type TableActions, type TableFlowNode } from './TableNode';
@@ -35,8 +37,8 @@ function tablesOf(c: Connection, t: Target) {
     return (schemasOf(c, t.database).find((s) => s.name === t.schema)?.tables ?? []).filter((x) => !x.view).map((x) => x.name);
 }
 
-/** The schema shown first on a connection: one with tables to draw, else the first */
-const defaultSchema = (c: Connection) => c.schemas.find((s) => s.tables.some((t) => !t.view)) ?? c.schemas[0];
+/** The schema shown first in a database: one with tables to draw, else the first */
+const defaultSchema = (schemas: Schema[]) => schemas.find((s) => s.tables.some((t) => !t.view)) ?? schemas[0];
 
 /** The target a schema on `c` is drawn as: MySQL's schema is its database, the rest use the connection's */
 const targetOn = (c: Connection, schema: string): Target => ({ connectionId: c.id, database: c.kind === 'mysql' ? schema : c.database, schema });
@@ -49,8 +51,27 @@ const edgeId = (r: Relation) => `${r.table}.${r.column}->${r.refTable}.${r.refCo
 
 function Picker({ c, target }: { c: Connection | undefined; target: Target | null }) {
     const connections = useConnections((s) => s.connections);
+    const loadOtherDatabase = useConnections((s) => s.loadOtherDatabase);
     const open = useDiagram((s) => s.open);
     const locked = useDiagram((s) => s.changes.length > 0);
+    // Postgres and SQL Server hold several databases, each with its own schemas; MySQL's databases are its schemas
+    const databases = c && hasDatabases(c.kind) && c.switchable ? c.databases : [];
+    const schemas = c && target ? schemasOf(c, target.database) : [];
+
+    // Another database's schemas load the first time it's picked
+    async function pickDatabase(database: string) {
+        if (!c) return;
+        try {
+            if (database !== c.database && !c.others[database]) await loadOtherDatabase(c.id, database);
+        } catch (error) {
+            useDiagram.setState({ error: errorMessage(error) });
+            return;
+        }
+        const loaded = useConnections.getState().connections.find((x) => x.id === c.id);
+        const schema = loaded && defaultSchema(schemasOf(loaded, database));
+        if (schema) open({ connectionId: c.id, database, schema: schema.name });
+        else useDiagram.setState({ error: `${database} has no schemas to draw.` });
+    }
     return (
         <>
             <Select
@@ -58,7 +79,7 @@ function Picker({ c, target }: { c: Connection | undefined; target: Target | nul
                 disabled={locked}
                 onValueChange={(id) => {
                     const next = connections.find((x) => x.id === id);
-                    const schema = next && defaultSchema(next);
+                    const schema = next && defaultSchema(next.schemas);
                     if (next && schema) open(targetOn(next, schema.name));
                 }}
             >
@@ -73,12 +94,30 @@ function Picker({ c, target }: { c: Connection | undefined; target: Target | nul
                     ))}
                 </SelectContent>
             </Select>
-            <Select value={target?.schema ?? ''} disabled={!c || locked} onValueChange={(schema) => c && open(targetOn(c, schema))}>
+            {databases.length > 0 && (
+                <Select value={target?.database ?? ''} disabled={locked} onValueChange={(database) => void pickDatabase(database)}>
+                    <SelectTrigger size="sm" aria-label="Database" className="w-40 min-w-24">
+                        <SelectValue placeholder="Database" />
+                    </SelectTrigger>
+                    <SelectContent position="popper">
+                        {databases.map((name) => (
+                            <SelectItem key={name} value={name}>
+                                {name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            )}
+            <Select
+                value={target?.schema ?? ''}
+                disabled={!c || locked}
+                onValueChange={(schema) => c && target && open(databases.length ? { ...target, schema } : targetOn(c, schema))}
+            >
                 <SelectTrigger size="sm" aria-label="Schema" className="w-40 min-w-24">
                     <SelectValue placeholder="Schema" />
                 </SelectTrigger>
                 <SelectContent position="popper">
-                    {c?.schemas.map((s) => (
+                    {schemas.map((s) => (
                         <SelectItem key={s.name} value={s.name}>
                             {s.name}
                         </SelectItem>
@@ -332,7 +371,7 @@ export function DiagramPage() {
     // The first open connection's first schema, when nothing was picked from the explorer
     useEffect(() => {
         if (!connection && first) {
-            const schema = defaultSchema(first);
+            const schema = defaultSchema(first.schemas);
             if (schema) open(targetOn(first, schema.name));
         }
     }, [connection, first, open]);
