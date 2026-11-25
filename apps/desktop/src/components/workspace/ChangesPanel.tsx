@@ -18,6 +18,9 @@ import { EngineLogo } from '@/components/shell/engine-logos';
 import { useConnections } from '@/stores/connections';
 import { editCount, totalEdits, useQuery, type RowEdit, type TableTab } from '@/stores/query';
 import { useUi } from '@/stores/ui';
+import { pendingTargets, useSchemaEdit } from '@/stores/schema-edit';
+import { targetKey } from '@/lib/schema-graph';
+import { SchemaChanges } from '@/components/diagram/SchemaChanges';
 import { useEnter } from '@/lib/spring';
 import { cn, count, saveShortcut } from '@/lib/utils';
 import { CellEditor, NullMark, type CellField } from './CellEditor';
@@ -365,6 +368,9 @@ export function ChangesPanel() {
     // Same tab objects until a table changes, so typing in the editor doesn't re-render this
     const tabs = useQuery(useShallow((s) => s.tables.filter((t) => editCount(t) > 0)));
     const setChangesOpen = useUi((s) => s.setChangesOpen);
+    // Schema edits staged from the graph, the inspector or a grid, by schema
+    const staged = useSchemaEdit((s) => s.changes);
+    const pending = useMemo(() => pendingTargets({ changes: staged }), [staged]);
     const [saving, setSaving] = useState<{ name: string; at: number; of: number } | null>(null);
     const [report, setReport] = useState<Report | null>(null);
     const [filter, setFilter] = useState('');
@@ -437,17 +443,24 @@ export function ChangesPanel() {
             )}
 
             <div className="min-h-0 flex-1 overflow-auto">
-                {tabs.length === 0 ? (
-                    <div className="flex flex-col items-center gap-2 px-6 py-12 text-center text-xs">
-                        <p className="text-[13px] text-fg2">No unsaved changes</p>
-                        <p className="max-w-60 text-pretty text-fg3">
-                            Double-click a cell in a table to edit it, or paste and drag the fill handle over a range. Edits wait here until you save
-                            them.
-                        </p>
-                        <p className="mt-2 flex items-center gap-1.5 text-fg4">
-                            <Kbd>{saveShortcut}</Kbd> on a table tab opens this panel
-                        </p>
+                {pending.map((t) => (
+                    <div key={targetKey(t)} className="border-b border-border-soft">
+                        <SchemaChanges target={t} />
                     </div>
+                ))}
+                {tabs.length === 0 ? (
+                    pending.length > 0 ? null : (
+                        <div className="flex flex-col items-center gap-2 px-6 py-12 text-center text-xs">
+                            <p className="text-[13px] text-fg2">No unsaved changes</p>
+                            <p className="max-w-60 text-pretty text-fg3">
+                                Double-click a cell in a table to edit it, or paste and drag the fill handle over a range. Edits wait here until you
+                                save them.
+                            </p>
+                            <p className="mt-2 flex items-center gap-1.5 text-fg4">
+                                <Kbd>{saveShortcut}</Kbd> on a table tab opens this panel
+                            </p>
+                        </div>
+                    )
                 ) : sections.length === 0 ? (
                     <p className="px-4 py-8 text-center text-xs text-fg3">No changes match “{filter.trim()}”</p>
                 ) : (

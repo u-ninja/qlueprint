@@ -6,6 +6,7 @@ import { cn, count, isMac, isTauri, saveShortcut, shortcutLabel } from '@/lib/ut
 import { Kbd } from '@/components/ui/kbd';
 import { useSpring } from '@/lib/spring';
 import { totalEdits, useQuery } from '@/stores/query';
+import { useSchemaEdit } from '@/stores/schema-edit';
 import { AppMenu } from './AppMenu';
 import { ConnectDialog } from './ConnectDialog';
 import { createActions, useNativeMenu } from './menu';
@@ -29,7 +30,8 @@ const ownControls = isTauri && !isMac;
 /** Unsaved table edits, everywhere: the count, and a click that shows or hides the Changes panel */
 function ChangesButton() {
     // A primitive: a selector returning a new object each time would re-render on every store change
-    const total = useQuery(totalEdits);
+    // Row edits and schema edits waiting to be applied
+    const total = useQuery(totalEdits) + useSchemaEdit((s) => Object.values(s.changes).reduce((n, list) => n + list.length, 0));
     const open = useUi((s) => s.changesOpen);
     const setChangesOpen = useUi((s) => s.setChangesOpen);
     const label = total ? count(total, 'unsaved change') : 'No unsaved changes';

@@ -95,6 +95,21 @@ export type TableTab = {
     plan: Plan | null;
 };
 
+/** A table's connections drawn as a graph (`table`), or a whole schema's (null): its own tab, edited in place */
+export type GraphTab = {
+    id: string;
+    connectionId: string;
+    database: string;
+    schema: string;
+    table: string | null;
+    /** The tables whose connected tables are shown too; a table's own "Show connected" adds it */
+    expanded: string[];
+};
+
+/** One graph's tab id, so opening the same one again finds its tab; apart from table tab ids */
+export const graphKey = (t: Pick<GraphTab, 'connectionId' | 'database' | 'schema' | 'table'>) =>
+    JSON.stringify(['graph', t.connectionId, t.database, t.schema, t.table]);
+
 type QueryState = {
     /** At least one, in tab order */
     queries: QueryTab[];
@@ -102,7 +117,9 @@ type QueryState = {
     currentQuery: string;
     /** Open table tabs, after the query tabs */
     tables: TableTab[];
-    /** The shown tab, query or table */
+    /** Open graph tabs, after the table tabs */
+    graphs: GraphTab[];
+    /** The shown tab: a query, table or graph */
     activeTab: string;
     /** Run executes the editor selection instead of the whole script when there is one */
     hasSelection: boolean;
@@ -152,6 +169,10 @@ type QueryState = {
     focusCell: (id: string, cell: TableTab['focus']) => void;
     /** Saves a table tab's edits in one transaction and reloads it; false (error in the Changes panel, opened) when that failed */
     saveEdits: (id: string) => Promise<boolean>;
+    /** Opens (or shows) the graph of a table and the tables connected to it; no table: the whole schema */
+    openGraph: (connectionId: string, database: string, schema: string, table: string | null) => void;
+    /** Shows the tables connected to `table` in a graph tab too */
+    expandGraph: (id: string, table: string) => void;
     closeTab: (id: string) => void;
     /** Tabs waiting on "Save changes?" before they close */
     closing: string[];
@@ -174,8 +195,8 @@ type QueryState = {
 };
 
 /** One workspace's tabs */
-type Tabs = Pick<QueryState, 'queries' | 'tables' | 'currentQuery' | 'activeTab'>;
-const NO_TABS: Tabs = { queries: [], tables: [], currentQuery: '', activeTab: '' };
+type Tabs = Pick<QueryState, 'queries' | 'tables' | 'graphs' | 'currentQuery' | 'activeTab'>;
+const NO_TABS: Tabs = { queries: [], tables: [], graphs: [], currentQuery: '', activeTab: '' };
 
 /** The query tab the editor and results panel show */
 export function currentQuery(s: Pick<QueryState, 'queries' | 'currentQuery'>) {
@@ -548,7 +569,7 @@ function restoreTabs(queries: SavedTab[] | undefined, current: string | undefine
         database: q.database ?? null,
     }));
     const shown = restored.some((q) => q.id === current) ? current! : restored[0].id;
-    return { queries: restored, tables: [], currentQuery: shown, activeTab: shown };
+    return { queries: restored, tables: [], graphs: [], currentQuery: shown, activeTab: shown };
 }
 
 /** A query tab has unsaved changes, or a table tab unsaved edits */
@@ -629,6 +650,7 @@ export const useQuery = create<QueryState>()(
                 queries: [],
                 currentQuery: '',
                 tables: [],
+                graphs: [],
                 activeTab: '',
                 hasSelection: false,
                 readSelection: () => '',
@@ -752,6 +774,17 @@ export const useQuery = create<QueryState>()(
                     if (show) set({ activeTab: id });
                     await loadTable(id);
                 },
+
+                openGraph: (connectionId, database, schema, table) => {
+                    const id = graphKey({ connectionId, database, schema, table });
+                    if (!get().graphs.some((g) => g.id === id))
+                        set((s) => ({ graphs: [...s.graphs, { id, connectionId, database, schema, table, expanded: table ? [table] : [] }] }));
+                    set({ activeTab: id });
+                },
+                expandGraph: (id, table) =>
+                    set((s) => ({
+                        graphs: s.graphs.map((g) => (g.id === id && !g.expanded.includes(table) ? { ...g, expanded: [...g.expanded, table] } : g)),
+                    })),
 
                 queryTable: async (id, change) => {
                     if (holdEdits(id)) return;
@@ -883,10 +916,11 @@ export const useQuery = create<QueryState>()(
 
                 closeTab: (id) =>
                     set((s) => {
-                        const order = [...s.queries, ...s.tables].map((t) => t.id);
+                        const order = [...s.queries, ...s.tables, ...s.graphs].map((t) => t.id);
                         const queries = s.queries.filter((q) => q.id !== id);
                         const tables = s.tables.filter((t) => t.id !== id);
-                        const left = [...queries, ...tables].map((t) => t.id);
+                        const graphs = s.graphs.filter((g) => g.id !== id);
+                        const left = [...queries, ...tables, ...graphs].map((t) => t.id);
                         // Closing the shown tab shows the one that slides into its place, else the one before it
                         const i = order.indexOf(id);
                         // Nothing left: '' shows the empty screen
@@ -894,7 +928,7 @@ export const useQuery = create<QueryState>()(
                         const current = queries.some((q) => q.id === s.currentQuery)
                             ? s.currentQuery
                             : (queries[Math.min(i, queries.length - 1)]?.id ?? '');
-                        return { queries, tables, activeTab, currentQuery: queries.some((q) => q.id === activeTab) ? activeTab : current };
+                        return { queries, tables, graphs, activeTab, currentQuery: queries.some((q) => q.id === activeTab) ? activeTab : current };
                     }),
 
                 explainTable: async (id, analyze = false) => {
@@ -916,7 +950,7 @@ export const useQuery = create<QueryState>()(
                             next.splice(at, 0, ...next.splice(from, 1));
                             return next;
                         };
-                        return { queries: move(s.queries), tables: move(s.tables) };
+                        return { queries: move(s.queries), tables: move(s.tables), graphs: move(s.graphs) };
                     }),
                 parked: {},
                 switchWorkspace: (id) => {
@@ -930,7 +964,10 @@ export const useQuery = create<QueryState>()(
                     useUi.setState({ workspace: id, inspected: null });
                     set({
                         ...next,
-                        parked: { ...rest, [from]: { queries: s.queries, tables: s.tables, currentQuery: s.currentQuery, activeTab: s.activeTab } },
+                        parked: {
+                            ...rest,
+                            [from]: { queries: s.queries, tables: s.tables, graphs: s.graphs, currentQuery: s.currentQuery, activeTab: s.activeTab },
+                        },
                     });
                 },
                 dropWorkspace: (id) =>

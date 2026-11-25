@@ -22,7 +22,9 @@ export type SchemaChange =
     | { op: 'renameColumn'; table: string; column: string; to: string }
     | { op: 'dropColumn'; table: string; column: string }
     | { op: 'addForeignKey'; table: string; column: string; refTable: string; refColumn: string; name: string }
-    | { op: 'dropForeignKey'; table: string; column: string; name: string };
+    | { op: 'dropForeignKey'; table: string; column: string; name: string }
+    | { op: 'createIndex'; table: string; name: string; columns: string[]; unique: boolean }
+    | { op: 'dropIndex'; table: string; name: string };
 
 /** A staged change; the id lets the review list take one back out */
 export type Staged = SchemaChange & { id: string };
@@ -76,6 +78,19 @@ export function changeSql(kind: Kind, schema: string, change: SchemaChange): str
             return `${on(change.table)} ADD CONSTRAINT ${q(change.name)} FOREIGN KEY (${q(change.column)}) REFERENCES ${qualified(kind, schema, change.refTable)} (${q(change.refColumn)})`;
         case 'dropForeignKey':
             return `${on(change.table)} DROP ${kind === 'mysql' ? 'FOREIGN KEY' : 'CONSTRAINT'} ${q(change.name)}`;
+        case 'createIndex': {
+            // The index lives in its table's schema: Postgres, MySQL and SQL Server qualify the table, SQLite the index
+            const [index, onTable] =
+                kind === 'sqlite'
+                    ? [`${quoteName(kind, schema)}.${q(change.name)}`, q(change.table)]
+                    : [q(change.name), qualified(kind, schema, change.table)];
+            return `CREATE ${change.unique ? 'UNIQUE ' : ''}INDEX ${index} ON ${onTable} (${change.columns.map(q).join(', ')})`;
+        }
+        case 'dropIndex':
+            // Postgres and SQLite name an index on its own; MySQL and SQL Server name it through its table
+            return kind === 'postgres' || kind === 'sqlite'
+                ? `DROP INDEX ${quoteName(kind, schema)}.${q(change.name)}`
+                : `DROP INDEX ${q(change.name)} ON ${qualified(kind, schema, change.table)}`;
     }
 }
 
@@ -98,6 +113,10 @@ export function describeChange(change: SchemaChange): string {
             return `Link ${change.table}.${change.column} to ${change.refTable}.${change.refColumn}`;
         case 'dropForeignKey':
             return `Unlink ${change.table}.${change.column}`;
+        case 'createIndex':
+            return `Add ${change.unique ? 'unique ' : ''}index ${change.name} on ${change.table} (${change.columns.join(', ')})`;
+        case 'dropIndex':
+            return `Drop index ${change.name} on ${change.table}`;
     }
 }
 
@@ -114,3 +133,7 @@ export const keyType: Record<Kind, string> = {
     mssql: 'bigint IDENTITY(1,1)',
     sqlite: 'INTEGER',
 };
+
+/** A name for a new index: `orders_user_id_idx`, `users_email_key` when unique */
+export const indexName = (table: string, columns: string[], unique: boolean) =>
+    `${table}_${columns.join('_')}_${unique ? 'key' : 'idx'}`.slice(0, 63);

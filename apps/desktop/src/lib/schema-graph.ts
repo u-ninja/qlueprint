@@ -1,4 +1,4 @@
-// A schema as a graph: its tables with their columns, and the foreign keys between them. What the
+// Some of a schema's tables as a graph: their columns, and the foreign keys between them. What the
 // database reports is loaded once; staged edits are laid over it, so the diagram shows the result
 // of a change before it runs.
 import dagre from '@dagrejs/dagre';
@@ -21,7 +21,13 @@ export type GraphColumn = {
     mark?: Mark;
 };
 
-export type GraphTable = { name: string; columns: GraphColumn[]; mark?: Mark };
+export type GraphTable = {
+    name: string;
+    columns: GraphColumn[];
+    mark?: Mark;
+    /** Tables connected to this one by a foreign key that the graph doesn't show yet */
+    more: string[];
+};
 
 export type Relation = {
     /** table.column, which is also what the edge is drawn from */
@@ -36,21 +42,31 @@ export type Relation = {
 
 export type Graph = { tables: GraphTable[]; relations: Relation[] };
 
-/** The columns and keys of one table, as the diagram draws them */
-function tableOf(name: string, details: TableDetails): GraphTable {
+/** The columns and keys of one table, as the graph draws them */
+function tableOf(name: string, details: TableDetails, more: string[]): GraphTable {
     return {
         name,
+        more,
         columns: details.columns.map((c) => ({ name: c.name, type: c.typeName, nullable: c.nullable, key: c.key ?? null })),
     };
 }
 
-/** Foreign keys that stay inside the schema: the diagram shows one schema at a time */
+/** Foreign keys that stay inside the schema: a graph shows one schema at a time */
 function relationsOf(table: string, schema: string, details: TableDetails): Relation[] {
     return details.columns.flatMap((c) =>
         c.references && c.referencesColumn && (c.referencesSchema ?? schema) === schema
             ? [{ table, column: c.name, refTable: c.references, refColumn: c.referencesColumn, name: c.referenceName ?? null }]
             : [],
     );
+}
+
+/** The tables a table points at and the tables pointing at it, in its schema, itself left out */
+function connectedTo(table: string, schema: string, details: TableDetails): Set<string> {
+    const names = new Set<string>();
+    for (const c of details.columns) if (c.references && (c.referencesSchema ?? schema) === schema) names.add(c.references);
+    for (const r of details.referencedBy) if (r.schema === schema) names.add(r.table);
+    names.delete(table);
+    return names;
 }
 
 /** A column a staged change adds */
@@ -64,24 +80,41 @@ const graphColumn = (c: NewColumn): GraphColumn => ({
 
 const POOL = 6;
 
-/** Every table's details, a few at a time so a big schema doesn't open a hundred catalog reads at once */
-export async function loadGraph(target: Target, names: string[], onProgress: (done: number) => void, cancelled: () => boolean): Promise<Graph> {
-    const loaded = new Array<TableDetails>(names.length);
-    let next = 0;
-    let done = 0;
-    const worker = async () => {
-        while (next < names.length && !cancelled()) {
-            const i = next++;
-            loaded[i] = await detailsOf({ ...target, table: names[i] });
-            onProgress(++done);
-        }
+/**
+ * The tables in `expanded` and every table connected to them, with the foreign keys between those.
+ * Each table's details are read once, a few at a time so a big schema doesn't open a hundred catalog
+ * reads at once: first the expanded tables, which say who their neighbours are, then the neighbours.
+ */
+export async function loadGraph(target: Target, expanded: string[], cancelled: () => boolean): Promise<Graph> {
+    const details = new Map<string, TableDetails>();
+    const read = async (names: string[]) => {
+        const todo = names.filter((n) => !details.has(n));
+        let next = 0;
+        const worker = async () => {
+            while (next < todo.length && !cancelled()) {
+                const name = todo[next++];
+                details.set(name, await detailsOf({ ...target, table: name }));
+            }
+        };
+        await Promise.all(Array.from({ length: Math.min(POOL, todo.length) }, worker));
+        // Superseded while reading: the caller has moved on, and some tables were never read
+        if (cancelled()) throw new Error('Cancelled');
     };
-    await Promise.all(Array.from({ length: Math.min(POOL, names.length) }, worker));
-    // Superseded while reading: the caller has moved on, and some tables were never read
-    if (cancelled()) throw new Error('Cancelled');
+    await read(expanded);
+    const shown = new Set(expanded);
+    for (const name of expanded) for (const other of connectedTo(name, target.schema, details.get(name)!)) shown.add(other);
+    await read([...shown]);
+    const names = [...shown];
     return {
-        tables: names.map((name, i) => tableOf(name, loaded[i])),
-        relations: names.flatMap((name, i) => relationsOf(name, target.schema, loaded[i])),
+        tables: names.map((name) => {
+            const d = details.get(name)!;
+            return tableOf(
+                name,
+                d,
+                [...connectedTo(name, target.schema, d)].filter((n) => !shown.has(n)),
+            );
+        }),
+        relations: names.flatMap((name) => relationsOf(name, target.schema, details.get(name)!)).filter((r) => shown.has(r.refTable)),
     };
 }
 
@@ -97,6 +130,7 @@ export function withChanges(graph: Graph, changes: SchemaChange[]): Graph {
                 out.tables.push({
                     name: change.table,
                     mark: 'new',
+                    more: [],
                     columns: change.columns.map(graphColumn),
                 });
                 break;

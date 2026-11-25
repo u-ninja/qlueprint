@@ -1,5 +1,5 @@
 import { useState, type DragEvent, type ReactNode } from 'react';
-import { Copy, FileCode2, Pencil, Plus, RotateCw, Save, Table2, X } from 'lucide-react';
+import { Copy, FileCode2, Network, Pencil, Plus, RotateCw, Save, Table2, X } from 'lucide-react';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -22,6 +22,8 @@ import {
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useConnections, type Connection } from '@/stores/connections';
 import { isDirty, useQuery, type TableTab } from '@/stores/query';
+import { useSchemaEdit } from '@/stores/schema-edit';
+import { targetKey } from '@/lib/schema-graph';
 import { cn, newQueryShortcut, saveShortcut } from '@/lib/utils';
 
 const sheetTab = 'h-full flex-none gap-1.5 px-1 text-[13px] font-normal';
@@ -74,7 +76,7 @@ type TabProps = {
     /** Shown muted after the label, telling apart tabs with the same name (a table's schema) */
     qualifier?: string;
     /** Query tabs drag among query tabs, table tabs among table tabs */
-    kind: 'query' | 'table';
+    kind: 'query' | 'table' | 'graph';
     /** This tab's kind in strip order, for Move left / right: the keyboard's way to reorder */
     siblings: string[];
 };
@@ -224,13 +226,15 @@ function tableQualifiers(tables: TableTab[], connections: Connection[]) {
 export function SheetTabs() {
     const queries = useQuery((s) => s.queries);
     const tables = useQuery((s) => s.tables);
+    const graphs = useQuery((s) => s.graphs);
+    const staged = useSchemaEdit((s) => s.changes);
     const activeTab = useQuery((s) => s.activeTab);
     const { setActiveTab, newQuery, save, duplicateQuery, queryTable, requestClose, finishClose } = useQuery.getState();
     const closing = useQuery((s) => s.closing);
     const connections = useConnections((s) => s.connections);
     const [renaming, setRenaming] = useState<string | null>(null);
 
-    const order = [...queries, ...tables].map((t) => t.id);
+    const order = [...queries, ...tables, ...graphs].map((t) => t.id);
     const qualifiers = tableQualifiers(tables, connections);
     // Query tabs with unsaved SQL and table tabs with unsaved edits, by name
     const dirtyClosing = [...queries, ...tables].filter((t) => closing.includes(t.id) && isDirty(t)).map((t) => ('title' in t ? t.title : t.table));
@@ -296,6 +300,24 @@ export function SheetTabs() {
                                     Reload
                                 </ContextMenuItem>
                             }
+                        />
+                    ))}
+                    {graphs.map((g) => (
+                        <SheetTab
+                            key={g.id}
+                            id={g.id}
+                            label={g.table ? `${g.table} graph` : `${g.schema} graph`}
+                            kind="graph"
+                            siblings={graphs.map((x) => x.id)}
+                            title={`${g.database}.${g.schema}${g.table ? `.${g.table}` : ''} on ${connections.find((c) => c.id === g.connectionId)?.label ?? 'a closed connection'}`}
+                            icon={Network}
+                            active={g.id === activeTab}
+                            running={false}
+                            // Dotted while its schema has edits waiting to be applied
+                            dirty={(staged[targetKey(g)]?.length ?? 0) > 0}
+                            onClose={requestClose}
+                            order={order}
+                            menu={null}
                         />
                     ))}
                 </TabsList>

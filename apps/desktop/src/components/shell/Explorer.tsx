@@ -49,7 +49,6 @@ import {
     ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { closedState, errorMessage, useConnections, type Closed, type Connection, type ConnectionState } from '@/stores/connections';
-import { useDiagram } from '@/stores/diagram';
 import { qualifiedName, selectSql, useQuery } from '@/stores/query';
 import { useInWorkspace, useUi } from '@/stores/ui';
 import { Input } from '@/components/ui/input';
@@ -560,6 +559,12 @@ function TableRow({ c, database, schema, table }: { c: Connection; database: str
                         Show in inspector
                         <ContextMenuShortcut>Click</ContextMenuShortcut>
                     </ContextMenuItem>
+                    {!table.view && (
+                        <ContextMenuItem onSelect={() => useQuery.getState().openGraph(c.id, db, schema, table.name)}>
+                            <Network aria-hidden />
+                            View graph
+                        </ContextMenuItem>
+                    )}
                     <ContextMenuSeparator />
                     <ContextMenuItem onSelect={() => copy(table.name)}>
                         <Copy aria-hidden />
@@ -590,9 +595,9 @@ function ContainerMenu({ c, database, name, schema }: { c: Connection; database:
                 New query here
             </ContextMenuItem>
             {schema !== undefined && (
-                <ContextMenuItem onSelect={() => useDiagram.getState().open({ connectionId: c.id, database, schema })}>
+                <ContextMenuItem onSelect={() => useQuery.getState().openGraph(c.id, database, schema, null)}>
                     <Network aria-hidden />
-                    Show diagram
+                    Show schema graph
                 </ContextMenuItem>
             )}
             <ContextMenuItem onSelect={() => void refresh(c.id, database).catch(() => {})}>

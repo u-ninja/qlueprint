@@ -4,6 +4,7 @@ import { Database, FileCode2, FileUp, Server } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
+import { GraphTabView } from '@/components/diagram/GraphTabView';
 import { QueryToolbar } from '@/components/workspace/QueryToolbar';
 import { ResultsPanel, TableResults } from '@/components/workspace/ResultsPanel';
 import { useConnections } from '@/stores/connections';
@@ -136,9 +137,10 @@ function NothingOpen() {
 export function Workspace() {
     const inWorkspace = useInWorkspace();
     const noConnections = useConnections((s) => !s.saved.some((c) => inWorkspace(c.id)));
-    const noTabs = useQuery((s) => s.queries.length === 0 && s.tables.length === 0);
+    const noTabs = useQuery((s) => s.queries.length === 0 && s.tables.length === 0 && s.graphs.length === 0);
     const query = useQuery((s) => s.queries.some((q) => q.id === s.activeTab));
     const table = useQuery((s) => s.tables.find((t) => t.id === s.activeTab));
+    const graph = useQuery((s) => s.graphs.find((g) => g.id === s.activeTab));
     const hasQueries = useQuery((s) => s.queries.length > 0);
 
     // Nothing open and nothing connected: the welcome says how to start
@@ -160,7 +162,8 @@ export function Workspace() {
                 </div>
             )}
             {table && <TableResults key={table.id} tab={table} />}
-            {!query && !table && <NothingOpen />}
+            {graph && <GraphTabView key={graph.id} tab={graph} />}
+            {!query && !table && !graph && <NothingOpen />}
         </main>
     );
 }

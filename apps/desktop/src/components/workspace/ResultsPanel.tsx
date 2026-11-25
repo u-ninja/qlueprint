@@ -728,6 +728,7 @@ export function TableResults({ tab: t }: { tab: TableTab }) {
                             engine={engine}
                             // The database sorts and filters the whole table
                             table={{ schema: t.schema, name: t.table }}
+                            schemaTarget={known && !known.view ? { connectionId: t.connectionId, database: t.database, schema: t.schema } : undefined}
                             sort={t.sort}
                             onSort={(sort) => change({ sort })}
                             filters={t.filters}

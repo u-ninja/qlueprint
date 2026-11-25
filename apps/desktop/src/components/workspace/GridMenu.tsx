@@ -71,6 +71,8 @@ type Props = {
     range?: { cells: number; onCopy: () => void };
     /** When the cell can be edited: edit it, stage NULL (unless NOT NULL), paste, fill down a range, and, with changes there, take them back */
     edit?: { onEdit: () => void; onSetNull?: () => void; onRevert?: () => void; onPaste: () => void; onFillDown?: () => void };
+    /** A table tab's schema edits for this column: staged for review, not run */
+    schema?: { onAddColumn: () => void; onRename: () => void; onAddIndex: () => void; onLink: () => void; onDrop: () => void };
 };
 
 /**
@@ -94,6 +96,7 @@ export function GridMenu({
     copy,
     range,
     edit,
+    schema,
 }: Props) {
     const name = column.name;
     const kind = filterKindOf(column.kind, column.typeName);
@@ -320,6 +323,22 @@ export function GridMenu({
                     <FilterX aria-hidden />
                     Clear all {filters.length} filters
                 </ContextMenuItem>
+            )}
+            {schema && (
+                <>
+                    <ContextMenuSeparator />
+                    <ContextMenuSub>
+                        <ContextMenuSubTrigger>Edit column</ContextMenuSubTrigger>
+                        <ContextMenuSubContent>
+                            <ContextMenuItem onSelect={() => setTimeout(schema.onRename)}>Rename…</ContextMenuItem>
+                            <ContextMenuItem onSelect={() => setTimeout(schema.onAddIndex)}>Add index…</ContextMenuItem>
+                            <ContextMenuItem onSelect={() => setTimeout(schema.onLink)}>Link to a table…</ContextMenuItem>
+                            <ContextMenuItem onSelect={() => setTimeout(schema.onAddColumn)}>Add column…</ContextMenuItem>
+                            <ContextMenuSeparator />
+                            <ContextMenuDestructiveItem onSelect={schema.onDrop}>Drop column</ContextMenuDestructiveItem>
+                        </ContextMenuSubContent>
+                    </ContextMenuSub>
+                </>
             )}
         </ContextMenuContent>
     );

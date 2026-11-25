@@ -12,7 +12,6 @@ import { settingsSections } from '@/components/settings/SettingsPage';
 
 const emptyText: Record<View, string> = {
     workspace: 'No connections yet. Connect to a database or create a local one to see it here.',
-    diagram: 'Connect to a database to draw its tables and how they link.',
     connections: 'No saved connections.',
     servers: '',
     queries: 'No saved queries.',
@@ -28,8 +27,8 @@ export function Sidebar() {
     const inWorkspace = useInWorkspace();
     const savedCount = useConnections((s) => s.saved.filter((c) => inWorkspace(c.id)).length);
     const setCreateOpen = useLocal((s) => s.setCreateOpen);
-    // These views list the saved connections; the others have nothing to list yet
-    const listsConnections = view === 'workspace' || view === 'connections' || view === 'diagram';
+    // Both views list the saved connections; the others have nothing to list yet
+    const listsConnections = view === 'workspace' || view === 'connections';
     const showExplorer = listsConnections && savedCount > 0;
 
     return (

@@ -8,6 +8,8 @@ import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
 import { editCount, qualifiedName, type RowEdit, type Sort } from '@/stores/query';
 import type { Connection } from '@/stores/connections';
+import { useSchemaEdit } from '@/stores/schema-edit';
+import type { Target } from '@/lib/schema-graph';
 import { describeFilter, filterKindOf, filterRows, type ColumnFilter } from '@/lib/column-filter';
 import { ColumnFilterForm } from './ColumnFilterForm';
 import { GridMenu, RowMenu, openClick, short } from './GridMenu';
@@ -111,6 +113,8 @@ type Props = {
     /** A table tab's table, so selected rows can be copied as INSERT statements. Its rows come sorted and
      * filtered by the database; a query result's are sorted and filtered here */
     table?: { schema: string; name: string };
+    /** Where a table tab's table lives, so its columns can be edited (staged for review) from the grid; not for a view */
+    schemaTarget?: Target;
     /** The strip under the grid: reload, the row limit, and the name exports start with */
     toolbar: { fileName: string; refresh?: { run: () => void; busy: boolean; blocked?: string }; limit?: Limit };
 };
@@ -127,9 +131,23 @@ export function ResultsGrid({
     onOpenRelated,
     editor,
     table: source,
+    schemaTarget,
     toolbar,
 }: Props) {
     const server = !!source;
+    // Schema edits for a column, staged on the table's schema and reviewed in the Changes panel
+    const schemaOps = (column: string) => {
+        if (!schemaTarget || !source) return undefined;
+        const { openEdit, stage } = useSchemaEdit.getState();
+        const table = source.name;
+        return {
+            onAddColumn: () => openEdit(schemaTarget, { kind: 'addColumn', table }),
+            onRename: () => openEdit(schemaTarget, { kind: 'renameColumn', table, column }),
+            onAddIndex: () => openEdit(schemaTarget, { kind: 'addIndex', table, column }),
+            onLink: () => openEdit(schemaTarget, { kind: 'addRelation', table, column }),
+            onDrop: () => stage(schemaTarget, { op: 'dropColumn', table, column }),
+        };
+    };
     const filterOf = (column: string) => filters.find((f) => f.column === column);
     const setFilter = (column: string, filter: ColumnFilter | null) =>
         onFiltersChange([...filters.filter((f) => f.column !== column), ...(filter ? [filter] : [])]);
@@ -964,6 +982,7 @@ export function ResultsGrid({
                                 targetMeta && (
                                     <GridMenu
                                         column={targetMeta}
+                                        schema={schemaOps(targetMeta.name)}
                                         cell={
                                             target && target.row !== null && data[target.row]
                                                 ? {
@@ -1145,6 +1164,7 @@ export function ResultsGrid({
                 </div>
                 <GridToolbar
                     onInsert={editor?.insert}
+                    onAddColumn={schemaOps('')?.onAddColumn}
                     onDuplicate={selectedOps?.onDuplicate}
                     onDelete={selectedOps?.onDelete}
                     restore={selectedOps?.deleted}

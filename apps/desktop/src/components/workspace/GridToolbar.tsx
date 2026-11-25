@@ -1,5 +1,5 @@
 import { useId, useState, type ComponentProps } from 'react';
-import { Copy, Download, Minus, Plus, RefreshCw, Undo2 } from 'lucide-react';
+import { Columns3, Copy, Download, Minus, Plus, RefreshCw, Undo2 } from 'lucide-react';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -16,6 +16,8 @@ export type Limit = { value: number; options: { value: number; label: string }[]
 type Props = {
     /** Each only when the login may; a query result has none */
     onInsert?: () => void;
+    /** A table tab's: stages a new column, for review */
+    onAddColumn?: () => void;
     onDuplicate?: () => void;
     /** `restore` when the selected rows are already staged for deletion */
     onDelete?: () => void;
@@ -35,7 +37,7 @@ function ToolButton({ label, title, ...props }: { label: string } & Omit<Compone
 }
 
 /** DBeaver-style strip under a grid: change rows, reload, export, and how many rows to load */
-export function GridToolbar({ onInsert, onDuplicate, onDelete, restore, refresh, limit, formats, scope, fileName, onError }: Props) {
+export function GridToolbar({ onInsert, onAddColumn, onDuplicate, onDelete, restore, refresh, limit, formats, scope, fileName, onError }: Props) {
     const [exportOpen, setExportOpen] = useState(false);
     const limitLabel = useId();
     const editable = onInsert || onDuplicate || onDelete;
@@ -68,6 +70,11 @@ export function GridToolbar({ onInsert, onDuplicate, onDelete, restore, refresh,
                     <ToolButton label="Duplicate rows" title="Add copies of the selected rows" onClick={onDuplicate} disabled={!onDuplicate}>
                         <Copy className="size-3.5" aria-hidden />
                     </ToolButton>
+                    {onAddColumn && (
+                        <ToolButton label="Add column" title="Add a column to the table, staged until you apply it" onClick={onAddColumn}>
+                            <Columns3 className="size-4" aria-hidden />
+                        </ToolButton>
+                    )}
                     <span className="mx-1 h-4 w-px flex-none bg-border-soft" aria-hidden />
                 </>
             )}
