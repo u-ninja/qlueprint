@@ -46,11 +46,15 @@ open. To see where work stands, read the latest commit's `Next:` section.
 
 ## Team agents
 
-`.claude/agents/` holds 112 specialist agents in 12 departments, each named
-(`dave`, `torry`, `ben`, …). Who they are is in `.claude/team/ROSTER.md`; how
+`.claude/agents/` holds 44 specialist agents in 11 departments, four each, each
+named (`liv`, `ben`, `nat`, …). Who they are is in `.claude/team/ROSTER.md`; how
 they work together (gated stages for risky work, two-week sprints for the rest,
-definition of done, hand-offs) is in `.claude/team/CHARTER.md`. Use the fewest
-agents that cover a task. Each has a fixed model tier (opus for 7 architecture and
-security roles, haiku for routine work, sonnet otherwise) and loads only the
-skills its work needs; brief them with exact files and ask for short answers.
+definition of done, hand-offs) is in `.claude/team/CHARTER.md`.
+
+**Delegate by default.** Any task beyond a trivial edit goes to the agent whose
+department owns the files (the routing table is in the charter), not done inline
+in the main session. Use the fewest agents that cover a task. Each has a fixed
+model tier (opus for 7 architecture and security roles, sonnet otherwise) and
+loads only the skills its work needs; brief them with exact files and ask for
+short answers.
 They advise and build; they never commit unless asked.

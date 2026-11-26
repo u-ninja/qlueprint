@@ -10,16 +10,21 @@ Each agent is a prompt with a role, a scope in this repo and a set of working me
 
 | The task is about | Start with | Then bring in |
 | --- | --- | --- |
-| Deciding how to run a piece of work | `ron` | `gus` (planning), `sam` (sprints), `nell` (risk) |
-| A new feature's scope and acceptance | `pia` | `ivy`, `sue`, `tai` |
-| A cross-cutting design | `vic` | `rae`, `ned`, `ada`, `sol` |
-| A UI change | the owner in Frontend | `tai` or `wes` for design, `kay` for accessibility |
-| A command, driver or query path | the owner in Rust & Backend | `rae`, the engine's specialist in Database Specialists |
-| Something that feels slow | `uma` | `jo` (UI), `ula` (measure), `nia` (complexity) |
-| Anything touching secrets, audit or auth | `sol` | `lena`, `milo`, `nora` |
-| Tests | `reid` | `sana`, `toby`, `vito`, `zane` |
-| Build, signing, installers, updates | `alma` | `cy`, `dina`, `ugo`, `faye` |
-| A release | `kit` | `hugo`, `faye`, `lou` |
+| Deciding how to run a piece of work, planning, risk | `ron` | `pia` |
+| A new feature's scope and acceptance | `pia` | `vera` (users), `tai` |
+| A cross-cutting design | `vic` | `rae`, `ned`, `sol` |
+| A UI change | the owner in Frontend (`tom`, `liv`, `ben`, `nat`) | `tai` for design, `zack` for accessibility |
+| A command, driver or query path | the owner in Rust & Backend | `rae`, the engine's owner in Database Specialists |
+| A schema, index, DDL or transaction question | `ada` | the engine's owner |
+| Something that feels slow | `uma` | `tom` (UI), `reid` (measure) |
+| Anything touching secrets, audit or auth | `sol` | `lena`, `milo` |
+| Tests | `reid` | `ozzy`, `toby`, `vito` |
+| Build, signing, installers, updates | `alma` | `cy`, `dina`, `dave` |
+| A release | `kit` | `hugo`, `dina`, `lou` |
+
+## Delegating
+
+The main session hands work to the department that owns the files, instead of doing it inline. Anything beyond a trivial edit (a typo, a one-line fix) goes to the owner from the table above, briefed as described below. Take on a task yourself only when no agent's area fits or the change is a few lines.
 
 ## Spending tokens well
 
@@ -30,8 +35,7 @@ The goal is the best result for the fewest tokens. Every agent file already fixe
 | Tier | Used for | Count |
 | --- | --- | --- |
 | `opus` | Cross-cutting design and security calls where a wrong answer is expensive: `vic`, `rae`, `ned`, `ada`, `sol`, `uma`, `lena` | 7 |
-| `sonnet` | Building, reviewing and specialist advice. The default | 97 |
-| `haiku` | Routine, mechanical or summarising work: `sam`, `bea`, `hank`, `pru`, `yan`, `glen`, `otto`, `xan` | 8 |
+| `sonnet` | Building, reviewing and specialist advice. The default | 37 |
 
 Move a task up a tier only when the agent says it is beyond its own, and never run an `opus` agent for work a `sonnet` one can do. When the main session spawns an agent it may override the model for a single task.
 
@@ -75,10 +79,10 @@ For work that is hard to reverse, or where being wrong late is expensive:
 
 | Gate | Entry | Exit (signed off by) |
 | --- | --- | --- |
-| 1. Requirements | A request | Numbered, testable requirements traced to the spec (`ivy`, `pia`) |
+| 1. Requirements | A request | Numbered, testable requirements traced to the spec (`pia`) |
 | 2. Design | Approved requirements | Written design with an ADR for each real choice, a threat model if it touches trust, and complexity and performance budgets (`vic`, plus `sol` and `uma` where relevant) |
 | 3. Build | Approved design | Code and tests that meet the design, reviewed by someone who did not write them |
-| 4. Verify | Build done | Test plan run, including the failure paths, on every supported platform that applies (`reid`, `xiu`) |
+| 4. Verify | Build done | Test plan run, including the failure paths, on every supported platform that applies (`reid`, `toby`) |
 | 5. Release | Verified | Release checklist green, rollback ready, notes written (`kit`, `hugo`) |
 
 Nothing starts a stage before the one before it is signed. Anyone may send work back a gate; nobody skips one.
@@ -87,16 +91,16 @@ Nothing starts a stage before the one before it is signed. Anyone may send work 
 
 For work that is cheap to change: UI features, polish, most fixes.
 
-- Two-week sprints. `pia` owns the order of the backlog, `sam` owns the flow.
+- Two-week sprints. `pia` owns the order of the backlog, `ron` owns the flow.
 - A story is ready when it has a user outcome, acceptance criteria and a named owner. It is done when it meets the definition below.
-- Bugs run as a Kanban lane with a work-in-progress limit. `yan` triages by user impact.
-- Each sprint ends with a demo of working software and a short retrospective with one change to try. `bea` reports cycle time and forecasts as ranges.
+- Bugs run as a Kanban lane with a work-in-progress limit. `toby` triages by user impact.
+- Each sprint ends with a demo of working software and a short retrospective with one change to try. `ron` reports cycle time and forecasts as ranges.
 
 ### Definition of done (both modes)
 
 1. It does what the acceptance criteria say, and the failure paths are handled.
 2. `pnpm exec tsc --noEmit` is clean for TypeScript and `cargo check` and `cargo test` pass for Rust.
-3. UI changes use the existing design system and pass `web-design-guidelines`, and are keyboard-operable (`kay`).
+3. UI changes use the existing design system and pass `web-design-guidelines`, and are keyboard-operable (`zack`).
 4. Anything user-visible is described in `apps/desktop/CHANGELOG.md`.
 5. New code has a stated complexity where it loops over schema-sized or result-sized data, and the unused code it replaced is gone (`/simplify`).
 6. No secrets, connection strings or row data in files, logs or commits.
@@ -104,8 +108,8 @@ For work that is cheap to change: UI features, polish, most fixes.
 
 ## Engineering standards
 
-- **Algorithms and data structures are a design decision, not an afterthought.** Write the complexity next to any loop over tables, columns or rows. Pick the structure by the access pattern: a heap for due jobs, a trie for completion, a ring or LRU for bounded caches, a topological order and strongly connected components for diagrams, a rope or piece table for large text. `nia` reviews claims; `iris`, `jude`, `kai`, `lola` and `moss` own the techniques.
-- **Measure before optimising.** `uma` sets a budget per interaction; `ula` measures against it on realistic data sizes.
+- **Algorithms and data structures are a design decision, not an afterthought.** Write the complexity next to any loop over tables, columns or rows. Pick the structure by the access pattern: a heap for due jobs, a trie for completion, a ring or LRU for bounded caches, a topological order and strongly connected components for diagrams, a rope or piece table for large text. `reid` reviews claims; `ben` (graphs), `jude`, `kai`, `lola` and `moss` own the techniques.
+- **Measure before optimising.** `uma` sets a budget per interaction; `reid` measures against it on realistic data sizes.
 - **Decide in writing.** A real choice gets a short ADR (context, options, decision, consequences) in `docs/`. `vic` keeps them.
 - **Review by someone else.** The author does not approve their own change. A Rust change is reviewed by a second Rust owner, a UI change by a second UI owner plus accessibility.
 - **One source of truth per fact.** Link to it rather than copying it.
@@ -128,4 +132,4 @@ If two agents disagree, each states the trade-off in one paragraph and `vic` dec
 
 - Agents do not commit, push, publish or send anything outside the machine unless the user asked in this session.
 - Test data lives in the `shop` and `hr` schemas of the development Postgres and in SQLite fixtures. Nothing in this repo may contain a real credential: connection strings come from the environment.
-- Security testing (`quill`) covers QluePrint's own code and fixtures only.
+- Security testing (`lena`) covers QluePrint's own code and fixtures only.
