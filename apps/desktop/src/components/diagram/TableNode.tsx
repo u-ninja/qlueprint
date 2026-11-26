@@ -35,6 +35,10 @@ const keyIcon = (key: string | null) =>
         <Link2 className="size-3 text-primary-text" aria-label="Foreign key" />
     ) : null;
 
+/** Handle ids carry a side so one column can be an edge's end on either edge of its table */
+export const handleId = (column: string, side: 'l' | 'r') => `${column}:${side}`;
+export const columnOf = (handle: string) => handle.slice(0, -2);
+
 function Row({ table, column }: { table: string; column: GraphColumn }) {
     const graph = useContext(GraphContextContext);
     const row = (
@@ -48,12 +52,12 @@ function Row({ table, column }: { table: string; column: GraphColumn }) {
                 column.mark === 'dropped' && 'bg-danger-soft',
             )}
         >
-            {/* Left: where a link from another table lands. Right: drag from here to a column to link this one to it */}
-            <Handle id={column.name} type="target" position={Position.Left} className="diagram-handle" isConnectable={column.mark !== 'dropped'} />
+            {/* A dot on each side so an edge can leave by the side that faces the other table. Dragging from a dot to another column links the first to it */}
+            <Handle id={handleId(column.name, 'l')} type="source" position={Position.Left} className="diagram-handle" isConnectable={column.mark !== 'dropped'} />
             <span className="grid size-3.5 flex-none place-items-center">{keyIcon(column.key)}</span>
             <span className={cn('min-w-0 flex-1 truncate', column.mark && markClass[column.mark])}>{column.name}</span>
             <span className="flex-none truncate font-mono text-[11px] text-fg3">{column.type}</span>
-            <Handle id={column.name} type="source" position={Position.Right} className="diagram-handle" isConnectable={column.mark !== 'dropped'} />
+            <Handle id={handleId(column.name, 'r')} type="source" position={Position.Right} className="diagram-handle" isConnectable={column.mark !== 'dropped'} />
         </div>
     );
     if (!graph || column.mark === 'dropped') return row;
@@ -93,7 +97,7 @@ function TableNodeView({ data }: NodeProps<TableFlowNode>) {
             tabIndex={editable ? 0 : undefined}
             onKeyDown={menuKey}
             style={{ height: HEADER }}
-            className="flex items-center gap-2 border-b border-border-soft bg-header px-3 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+            className="flex items-center gap-2 rounded-t-[7px] border-b border-border-soft bg-header px-3 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
         >
             <Table2 className="size-3.5 flex-none text-fg3" aria-hidden />
             <span className={cn('min-w-0 flex-1 truncate text-[13px] font-medium', table.mark && markClass[table.mark])}>{table.name}</span>
@@ -105,7 +109,7 @@ function TableNodeView({ data }: NodeProps<TableFlowNode>) {
         <div
             style={{ width: NODE_WIDTH }}
             className={cn(
-                'overflow-hidden rounded-lg border bg-surface shadow-sm',
+                'rounded-lg border bg-surface shadow-sm',
                 table.mark === 'new' ? 'border-success/60' : dropped ? 'border-danger/60 opacity-70' : focus ? 'border-primary' : 'border-border',
             )}
         >

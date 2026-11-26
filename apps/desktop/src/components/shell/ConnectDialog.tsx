@@ -1,9 +1,10 @@
 import { useRef, useState, type ClipboardEvent, type ComponentProps, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
-import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, CircleAlertIcon, LoaderCircleIcon } from 'lucide-react';
+import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, CircleAlertIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Spinner } from '@/components/ui/loading';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SwitchRow } from '@/components/ui/setting-row';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -438,7 +439,7 @@ function MicrosoftSignIn({ values, onSignedIn }: { values: Values; onSignedIn: (
             </div>
             {state === 'waiting' && (
                 <p role="status" className="flex items-center gap-2 text-sm text-fg3">
-                    <LoaderCircleIcon className="size-4 flex-none animate-spin" aria-hidden />
+                    <Spinner className="size-4" />
                     Finish signing in in your browser…
                 </p>
             )}
@@ -816,7 +817,7 @@ function ConnectForm({ initial, edit, onBack, onDone }: { initial: Engine; edit?
                     <p role={typeof test === 'object' && 'error' in test ? 'alert' : 'status'} className="flex items-start gap-2 text-sm">
                         {test === 'testing' ? (
                             <>
-                                <LoaderCircleIcon className="mt-0.5 size-4 flex-none animate-spin text-fg3" aria-hidden />
+                                <Spinner className="mt-0.5 size-4 text-fg3" />
                                 Testing…
                             </>
                         ) : 'ok' in test ? (

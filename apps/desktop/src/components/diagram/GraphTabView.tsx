@@ -7,6 +7,7 @@ import {
     ReactFlowProvider,
     useNodesState,
     useReactFlow,
+    ConnectionMode,
     type Connection as Link,
     type Edge,
     type EdgeMouseHandler,
@@ -22,7 +23,7 @@ import { cn, count } from '@/lib/utils';
 import { errorMessage, useConnections } from '@/stores/connections';
 import type { GraphTab } from '@/stores/query';
 import { changesOf, useSchemaEdit } from '@/stores/schema-edit';
-import { GraphContextContext, TableNode, type GraphContext, type TableFlowNode } from './TableNode';
+import { columnOf, GraphContextContext, handleId, TableNode, type GraphContext, type TableFlowNode } from './TableNode';
 import { SchemaChanges } from './SchemaChanges';
 
 const nodeTypes = { table: TableNode };
@@ -104,16 +105,20 @@ function GraphCanvas({ tab }: { tab: GraphTab }) {
         }
     }, [graph, nodes.length, tab.id, expandedKey, fitView]);
 
+    // Which side an edge leaves and enters by follows where the two tables sit, so it never runs back behind them
+    const centres = useMemo(() => new Map(nodes.map((n) => [n.id, n.position.x + NODE_WIDTH / 2])), [nodes]);
     const edges: Edge[] = useMemo(
         () =>
             (graph?.relations ?? []).map((r) => {
+                const childRight = (centres.get(r.table) ?? 0) >= (centres.get(r.refTable) ?? 0);
+                const self = r.table === r.refTable;
                 const color = r.mark === 'new' ? 'var(--success)' : r.mark === 'dropped' ? 'var(--danger)' : 'var(--fg3)';
                 return {
                     id: edgeId(r),
                     source: r.table,
-                    sourceHandle: r.column,
+                    sourceHandle: handleId(r.column, self || !childRight ? 'r' : 'l'),
                     target: r.refTable,
-                    targetHandle: r.refColumn,
+                    targetHandle: handleId(r.refColumn, self || childRight ? 'r' : 'l'),
                     type: 'smoothstep',
                     deletable: r.mark !== 'dropped',
                     markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 },
@@ -121,7 +126,7 @@ function GraphCanvas({ tab }: { tab: GraphTab }) {
                     data: { relation: r },
                 };
             }),
-        [graph],
+        [graph, centres],
     );
 
     const [notice, setNotice] = useState<string | null>(null);
@@ -129,8 +134,9 @@ function GraphCanvas({ tab }: { tab: GraphTab }) {
     const context: GraphContext | null = useMemo(() => (editable ? { target, tabId: tab.id } : null), [editable, target, tab.id]);
 
     // Dragging from one column's dot to another's links them: the first table's column now references the second's
-    const onConnect = (link: Link) => {
-        if (!editable || !link.sourceHandle || !link.targetHandle) return;
+    const onConnect = (connection: Link) => {
+        if (!editable || !connection.sourceHandle || !connection.targetHandle) return;
+        const link = { source: connection.source, target: connection.target, sourceHandle: columnOf(connection.sourceHandle), targetHandle: columnOf(connection.targetHandle) };
         if (!c || !supportsForeignKeyDdl(c.kind)) {
             setNotice('SQLite can’t add a foreign key to a table that exists. Create it in a new table, or run the SQL yourself.');
             return;
@@ -217,6 +223,7 @@ function GraphCanvas({ tab }: { tab: GraphTab }) {
                             onNodesChange={onNodesChange}
                             onNodeDragStop={onNodeDragStop}
                             onConnect={onConnect}
+                            connectionMode={ConnectionMode.Loose}
                             onEdgeClick={onEdgeClick}
                             onPaneClick={() => setSelected(null)}
                             onEdgesDelete={(deleted) => deleted.forEach((e) => unlink((e.data as { relation: Relation }).relation))}

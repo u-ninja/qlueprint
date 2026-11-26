@@ -1,32 +1,18 @@
 import { cn } from 'cn';
 
-// Twelve spokes, each fainter than the one ahead, turned a spoke at a time: macOS's activity indicator
-const spokes = Array.from({ length: 12 }, (_, i) => i);
-
-/** The small native-style spinner for work in progress; in the text colour, still under reduced motion */
+/** The spinner for work in progress: a thin ring with a slightly thicker arc, a fifth of the circle, running round it. In the text colour, still under reduced motion */
 export function Spinner({ className, label }: { className?: string; label?: string }) {
     return (
         <svg
             viewBox="0 0 16 16"
+            fill="none"
             role={label ? 'img' : undefined}
             aria-label={label}
             aria-hidden={!label || undefined}
-            className={cn('size-3.5 flex-none animate-[spin_0.9s_steps(12)_infinite] motion-reduce:animate-none', className)}
+            className={cn('size-3.5 flex-none animate-[spin_0.8s_linear_infinite] motion-reduce:animate-none', className)}
         >
-            {spokes.map((i) => (
-                <line
-                    key={i}
-                    x1="8"
-                    y1="1.75"
-                    x2="8"
-                    y2="4.75"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    opacity={(i + 1) / 12}
-                    transform={`rotate(${i * 30} 8 8)`}
-                />
-            ))}
+            <circle cx="8" cy="8" r="6.25" stroke="currentColor" strokeWidth="1.25" opacity="0.22" />
+            <circle cx="8" cy="8" r="6.25" stroke="currentColor" strokeWidth="2" strokeLinecap="round" pathLength="100" strokeDasharray="20 80" />
         </svg>
     );
 }

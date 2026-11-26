@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Circle, LoaderCircle, Minus, X } from 'lucide-react';
+import { Check, Circle, Minus, X } from 'lucide-react';
 import { commands, events, type LocalCreated, type LocalRequest, type Stage, type StageState } from '@/bindings';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/loading';
 import { errorMessage } from '@/stores/connections';
 import { openConnection, useLocal } from '@/stores/local';
 import { currentQuery, NO_QUERY, useQuery } from '@/stores/query';
@@ -16,7 +17,7 @@ const MAX_OUTPUT = 200;
 
 function StageIcon({ state }: { state: StageState | undefined }) {
     const icon = 'size-3.5 flex-none';
-    if (state === 'running' || state === 'output') return <LoaderCircle className={cn(icon, 'animate-spin text-primary-text')} aria-hidden />;
+    if (state === 'running' || state === 'output') return <Spinner className={cn(icon, 'text-primary-text')} />;
     if (state === 'done') return <Check className={cn(icon, 'text-success')} aria-hidden />;
     if (state === 'skipped') return <Minus className={cn(icon, 'text-fg3')} aria-hidden />;
     if (state === 'failed') return <X className={cn(icon, 'text-danger')} aria-hidden />;

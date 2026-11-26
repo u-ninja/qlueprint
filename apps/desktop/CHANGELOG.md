@@ -2,6 +2,11 @@ AI# Changelog
 
 Shown in the "What's new" window after an update. One `## version` heading per release, one `- ` line per change.
 
+## 0.3.2
+
+- Table graph: relationship lines now run straight between two tables and end at the right columns, instead of looping behind them
+- New loading spinner
+
 ## 0.3.1
 
 - Updates: see what's new in a version before you install it, with download progress
