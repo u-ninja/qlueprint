@@ -20,6 +20,9 @@ use crate::mssql::{MssqlLogin, MssqlServer};
 // The name from before the rename to QluePrint: saved passwords are filed under it, so it stays
 const KEYRING_SERVICE: &str = "QueryCraft";
 const FILE: &str = "connections.json";
+// Windows Credential Manager holds 2560 bytes per entry, as UTF-16, and a Microsoft refresh
+// token can be longer: there, a longer secret continues in the entries `<id>#1`, `<id>#2`, …
+const PART_UNITS: usize = if cfg!(windows) { 1280 } else { usize::MAX };
 
 /// A `ConnectRequest` minus the password.
 #[derive(Clone, Serialize, Deserialize, Type)]
@@ -123,6 +126,44 @@ fn credential(id: &str) -> Result<Entry, CommandError> {
     Entry::new(KEYRING_SERVICE, id).map_err(credential_failed)
 }
 
+/// `secret` cut into pieces of at most `max` UTF-16 units, never inside a character.
+fn parts(mut secret: &str, max: usize) -> Vec<&str> {
+    let mut parts = Vec::new();
+    loop {
+        let mut units = 0;
+        let end = secret.char_indices().find(|(_, c)| {
+            units += c.len_utf16();
+            units > max
+        });
+        let Some((end, _)) = end else {
+            parts.push(secret);
+            return parts;
+        };
+        parts.push(&secret[..end]);
+        secret = &secret[end..];
+    }
+}
+
+/// The entry holding the `n`th continuation of a long secret.
+fn continuation(id: &str, n: usize) -> Result<Entry, CommandError> {
+    credential(&format!("{id}#{n}"))
+}
+
+/// Deletes the continuation entries from the `n`th on.
+fn delete_continuations(id: &str, n: usize) -> Result<(), CommandError> {
+    if PART_UNITS == usize::MAX {
+        return Ok(());
+    }
+    for n in n.. {
+        match continuation(id, n)?.delete_credential() {
+            Ok(()) => {}
+            Err(keyring::Error::NoEntry) => break,
+            Err(e) => return Err(credential_failed(e)),
+        }
+    }
+    Ok(())
+}
+
 /// A connection's secret once read from or written to the credential store (`None`: there's no
 /// entry). Concurrent first reads wait for one Keychain read.
 type SecretCell = Arc<tokio::sync::OnceCell<Option<String>>>;
@@ -140,10 +181,11 @@ fn secrets() -> std::sync::MutexGuard<'static, HashMap<String, SecretCell>> {
 /// Runs a credential store call on Tokio's blocking pool: it can wait on a Keychain prompt.
 async fn keychain<T: Send + 'static>(
     id: &str,
-    call: impl FnOnce(Entry) -> Result<T, CommandError> + Send + 'static,
+    call: impl FnOnce(&str, Entry) -> Result<T, CommandError> + Send + 'static,
 ) -> Result<T, CommandError> {
     let entry = credential(id)?;
-    tokio::task::spawn_blocking(move || call(entry))
+    let id = id.to_owned();
+    tokio::task::spawn_blocking(move || call(&id, entry))
         .await
         .map_err(credential_failed)?
 }
@@ -152,10 +194,22 @@ async fn keychain<T: Send + 'static>(
 async fn read_secret(id: &str) -> Result<Option<String>, CommandError> {
     let cell = secrets().entry(id.to_owned()).or_default().clone();
     cell.get_or_try_init(|| {
-        keychain(id, |entry| match entry.get_password() {
-            Ok(secret) => Ok(Some(secret)),
-            Err(keyring::Error::NoEntry) => Ok(None),
-            Err(e) => Err(credential_failed(e)),
+        keychain(id, |id, entry| {
+            let mut secret = match entry.get_password() {
+                Ok(secret) => secret,
+                Err(keyring::Error::NoEntry) => return Ok(None),
+                Err(e) => return Err(credential_failed(e)),
+            };
+            if PART_UNITS != usize::MAX {
+                for n in 1.. {
+                    match continuation(id, n)?.get_password() {
+                        Ok(part) => secret.push_str(&part),
+                        Err(keyring::Error::NoEntry) => break,
+                        Err(e) => return Err(credential_failed(e)),
+                    }
+                }
+            }
+            Ok(Some(secret))
         })
     })
     .await
@@ -164,8 +218,16 @@ async fn read_secret(id: &str) -> Result<Option<String>, CommandError> {
 
 async fn store_secret(id: &str, secret: &str) -> Result<(), CommandError> {
     let owned = secret.to_owned();
-    keychain(id, move |entry| {
-        entry.set_password(&owned).map_err(credential_failed)
+    keychain(id, move |id, entry| {
+        let parts = parts(&owned, PART_UNITS);
+        entry.set_password(parts[0]).map_err(credential_failed)?;
+        for (n, part) in parts.iter().enumerate().skip(1) {
+            continuation(id, n)?
+                .set_password(part)
+                .map_err(credential_failed)?;
+        }
+        // Left over from a longer secret
+        delete_continuations(id, parts.len())
     })
     .await?;
     let cell = tokio::sync::OnceCell::new_with(Some(Some(secret.to_owned())));
@@ -606,10 +668,13 @@ pub(crate) async fn forget(
         .record(EventKind::ConnectionForgotten, forgotten, details.clone())
         .await;
     secrets().remove(id);
-    let deleted = keychain(id, |entry| match entry.delete_credential() {
-        Ok(()) => Ok(true),
-        Err(keyring::Error::NoEntry) => Ok(false),
-        Err(e) => Err(credential_failed(e)),
+    let deleted = keychain(id, |id, entry| {
+        delete_continuations(id, 1)?;
+        match entry.delete_credential() {
+            Ok(()) => Ok(true),
+            Err(keyring::Error::NoEntry) => Ok(false),
+            Err(e) => Err(credential_failed(e)),
+        }
     })
     .await?;
     if deleted {
@@ -655,6 +720,37 @@ mod tests {
         assert_eq!(reloaded.len(), 1);
         assert_eq!(reloaded[0].label, "shop@localhost");
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn splits_long_secrets_to_fit_a_windows_credential() {
+        assert_eq!(parts("", 4), [""]);
+        assert_eq!(parts("abcd", 4), ["abcd"]);
+        assert_eq!(parts("abcdefghi", 4), ["abcd", "efgh", "i"]);
+        // A character that takes two units moves to the next part whole
+        assert_eq!(parts("abc\u{1F511}d", 4), ["abc", "\u{1F511}d"]);
+        let token = "x".repeat(4000);
+        let split = parts(&token, 1280);
+        assert!(split.iter().all(|p| p.len() <= 1280));
+        assert_eq!(split.concat(), token);
+    }
+
+    /// A secret longer than one Windows credential, through the real store: `-- --ignored`
+    #[tokio::test]
+    #[ignore]
+    async fn round_trips_a_long_secret_through_the_os_store() {
+        let id = new_id();
+        for secret in ["x".repeat(4000), "short".into()] {
+            store_secret(&id, &secret).await.unwrap();
+            secrets().remove(&id);
+            assert_eq!(read_secret(&id).await.unwrap(), Some(secret));
+        }
+        keychain(&id, |id, entry| {
+            delete_continuations(id, 1)?;
+            entry.delete_credential().map_err(credential_failed)
+        })
+        .await
+        .unwrap();
     }
 
     /// Touches the real OS credential store, so it only runs when asked: `cargo test -- --ignored`
