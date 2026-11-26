@@ -4,8 +4,8 @@ Shown in the "What's new" window after an update. One `## version` heading per r
 
 ## 0.3.1
 
-- Updates: the update window now lists what's in the new version, shows download progress and warns about unsaved work; What's new has the same clearer layout
-- Fixed Create local database failing to pull the image on macOS with "error getting credentials"
+- Updates: see what's new in a version before you install it, with download progress
+- Fixed Create local database failing on macOS with "error getting credentials"
 
 ## 0.3.0
 
