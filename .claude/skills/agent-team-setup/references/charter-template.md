@@ -53,6 +53,10 @@ Written, four parts: Done (with paths), Open, Decisions (including what was reje
 
 If two agents disagree, each states the trade-off in one paragraph and the right owner decides (architecture: <agent>; scope: <agent>; security: <agent>). Record the decision; reopen only with new information.
 
+## Growing the team
+
+The team follows the project. When a task adds a new app, package, service, language or major subsystem, or touches files no agent owns, run the `agent-team-setup` skill in grow mode: add or extend the owning agent, then update the roster, the routing table above and the counts in `CLAUDE.md`. Keep every department at 3-5 agents; split an agent that has become a catch-all and retire one whose area is gone.
+
 ## Safety limits
 
 Agents don't commit, push, publish or send anything off the machine unless the user asked in this session. No real credentials in the repo.

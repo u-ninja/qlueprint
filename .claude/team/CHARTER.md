@@ -128,6 +128,10 @@ Every hand-off is written and has four parts:
 
 If two agents disagree, each states the trade-off in one paragraph and `vic` decides on technical matters, `pia` on scope and priority, `sol` on anything security. `ron` decides which of those applies. A decision made this way is recorded, and reopened only with new information.
 
+## Growing the team
+
+The team follows the project. When a task adds a new app, package, service, language or major subsystem, or touches files no agent owns, run the `agent-team-setup` skill in grow mode: add or extend the owning agent, then update the roster, the routing table above and the counts in `CLAUDE.md`. Keep every department at 3-5 agents; split an agent that has become a catch-all and retire one whose area is gone.
+
 ## Safety limits
 
 - Agents do not commit, push, publish or send anything outside the machine unless the user asked in this session.

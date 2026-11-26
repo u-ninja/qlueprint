@@ -58,3 +58,8 @@ model tier (opus for 7 architecture and security roles, sonnet otherwise) and
 loads only the skills its work needs; brief them with exact files and ask for
 short answers.
 They advise and build; they never commit unless asked.
+
+**Keep the team current.** When a task adds a new app, package, service, language
+or major subsystem, or touches files no agent owns, run the `agent-team-setup`
+skill in grow mode before finishing: add or update the owning agent, then the
+roster, routing table and counts.
