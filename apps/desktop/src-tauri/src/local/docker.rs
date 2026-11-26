@@ -669,6 +669,20 @@ fn docker_locations() -> Vec<PathBuf> {
     dirs
 }
 
+/// PATH for docker child processes: the usual install directories first, then the inherited
+/// PATH. A GUI app on macOS starts with a minimal PATH, and `docker pull` then fails to find its
+/// credential helper (`docker-credential-desktop`), which sits next to the CLI.
+fn docker_path() -> String {
+    let inherited = std::env::var_os("PATH").unwrap_or_default();
+    let dirs = docker_locations()
+        .into_iter()
+        .chain(std::env::split_paths(&inherited));
+    std::env::join_paths(dirs)
+        .unwrap_or(inherited)
+        .to_string_lossy()
+        .into_owned()
+}
+
 impl Docker {
     pub(crate) fn locate() -> Option<Self> {
         process::find_program("docker", &docker_locations()).map(|program| Self { program })
@@ -683,7 +697,7 @@ impl Docker {
         Cmd {
             program: self.program.clone(),
             args,
-            env: Vec::new(),
+            env: vec![("PATH".to_owned(), docker_path())],
             stdin: None,
             timeout,
         }
@@ -877,7 +891,7 @@ impl Docker {
     pub(crate) async fn create(&self, spec: &ContainerSpec<'_>) -> Result<String, CommandError> {
         let (args, env) = create_args(spec);
         let mut cmd = self.cmd(args, LIFECYCLE_TIMEOUT);
-        cmd.env = env;
+        cmd.env.extend(env);
         let out = process::output(&cmd)
             .await
             .map_err(|e| run_error(e, "Creating the container"))?;
