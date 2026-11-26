@@ -2,6 +2,10 @@ AI# Changelog
 
 Shown in the "What's new" window after an update. One `## version` heading per release, one `- ` line per change.
 
+## 0.3.3
+
+- Fixed saving a SQL Server connection with Microsoft sign-in failing on Windows with "Couldn't use the system credential store"
+
 ## 0.3.2
 
 - Table graph: relationship lines now run straight between two tables and end at the right columns, instead of looping behind them
