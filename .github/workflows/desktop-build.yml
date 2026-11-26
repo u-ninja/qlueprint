@@ -58,6 +58,19 @@ jobs:
 
             - run: pnpm install --frozen-lockfile
 
+            - name: Release notes from the changelog
+              id: notes
+              if: ${{ startsWith(github.ref, 'refs/tags/') }}
+              shell: bash
+              run: |
+                  # The app's update dialog shows these lines as "what's in this update"
+                  version="${GITHUB_REF_NAME#v}"
+                  {
+                      echo 'body<<NOTES_EOF'
+                      awk -v v="$version" '/^## /{on=($2==v)} on && /^- /' apps/desktop/CHANGELOG.md
+                      echo 'NOTES_EOF'
+                  } >> "$GITHUB_OUTPUT"
+
             - uses: tauri-apps/tauri-action@v0
               id: tauri
               env:
@@ -71,6 +84,8 @@ jobs:
                   tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
                   releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('QluePrint {0}', github.ref_name) || '' }}
                   releaseBody: |
+                      ${{ steps.notes.outputs.body }}
+
                       Installers for macOS (Apple Silicon), Windows and Linux.
 
                       macOS: the app is not notarized yet. On first launch, open System Settings → Privacy & Security and click **Open Anyway** (macOS 15+), or right-click the app and choose **Open**.
