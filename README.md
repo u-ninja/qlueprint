@@ -34,6 +34,7 @@ Connect to PostgreSQL, MySQL, MariaDB, SQL Server and SQLite, write and run SQL,
 - Databases, schemas, tables, views, stored procedures and functions, grouped and filterable.
 - Table sizes at a glance, and an inspector with columns, keys, indexes, foreign keys and DDL.
 - Open a procedure or function’s definition in a new query tab.
+- **Table graph**: right-click a table to see it in a tab with the tables it references and the tables that reference it. A schema’s menu has Show schema graph.
 
 **SQL editor**
 
@@ -46,6 +47,17 @@ Connect to PostgreSQL, MySQL, MariaDB, SQL Server and SQLite, write and run SQL,
 - A fast, virtualized grid: sort, filter and find, with sorting done by the database when a result is cut off.
 - Edit cells in table tabs and in single-table query results, and add, duplicate or delete rows. Changes are staged, undoable and saved in one transaction. Actions your login isn’t granted are hidden.
 - Follow foreign keys to related rows; copy rows as CSV, JSON or INSERT statements.
+- **Date editor** with a time zone picker for timestamp-with-time-zone columns; the value is saved in the column’s zone.
+
+**Table structure**
+
+- Edit a table’s structure from the graph, the table inspector or a table’s grid: add, rename and drop columns, add and drop indexes, link a column to another table, and create and drop tables.
+- Changes wait in the Changes panel as the exact SQL, and nothing runs until you apply them.
+
+**Schedules**
+
+- Run a query on a timer, with each schedule’s last runs shown.
+- Closing the window keeps QluePrint running in the tray while a schedule is enabled. You can also start it at login, hidden in the tray (Settings › Background).
 
 **Local servers**
 
@@ -55,7 +67,7 @@ Connect to PostgreSQL, MySQL, MariaDB, SQL Server and SQLite, write and run SQL,
 
 - A tamper-evident audit log of everything the app ran against your databases, kept on your machine.
 - Light and dark themes, full keyboard navigation and accessible contrast.
-- Updates itself: when a new release is out, install it from the top bar.
+- Updates itself: when a new release is out, install it from the top bar. The update window shows what’s new in that version and the download progress, and a What’s new window opens after you update.
 
 Not built yet: MongoDB and Redis support, a saved query library, the query history view and team collaboration. See the [product spec](docs/product-spec.md) for what’s planned.
 
