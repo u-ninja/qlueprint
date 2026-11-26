@@ -67,7 +67,7 @@ jobs:
                   version="${GITHUB_REF_NAME#v}"
                   {
                       echo 'body<<NOTES_EOF'
-                      awk -v v="$version" '/^## /{on=($2==v)} on && /^- /' apps/desktop/CHANGELOG.md
+                      awk -v v="$version" '/^## /{on=($2==v)} on && /^- /' CHANGELOG.md
                       echo 'NOTES_EOF'
                   } >> "$GITHUB_OUTPUT"
 
