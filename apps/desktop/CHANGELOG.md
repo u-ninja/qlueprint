@@ -2,6 +2,11 @@ AI# Changelog
 
 Shown in the "What's new" window after an update. One `## version` heading per release, one `- ` line per change.
 
+## 0.3.1
+
+- Updates: the update window now lists what's in the new version, shows download progress and warns about unsaved work; What's new has the same clearer layout
+- Fixed Create local database failing to pull the image on macOS with "error getting credentials"
+
 ## 0.3.0
 
 - Table graph: right-click a table in the explorer and choose View graph to see it with the tables it references and the tables that reference it, in a tab; each table can show its own connections, and a schema's menu has Show schema graph
